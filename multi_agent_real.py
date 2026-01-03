@@ -179,6 +179,7 @@ class TheCouncil:
                 model=AZURE_MODEL,
                 max_completion_tokens=500
             )
+            print(f"DEBUG: Finish Reason = {response.choices[0].finish_reason}")
             print("\n=== FINAL COUNCIL DECISION ===")
             print(response.choices[0].message.content)
             
