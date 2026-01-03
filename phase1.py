@@ -109,37 +109,50 @@ class FairVisionNPZ(Dataset):
             return self.__getitem__(idx - 1 if idx > 0 else 0)
 
 # --- MODEL SETUP ---
+# --- FIXED MODEL SETUP ---
 def get_model():
-    print(f"Loading RETFound ViT-Large (Nature CFP Weights)...")
+    print("Loading RETFound ViT-Large...")
     
-    # Auto-Download from Hugging Face
-    print(f"Checking for weights: {HF_REPO_ID}/{HF_FILENAME} ...")
+    # 1. Download/Cache Weights
+    repo_id = "YukunZhou/RETFound_mae_natureCFP"
+    filename = "RETFound_mae_natureCFP.pth"
+    print(f"Checking for weights...")
     try:
-        weights_path = hf_hub_download(repo_id=HF_REPO_ID, filename=HF_FILENAME)
-        print(f"Weights found at: {weights_path}")
+        weights_path = hf_hub_download(repo_id=repo_id, filename=filename)
     except Exception as e:
-        raise RuntimeError(f"Failed to download weights! Run 'huggingface-cli login'. Error: {e}")
-
-    # Initialize Architecture (MAE + Global Pool as per README)
-    model = models_vit.vit_large_patch16(
-        img_size=224,
-        num_classes=NUM_CLASSES,
-        drop_path_rate=0.2,
-        global_pool=True,
-    )
+        print(f"Auto-download failed ({e}). Checking local './RETFound_cfp_weights.pth'...")
+        weights_path = "./RETFound_cfp_weights.pth"
+        
+    # --- FIX: Use 'retfound_mae' instead of 'vit_large_patch16' ---
+    # The official repo renamed this function to match the Nature paper config.
+    try:
+        model = models_vit.retfound_mae(
+            img_size=224,
+            num_classes=NUM_CLASSES,
+            drop_path_rate=0.2,
+            global_pool=True,
+        )
+    except AttributeError:
+        # Fallback: Check if they are using an older/generic 'mae' repo structure
+        print("Warning: 'retfound_mae' not found. Trying 'vit_large_patch16'...")
+        model = models_vit.vit_large_patch16(
+            img_size=224,
+            num_classes=NUM_CLASSES,
+            drop_path_rate=0.2,
+            global_pool=True,
+        )
     
     # Load State Dict
     checkpoint = torch.load(weights_path, map_location='cpu')
     state_dict = checkpoint['model'] if 'model' in checkpoint else checkpoint
 
-    # Weight Surgery: Remove the old head
+    # Remove incompatible head weights (Surgery)
     keys_to_remove = [k for k in state_dict.keys() if 'head' in k or 'decoder' in k]
     for k in keys_to_remove:
         del state_dict[k]
             
     msg = model.load_state_dict(state_dict, strict=False)
-    print(f"Weights loaded. Missing keys (expected for new head): {len(msg.missing_keys)}")
-    
+    print(f"Weights loaded. (Missing keys expected): {len(msg.missing_keys)}")
     return model
 
 # --- TRAINING LOOP ---
