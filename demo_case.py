@@ -1,46 +1,78 @@
+
 import os
+import torch
 import numpy as np
 from PIL import Image
+from torchvision import transforms
+import models_vit 
 
-# Config - We want a BLACK patient with AMD (The "Villain" Scenario)
-# Based on your README/Code: Race 1 = Black, Disease = AMD
-SOURCE_DIR = "/home/ab575577/projects_spring_2026/HarvardFairVision30K/FairVision/AMD/Validation/"
-OUTPUT_FILE = "demo_case.jpg"
+# --- CONFIG ---
+SEARCH_DIR = "/home/ab575577/projects_spring_2026/HarvardFairVision30K/FairVision/AMD/Validation/"
+MODEL_PATH = "best_fair_eye_model.pth"
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+NUM_CLASSES = 3
 
-def extract_demo_image():
-    print(f"Searching for a high-risk demo case in {SOURCE_DIR}...")
+def find_hero():
+    print(f"Loading Model to hunt for a 'Hero Case'...")
     
-    files = [f for f in os.listdir(SOURCE_DIR) if f.endswith('.npz')]
-    
-    found = False
+    # Load Model
+    model = models_vit.RETFound_mae(
+        img_size=224, num_classes=NUM_CLASSES, drop_path_rate=0.2, global_pool=True
+    ).to(DEVICE)
+    checkpoint = torch.load(MODEL_PATH, map_location=DEVICE)
+    state_dict = checkpoint['model'] if 'model' in checkpoint else checkpoint
+    model.load_state_dict(state_dict, strict=False)
+    model.eval()
+
+    # Transforms
+    tfm = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+    # Scan Files
+    files = [f for f in os.listdir(SEARCH_DIR) if f.endswith('.npz')]
+    print(f"Scanning {len(files)} validation images...")
+
     for f in files:
-        path = os.path.join(SOURCE_DIR, f)
         try:
+            path = os.path.join(SEARCH_DIR, f)
             data = np.load(path)
-            # Check if patient is Black (Race=1) and actually has AMD
-            # (Your dataset sorts by folder, so we know it's AMD, just need Race)
-            if 'race' in data and int(data['race']) == 1:
-                print(f"FOUND MATCH: {f} (Black Patient with AMD)")
-                
-                # Extract Image
-                img_array = data['slo_fundus']
-                if img_array.max() <= 1.0: img_array = (img_array * 255).astype(np.uint8)
-                else: img_array = img_array.astype(np.uint8)
-                
-                img = Image.fromarray(img_array).convert('RGB')
-                img.save(OUTPUT_FILE)
-                print(f"Saved demo image to: {OUTPUT_FILE}")
-                found = True
-                break
-        except:
-            continue
             
-    if not found:
-        print("Could not find a perfect match. Grabbing the first available image instead...")
-        # Fallback
-        data = np.load(os.path.join(SOURCE_DIR, files[0]))
-        img_array = (data['slo_fundus'] * 255).astype(np.uint8)
-        Image.fromarray(img_array).convert('RGB').save(OUTPUT_FILE)
+            # Must be Black Patient (Race=1)
+            if 'race' not in data or int(data['race']) != 1:
+                continue
+
+            # Get Image
+            img_arr = data['slo_fundus']
+            if img_arr.max() <= 1.0: img_arr = (img_arr * 255).astype(np.uint8)
+            else: img_arr = img_arr.astype(np.uint8)
+            img = Image.fromarray(img_arr).convert('RGB')
+            
+            # Run Inference
+            img_t = tfm(img).unsqueeze(0).to(DEVICE)
+            with torch.no_grad():
+                out = model(img_t)
+                prob = torch.sigmoid(out).cpu().numpy()[0][0] # Index 0 is AMD
+
+            # THE SWEET SPOT: 
+            # We want prob > 0.15 (so Agent catches it) 
+            # BUT prob < 0.50 (so Standard Model misses it)
+            if 0.15 < prob < 0.50:
+                print(f"\n>>> FOUND HERO CASE: {f}")
+                print(f"    Raw AMD Probability: {prob:.2%}")
+                print(f"    (Perfect! >15% but <50%)")
+                
+                # Save as the new demo image
+                img.save("demo_case.jpg")
+                print("    Saved to 'demo_case.jpg'")
+                return
+            
+        except Exception as e:
+            continue
+
+    print("Could not find a perfect match in this folder.")
 
 if __name__ == "__main__":
-    extract_demo_image()
+    find_hero()
