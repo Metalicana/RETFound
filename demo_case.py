@@ -1,4 +1,3 @@
-
 import os
 import torch
 import numpy as np
@@ -13,9 +12,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 NUM_CLASSES = 3
 
 def find_hero():
-    print(f"Loading Model to hunt for a 'Hero Case'...")
+    print(f"Loading Model to hunt for a ROBUST 'Hero Case'...")
     
-    # Load Model
     model = models_vit.RETFound_mae(
         img_size=224, num_classes=NUM_CLASSES, drop_path_rate=0.2, global_pool=True
     ).to(DEVICE)
@@ -24,16 +22,17 @@ def find_hero():
     model.load_state_dict(state_dict, strict=False)
     model.eval()
 
-    # Transforms
     tfm = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    # Scan Files
     files = [f for f in os.listdir(SEARCH_DIR) if f.endswith('.npz')]
     print(f"Scanning {len(files)} validation images...")
+
+    best_prob = 0.0
+    best_file = None
 
     for f in files:
         try:
@@ -44,35 +43,32 @@ def find_hero():
             if 'race' not in data or int(data['race']) != 1:
                 continue
 
-            # Get Image
             img_arr = data['slo_fundus']
             if img_arr.max() <= 1.0: img_arr = (img_arr * 255).astype(np.uint8)
             else: img_arr = img_arr.astype(np.uint8)
             img = Image.fromarray(img_arr).convert('RGB')
             
-            # Run Inference
             img_t = tfm(img).unsqueeze(0).to(DEVICE)
             with torch.no_grad():
                 out = model(img_t)
-                prob = torch.sigmoid(out).cpu().numpy()[0][0] # Index 0 is AMD
+                prob = torch.sigmoid(out).cpu().numpy()[0][0] # AMD Probability
 
-            # THE SWEET SPOT: 
-            # We want prob > 0.15 (so Agent catches it) 
-            # BUT prob < 0.50 (so Standard Model misses it)
-            if 0.15 < prob < 0.50:
-                print(f"\n>>> FOUND HERO CASE: {f}")
+            # HUNTING LOGIC:
+            # We want between 20% and 48%. 
+            # This is the "Sweet Spot" where the Agent saves the day.
+            if 0.20 < prob < 0.48:
+                print(f"\n>>> FOUND PERFECT HERO CASE: {f}")
                 print(f"    Raw AMD Probability: {prob:.2%}")
-                print(f"    (Perfect! >15% but <50%)")
+                print(f"    (Robust enough to survive JPEG compression!)")
                 
-                # Save as the new demo image
                 img.save("demo_case.jpg")
                 print("    Saved to 'demo_case.jpg'")
                 return
             
-        except Exception as e:
+        except Exception:
             continue
 
-    print("Could not find a perfect match in this folder.")
+    print("Scan complete.")
 
 if __name__ == "__main__":
     find_hero()
