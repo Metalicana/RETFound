@@ -103,7 +103,7 @@ class GlaucomaTool:
 if __name__ == "__main__":
     # Test on one of your Glaucoma images
     # Update this path to a real image in your dataset
-    TEST_IMG = "./FairVision/Glaucoma/Training/slo_fundus_00001.jpg" 
+    TEST_IMG = "/home/ab575577/projects_spring_2026/HarvardFairVision30K/FairVision/Glaucoma/Training/slo_fundus_00001.jpg" 
     
     if os.path.exists(TEST_IMG):
         tool = GlaucomaTool()
