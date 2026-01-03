@@ -3,7 +3,7 @@ from agent_tools import AVAILABLE_TOOLS, TOOL_DEFINITIONS
 
 # 1. SETUP: This is the file the "Agent" wants to check
 # (Update this to a real image path on your cluster)
-TEST_IMAGE_PATH = "./FairVision/Glaucoma/Training/slo_fundus_00001.jpg"
+TEST_IMAGE_PATH = "/home/ab575577/projects_spring_2026/HarvardFairVision30K/FairVision/Glaucoma/Training/slo_fundus_00001.jpg"
 
 print("--- 🤖 SIMULATING GPT-4 AGENT ---")
 
