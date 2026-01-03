@@ -8,7 +8,7 @@ import models_vit # Ensure this is accessible
 from phase1 import FairVisionNPZ, NUM_CLASSES, DEVICE, get_model # Re-use your setup
 
 # CONFIG
-DATA_ROOT = "./FairVision" # Update if needed
+DATA_ROOT = "/home/ab575577/projects_spring_2026/HarvardFairVision30K/FairVision" # Update if needed
 MODEL_PATH = "best_fair_eye_model.pth"
 BATCH_SIZE = 64
 
