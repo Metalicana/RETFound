@@ -123,24 +123,18 @@ def get_model():
         print(f"Auto-download failed ({e}). Checking local './RETFound_cfp_weights.pth'...")
         weights_path = "./RETFound_cfp_weights.pth"
         
-    # --- FIX: Use 'retfound_mae' instead of 'vit_large_patch16' ---
-    # The official repo renamed this function to match the Nature paper config.
+    # --- FIX: Use 'RETFound_mae' (Case Sensitive) ---
     try:
-        model = models_vit.retfound_mae(
+        model = models_vit.RETFound_mae(
             img_size=224,
             num_classes=NUM_CLASSES,
             drop_path_rate=0.2,
             global_pool=True,
         )
-    except AttributeError:
-        # Fallback: Check if they are using an older/generic 'mae' repo structure
-        print("Warning: 'retfound_mae' not found. Trying 'vit_large_patch16'...")
-        model = models_vit.vit_large_patch16(
-            img_size=224,
-            num_classes=NUM_CLASSES,
-            drop_path_rate=0.2,
-            global_pool=True,
-        )
+    except AttributeError as e:
+        # Emergency print to see what IS available if this fails again
+        print(f"CRITICAL ERROR: Could not find model function. Available functions in models_vit: {dir(models_vit)}")
+        raise e
     
     # Load State Dict
     checkpoint = torch.load(weights_path, map_location='cpu')
