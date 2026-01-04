@@ -37,22 +37,33 @@ client = AzureOpenAI(
     api_key=AZURE_KEY,
 )
 
-# --- 1. VISION SPECIALIST (Glaucoma Focused) ---
+# --- 1. THE VISION SPECIALIST (RETFound) ---
 class VisionSpecialist:
     def __init__(self):
         print("[System] Initializing Vision Specialist (RETFound)...")
         self.device = DEVICE
-        self.model = models_vit.vit_large_patch16(
-            img_size=224, num_classes=NUM_CLASSES, drop_path_rate=0.2, global_pool=True
-        ).to(self.device)
         
+        # --- FIX: Use the correct function name from your models_vit.py ---
+        # The README calls it 'retfound_mae'
+        try:
+            self.model = models_vit.retfound_mae(
+                img_size=224, num_classes=NUM_CLASSES, drop_path_rate=0.2, global_pool=True
+            ).to(self.device)
+        except AttributeError:
+            # Fallback if the file uses the other naming convention
+            print("[DEBUG] 'retfound_mae' not found, trying 'mae_vit_large_patch16'...")
+            self.model = models_vit.mae_vit_large_patch16(
+                img_size=224, num_classes=NUM_CLASSES, drop_path_rate=0.2, global_pool=True
+            ).to(self.device)
+
         try:
             checkpoint = torch.load(MODEL_PATH, map_location=self.device)
             state_dict = checkpoint['model'] if 'model' in checkpoint else checkpoint
             self.model.load_state_dict(state_dict, strict=False)
             self.model.eval()
-        except Exception:
-            print(f"[WARNING] Model weights not found at {MODEL_PATH}. Using random init (for demo flow testing).")
+        except Exception as e:
+            print(f"[WARNING] Model weights issue at {MODEL_PATH}: {e}")
+            print("Continuing with random weights for DEMO FLOW testing...")
 
         self.transform = transforms.Compose([
             transforms.Resize((224, 224)),
@@ -71,8 +82,7 @@ class VisionSpecialist:
             outputs = self.model(img_t)
             probs = torch.sigmoid(outputs).cpu().numpy()[0]
         
-        # --- CRITICAL CHANGE: Return Glaucoma Probability (Index 2) ---
-        return float(probs[2]) 
+        return float(probs[2])
 
 # --- 2. EPIDEMIOLOGIST ---
 class EpidemiologistAgent:
