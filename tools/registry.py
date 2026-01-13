@@ -7,7 +7,7 @@ class ToolRegistry:
     def __init__(self):
         # Initialize the actual tools (The "Experts")
         # Ensure your VisionTool in tools/vision.py handles initialization gracefully
-        self.vision = VisionTool(model_path="checkpoints/best_fair_eye_model.pth") 
+        self.vision = VisionTool(model_path="/home/ab575577/projects_spring_2026/OMEGA/RETFound/best_fair_eye_model.pth") 
         self.equity = EquityRiskTool()
 
     def get_schemas(self):
