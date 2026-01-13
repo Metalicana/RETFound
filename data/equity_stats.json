@@ -1,0 +1,54 @@
+{
+  "Glaucoma": {
+    "Black": {
+      "risk_level": "CRITICAL",
+      "prevalence_multiplier": "4-5x",
+      "blindness_risk": "6x higher than White patients",
+      "clinical_note": "Onset is typically 10 years earlier. Corneas are often thinner, leading to artificially low IOP readings. High risk of False Negatives with standard pressure thresholds.",
+      "action": "LOWER_THRESHOLD"
+    },
+    "Hispanic": {
+      "risk_level": "HIGH",
+      "prevalence_multiplier": "High",
+      "clinical_note": "Open-angle glaucoma is the leading cause of blindness in this group. 75% of cases are often undiagnosed.",
+      "action": "LOWER_THRESHOLD"
+    },
+    "Asian": {
+      "risk_level": "MODERATE",
+      "clinical_note": "High risk of Normal Tension Glaucoma (NTG) and Angle-Closure Glaucoma. Standard IOP checks often miss NTG.",
+      "action": "CHECK_CUP_DISC_RATIO"
+    }
+  },
+  "DR": {
+    "Black": {
+      "risk_level": "HIGH",
+      "incidence_rate": "2x higher than White patients",
+      "model_bias_warning": "High False Negative Rate detected in validation (FNR ~0.98).",
+      "action": "FORCE_REFERRAL_IF_DIABETIC"
+    },
+    "Hispanic": {
+      "risk_level": "HIGH",
+      "clinical_note": "Higher rates of vision-threatening proliferative DR compared to non-Hispanic Whites.",
+      "action": "FORCE_REFERRAL_IF_DIABETIC"
+    },
+    "Asian": {
+      "risk_level": "UNKNOWN",
+      "clinical_note": "Data underrepresented. Proceed with caution.",
+      "action": "STANDARD"
+    }
+  },
+  "AMD": {
+    "White": {
+      "risk_level": "HIGH",
+      "prevalence": "5.4% (Highest)",
+      "clinical_note": "High baseline probability for Drusen/Dry AMD.",
+      "action": "STANDARD"
+    },
+    "Black": {
+      "risk_level": "LOW",
+      "prevalence": "2.4% (Lowest)",
+      "clinical_note": "70% lower risk of early AMD. Macular spots may be masquerades rather than AMD.",
+      "action": "INCREASE_THRESHOLD"
+    }
+  }
+}
