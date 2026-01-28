@@ -88,7 +88,7 @@ def hunt_failures():
             # False Negative: CSV says AMD variant (1), but Model is < 35% sure
             elif info['label'] == 1 and prob < 0.35:
                 failure_type = "FALSE_NEGATIVE"
-
+            print(prob, info['diagnosis'])
             if failure_type:
                 save_path = f"{failure_type}_{f.replace('.npz', '')}.jpg"
                 img_pil.save(os.path.join(SAVE_DIR, save_path))
