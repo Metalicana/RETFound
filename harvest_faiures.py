@@ -7,7 +7,7 @@ from torchvision import transforms
 import models_vit 
 
 # --- CONFIG ---
-SEARCH_DIR = "/home/ab575577/projects_spring_2026/HarvardFairVision30K/FairVision/AMD/Validation/"
+SEARCH_DIR = "/home/ab575577/projects_spring_2026/HarvardFairVision30K/FairVision/AMD/Test/"
 MODEL_PATH = "best_fair_eye_model.pth"
 SAVE_DIR = "failure_cases"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
