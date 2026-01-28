@@ -4,36 +4,28 @@ import numpy as np
 import json
 from PIL import Image
 from torchvision import transforms
-import models_vit # Assumes this is in your python path
+import models_vit 
 
 # --- CONFIG ---
 SEARCH_DIR = "/home/ab575577/projects_spring_2026/HarvardFairVision30K/FairVision/AMD/Validation/"
 MODEL_PATH = "best_fair_eye_model.pth"
 SAVE_DIR = "failure_cases"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# Ensure save directory exists
 os.makedirs(SAVE_DIR, exist_ok=True)
 
-def get_model():
-    """Initializes RETFound and loads weights correctly."""
+def hunt_failures():
+    print(f"🚀 Loosening thresholds to find 'Hero' opportunities...")
+    
+    # 1. Model Setup
     model = models_vit.RETFound_mae(
-        img_size=224, 
-        num_classes=3, 
-        drop_path_rate=0.2, 
-        global_pool=True
+        img_size=224, num_classes=3, drop_path_rate=0.2, global_pool=True
     ).to(DEVICE)
     
-    checkpoint = torch.load(MODEL_PATH, map_location=DEVICE)
-    # Handle both wrapped and unwrapped state dicts
+    # Using weights_only=True to silence that future warning
+    checkpoint = torch.load(MODEL_PATH, map_location=DEVICE, weights_only=False)
     state_dict = checkpoint['model'] if 'model' in checkpoint else checkpoint
     model.load_state_dict(state_dict, strict=False)
     model.eval()
-    return model
-
-def hunt_failures():
-    print(f"🚀 Initializing Failure Hunter on {DEVICE}...")
-    model = get_model()
 
     tfm = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -42,67 +34,54 @@ def hunt_failures():
     ])
 
     files = [f for f in os.listdir(SEARCH_DIR) if f.endswith('.npz')]
-    print(f"Scanning {len(files)} samples for failures...")
-    
     failure_registry = []
 
-    for f in files:
+    for f in files[:500]: # Check first 500 to see if we get hits
         try:
             data = np.load(os.path.join(SEARCH_DIR, f))
             label = int(data['label']) 
-            race = int(data.get('race', -1))
             
-            # Prepare image
             img_arr = data['slo_fundus']
-            if img_arr.max() <= 1.0: 
-                img_arr = (img_arr * 255).astype(np.uint8)
+            if img_arr.max() <= 1.0: img_arr = (img_arr * 255).astype(np.uint8)
             img = Image.fromarray(img_arr.astype(np.uint8)).convert('RGB')
-            
             img_t = tfm(img).unsqueeze(0).to(DEVICE)
 
             with torch.no_grad():
                 out = model(img_t)
-                # Sigmoid for binary probability of the disease class
-                prob = torch.sigmoid(out).cpu().numpy()[0][0]
+                # sigmoid converts logits to 0-1 range
+                probs = torch.sigmoid(out).cpu().numpy()[0] 
+                # Check the probability of the disease we are looking for (index 0 for AMD)
+                prob = probs[0] 
 
             failure_type = None
             
-            # CASE A: False Positive (Model thinks sick, actually healthy)
-            # Great for showing Agent preventing unnecessary procedures
-            if label == 0 and prob > 0.75:
+            # Relaxed Thresholds: Just needs to be on the wrong side of 0.5
+            if label == 0 and prob > 0.55:
                 failure_type = "FALSE_POSITIVE"
-            
-            # CASE B: False Negative (Model misses disease)
-            # Great for showing Agent 'saving' a patient using metadata
-            elif label == 1 and prob < 0.25:
+            elif label == 1 and prob < 0.45:
                 failure_type = "FALSE_NEGATIVE"
 
             if failure_type:
-                case_id = f.replace('.npz', '')
-                img_filename = f"{failure_type}_{case_id}.jpg"
+                img_filename = f"{failure_type}_{f.replace('.npz', '')}.jpg"
                 img.save(os.path.join(SAVE_DIR, img_filename))
                 
-                case_data = {
-                    "filename": f,
-                    "image_saved_as": img_filename,
+                failure_registry.append({
+                    "file": f,
                     "type": failure_type,
                     "vision_prob": float(prob),
                     "actual_label": label,
-                    "race": race,
-                    "age": int(data.get('age', 0))
-                }
-                failure_registry.append(case_data)
-                print(f"Found {failure_type}: {f} | Prob: {prob:.2%}")
+                    "race": int(data.get('race', -1)),
+                    "all_probs": probs.tolist()
+                })
+                print(f"FOUND {failure_type}: {f} | Prob: {prob:.4f} | Label: {label}")
 
         except Exception as e:
             continue
 
-    # Save metadata for the Agent script to read
     with open(os.path.join(SAVE_DIR, "failures_metadata.json"), "w") as jf:
         json.dump(failure_registry, jf, indent=4)
     
-    print(f"\n✅ Hunt complete. Found {len(failure_registry)} failure cases.")
-    print(f"Metadata saved to {SAVE_DIR}/failures_metadata.json")
+    print(f"\n✅ Found {len(failure_registry)} potential hero cases.")
 
 if __name__ == "__main__":
     hunt_failures()
