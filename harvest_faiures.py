@@ -68,6 +68,7 @@ def hunt_failures():
             
             # CASE 1: False Positive (Model thinks sick (>70%), but CSV says Healthy)
             # Best for showing Agent cross-referencing metadata to prevent misdiagnosis.
+            print(info['amd'])
             if info['amd'] != 'normal' and prob > 0.70:
                 failure_type = "FALSE_POSITIVE"
                 
