@@ -74,6 +74,13 @@ def run_grant_evaluation():
                 "ground_truth": "Sick" if case['actual_label'] == 1 else "Healthy",
                 "agent_reasoning_and_diagnosis": agent_output
             })
+            print({
+                "case_id": patient_id,
+                "race": race,
+                "vision_only_prob": vision_prob,
+                "ground_truth": "Sick" if case['actual_label'] == 1 else "Healthy",
+                "agent_reasoning_and_diagnosis": agent_output
+            })
             
         except Exception as e:
             print(f"Failed to process {patient_id}: {e}")
