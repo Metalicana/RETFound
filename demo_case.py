@@ -56,6 +56,7 @@ def find_hero():
             # HUNTING LOGIC:
             # We want between 20% and 48%. 
             # This is the "Sweet Spot" where the Agent saves the day.
+            print(prob)
             if 0.20 < prob < 0.48:
                 print(f"\n>>> FOUND PERFECT HERO CASE: {f}")
                 print(f"    Raw AMD Probability: {prob:.2%}")
