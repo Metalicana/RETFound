@@ -5,7 +5,7 @@ import pandas as pd
 from agents.ophthalmic_agent import OphthalmicAgent 
 
 # --- PATHS ---
-EQUITY_STATS_PATH = "/home/ab575577/projects_spring_2026/data/equity_stats.json"
+EQUITY_STATS_PATH = "/home/ab575577/projects_spring_2026/OMEGA/RETFound/data/equity_stats.json"
 HERO_JSON_PATH = "glaucoma_multimodal_failures/glaucoma_hero_metadata.json"
 # Folder containing the original slo_fundus JPEGs
 IMAGE_DIR = "/home/ab575577/projects_spring_2026/HarvardFairVision30K/FairVision/Glaucoma/Validation/"
