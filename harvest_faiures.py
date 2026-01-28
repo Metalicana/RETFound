@@ -8,30 +8,30 @@ from torchvision import transforms
 import models_vit 
 
 # --- CONFIG ---
-BASE_DIR = "/home/ab575577/projects_spring_2026/HarvardFairVision30K/FairVision/AMD/"
-CSV_PATH = os.path.join(BASE_DIR, "ReadMe/data_summary_amd.csv")
+BASE_DIR = "/home/ab575577/projects_spring_2026/HarvardFairVision30K/FairVision/Glaucoma/"
+CSV_PATH = os.path.join(BASE_DIR, "ReadMe/data_summary_glaucoma.csv")
 IMAGE_DIR = os.path.join(BASE_DIR, "Validation/")
 MODEL_PATH = "best_fair_eye_model.pth"
-SAVE_DIR = "amd_failure_analysis"
+SAVE_DIR = "glaucoma_failure_analysis"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 os.makedirs(SAVE_DIR, exist_ok=True)
 
-def hunt_failures():
-    print(f"🚀 Loading Real GT from {CSV_PATH}...")
+def hunt_glaucoma_failures():
+    print(f"🚀 Loading Glaucoma GT from {CSV_PATH}...")
     
-    # 1. Load CSV - 'normal' is label 0, anything else is label 1
+    # 1. Load CSV - 'no' is label 0, 'yes' is label 1
     df = pd.read_csv(CSV_PATH)
     gt_lookup = {}
     for _, row in df.iterrows():
-        diag = str(row['amd']).lower().strip()
-        # Mapping logic based on your update: 'normal' is the only negative class
-        is_positive = 0 if diag == "normal" else 1
+        diag = str(row['glaucoma']).lower().strip()
+        is_positive = 1 if diag == "yes" else 0
         
         gt_lookup[row['filename']] = {
             "label": is_positive,
             "race": str(row['race']).lower(),
             "age": row['age'],
+            "md": row['md'], # Mean Deviation - very useful for Agent reasoning
             "diagnosis": diag
         }
 
@@ -50,7 +50,7 @@ def hunt_failures():
     ])
 
     files = [f for f in os.listdir(IMAGE_DIR) if f.endswith('.npz')]
-    print(f"Scanning {len(files)} validation images...")
+    print(f"Scanning {len(files)} glaucoma validation images...")
     
     failure_registry = []
 
@@ -64,7 +64,7 @@ def hunt_failures():
             data = np.load(os.path.join(IMAGE_DIR, f))
             img_arr = data['slo_fundus']
             
-            # Standardization for PIL
+            # Standardization
             if img_arr.max() <= 1.0: 
                 img_arr = (img_arr * 255).astype(np.uint8)
             else:
@@ -75,20 +75,20 @@ def hunt_failures():
             
             with torch.no_grad():
                 out = model(img_t)
-                # AMD index 0
-                prob = torch.sigmoid(out).cpu().numpy()[0][0]
+                # GLAUCOMA INDEX IS 2
+                prob = torch.sigmoid(out).cpu().numpy()[0][2]
 
             failure_type = None
             
             # --- FAILURE CRITERIA ---
-            # False Positive: CSV says 'normal' (0), but Model is > 65% sure of AMD
+            # False Positive: CSV says 'no' (0), but Model is > 65% sure
             if info['label'] == 0 and prob > 0.65:
                 failure_type = "FALSE_POSITIVE"
                 
-            # False Negative: CSV says AMD variant (1), but Model is < 35% sure
+            # False Negative: CSV says 'yes' (1), but Model is < 35% sure
             elif info['label'] == 1 and prob < 0.35:
                 failure_type = "FALSE_NEGATIVE"
-            print(prob, info['diagnosis'])
+
             if failure_type:
                 save_path = f"{failure_type}_{f.replace('.npz', '')}.jpg"
                 img_pil.save(os.path.join(SAVE_DIR, save_path))
@@ -99,19 +99,19 @@ def hunt_failures():
                     "vision_prob": float(prob),
                     "actual_diagnosis": info['diagnosis'],
                     "race": info['race'],
-                    "age": info['age']
+                    "age": info['age'],
+                    "md_value": info['md']
                 })
-                print(f"📍 FOUND {failure_type}: {f} | Prob: {prob:.2%} | Real: {info['diagnosis']}")
+                print(f"📍 FOUND {failure_type}: {f} | Prob: {prob:.2%} | MD: {info['md']}")
 
-        except Exception as e:
+        except Exception:
             continue
 
     # 3. Save results
-    with open(os.path.join(SAVE_DIR, "amd_failures_metadata.json"), "w") as jf:
+    with open(os.path.join(SAVE_DIR, "glaucoma_failures_metadata.json"), "w") as jf:
         json.dump(failure_registry, jf, indent=4)
 
-    print(f"\n✅ Done. Found {len(failure_registry)} failure cases for your grant.")
-    print(f"Results saved in {SAVE_DIR}/")
+    print(f"\n✅ Done. Found {len(failure_registry)} glaucoma cases.")
 
 if __name__ == "__main__":
-    hunt_failures()
+    hunt_glaucoma_failures()
