@@ -89,7 +89,7 @@ if __name__ == "__main__":
     
     # Test Case: The "Normal Tension Glaucoma" Trap
     note = "62 year old Asian female. IOP 18mmHg (Normal). Complains of peripheral vision loss."
-    img = "/home/ab575577/projects_spring_2026/HarvardFairVision30K/FairVision/Glaucoma/Training/slo_fundus_00001.jpg"
+    img = "/lustre/fs1/home/yu395012/OpthalmicAgent/glaucoma/Training/slo_fundus_00001.jpg"
     
     final_report = agent.consult(note, img)
     print("\n" + final_report)
