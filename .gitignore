@@ -132,3 +132,20 @@ dmypy.json
 .pyre/
 
 IDRiD_data
+
+# Large data/models 
+*.pth
+*.weights
+*.onnx
+
+# Ignore the actual image files inside the disease folders
+OphthalmicAgent/data/Glaucoma/**/*.jpg
+OphthalmicAgent/data/Glaucoma/**/*.npz
+OphthalmicAgent/data/DR/**/*.jpg
+OphthalmicAgent/data/DR/**/*.npz
+OphthalmicAgent/data/AMD/**/*.jpg
+OphthalmicAgent/data/AMD/**/*.npz
+
+# Keep the CSVs and Python scripts
+!OphthalmicAgent/data/**/*.csv
+!OphthalmicAgent/data/**/*.py
