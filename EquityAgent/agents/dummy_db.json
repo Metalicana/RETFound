@@ -1,0 +1,102 @@
+[
+  {
+    "id": "C001",
+    "race": "Black",
+    "sex": "Female",
+    "age": 68,
+    "location": "Urban",
+    "imaging_findings": "optic_disc_cupping",
+    "ai_risk_percentage": 6.0,
+    "true_diagnosis": "primary_open_angle_glaucoma"
+  },
+  {
+    "id": "C002",
+    "race": "Black",
+    "sex": "Male",
+    "age": 55,
+    "location": "Rural",
+    "imaging_findings": "advanced_cup_to_disc_ratio",
+    "ai_risk_percentage": 7.0,
+    "true_diagnosis": "primary_open_angle_glaucoma"
+  },
+  {
+    "id": "C003",
+    "race": "White",
+    "sex": "Male",
+    "age": 74,
+    "location": "Suburban",
+    "imaging_findings": "macular_drusen",
+    "ai_risk_percentage": 35.0,
+    "true_diagnosis": "age_related_macular_degeneration"
+  },
+  {
+    "id": "C004",
+    "race": "Asian",
+    "sex": "Female",
+    "age": 62,
+    "location": "Urban",
+    "imaging_findings": "narrow_angles",
+    "ai_risk_percentage": 9.0,
+    "true_diagnosis": "angle_closure_glaucoma"
+  },
+  {
+    "id": "C005",
+    "race": "Hispanic",
+    "sex": "Male",
+    "age": 52,
+    "location": "Rural",
+    "imaging_findings": "retinal_hemorrhage",
+    "ai_risk_percentage": 5.0,
+    "true_diagnosis": "diabetic_retinopathy"
+  },
+  {
+    "id": "C006",
+    "race": "White",
+    "sex": "Female",
+    "age": 45,
+    "location": "Urban",
+    "imaging_findings": "normal",
+    "ai_risk_percentage": 1.0,
+    "true_diagnosis": "no_pathologic_diagnosis"
+  },
+  {
+    "id": "C007",
+    "race": "Native American",
+    "sex": "Female",
+    "age": 66,
+    "location": "Rural",
+    "imaging_findings": "peripapillary_atrophy",
+    "ai_risk_percentage": 4.0,
+    "true_diagnosis": "primary_open_angle_glaucoma"
+  },
+  {
+    "id": "C008",
+    "race": "Black",
+    "sex": "Female",
+    "age": 80,
+    "location": "Urban",
+    "imaging_findings": "narrow_angles",
+    "ai_risk_percentage": 6.0,
+    "true_diagnosis": "angle_closure_glaucoma"
+  },
+  {
+    "id": "C009",
+    "race": "Asian",
+    "sex": "Male",
+    "age": 50,
+    "location": "Suburban",
+    "imaging_findings": "epiretinal_membrane",
+    "ai_risk_percentage": 3.0,
+    "true_diagnosis": "epiretinal_membrane"
+  },
+  {
+    "id": "C010",
+    "race": "Hispanic",
+    "sex": "Female",
+    "age": 60,
+    "location": "Urban",
+    "imaging_findings": "proliferative_changes",
+    "ai_risk_percentage": 12.0,
+    "true_diagnosis": "proliferative_diabetic_retinopathy"
+  }
+]
