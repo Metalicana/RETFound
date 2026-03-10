@@ -21,12 +21,18 @@ def make_fake_patients():
 
 
 def main():
-    patients = [make_fake_patients()[0]]
+    # Example free-form paragraph summary for a patient
+    patient_summary = (
+        "Patient P003 is a 72-year-old Asian female living in an urban area. "
+        "She presents with macular drusen on imaging. No prior history of glaucoma, "
+        "but family history of age-related macular degeneration. Visual acuity is mildly reduced. "
+        "No other systemic risk factors reported."
+    )
 
     agent = EquityAgent()
 
     print("EquityAgent running...")
-    results = agent.analyze_patients(patients)
+    results = agent.analyze_patients([patient_summary])
 
     print(json.dumps(results, indent=2, ensure_ascii=False))
 
