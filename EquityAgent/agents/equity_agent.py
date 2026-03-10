@@ -121,35 +121,27 @@ class EquityAgent:
         if self.bias_database is None:
             self.bias_database = self._load_calibration_db()
 
-        patient_blob = json.dumps(patients, ensure_ascii=False)
+
+        # Accept both rigid JSON and free-form paragraph summaries for patient input
+        if isinstance(patients, list):
+            patient_blob = json.dumps(patients, ensure_ascii=False)
+        else:
+            patient_blob = str(patients)
         calibration_blob = (
             json.dumps(self.bias_database, ensure_ascii=False)
             if self.bias_database is not None
             else None
         )
-        """
-        system_message = {
-            "role": "system",
-            "content": (
-                "You are a clinical decision-support assistant focused on ophthalmology. "
-                "Return only valid JSON as output."
-            ),
-        }
-        """
 
-        # Base description explicitly references the underlying imaging model and
-        # its limitations. When available, a small calibration database of past
-        # predictions vs. true outcomes is also provided for subgroup-aware
-        # recalibration.
         base_content = (
             "You are an equity-aware ophthalmology decision-support assistant built on top of an imaging model called 'retfound'. "
             "Retfound is known to have higher false-negative rates for glaucoma and other optic nerve diseases in Black patients, and potential calibration issues across other demographic subgroups. "
-            "You are given patient records and, when available, a small JSON calibration database of prior patients that includes demographics, AI-assigned risk percentages from retfound, and the true disease diagnoses. "
+            "You are given patient data, which may be either a structured JSON array of patient records or a free-form paragraph summary for each patient provided by a bio profiler agent. "
+            "For each patient, extract all relevant demographic and clinical information from the input, whether it is structured or unstructured. "
+            "When available, a small JSON calibration database of prior patients is also provided, including demographics, AI-assigned risk percentages from retfound, and true disease diagnoses. "
             "Use this database to understand and correct for systematic errors of the base model across race, ethnicity, age, sex, and location, with particular attention to historically under-served groups. "
-            "Here are current patient records (JSON array). For each, provide the requested JSON output. "
-            "Patients may have fields such as id, race, sex, age, location, and imaging_findings. "
-            "Pay special attention to ALL demographics (race, ethnicity, age, sex, location) when assessing risk and recommendations, considering known disparities in ophthalmology.\n\n"
-            f"PATIENTS_JSON:\n{patient_blob}\n\n"
+            "Here are current patient records (may be JSON array or paragraph summaries):\n\n"
+            f"PATIENTS_INPUT:\n{patient_blob}\n\n"
         )
 
         if calibration_blob is not None:
@@ -170,7 +162,7 @@ class EquityAgent:
             "3) Output must be valid JSON only; do not include extra commentary."
             "4) Instead of just qualitative labels, provide a numeric risk estimate for each relevant eye disease's progression in this patient. Give a 5-year risk probability as a percentage. Include a confidence interval if appropriate (e.g., 25–35%). Explain briefly why this numeric risk was chosen, referencing patient age, race, optic nerve findings, base-model limitations, calibration data, and missing data."
             "5) Assess all relevant eye diseases for each patient, allowing for multiple coexisting conditions, and provide separate numeric 5-year risk estimates for each disease."
-            "6) Where patient fields are missing, explicitly estimate or impute numeric risk using population averages, calibration database signals, or validated surrogate measures, and adjust confidence intervals accordingly."
+            "6) Where patient fields are missing or only available in free-form text, explicitly estimate or impute numeric risk using population averages, calibration database signals, or validated surrogate measures, and adjust confidence intervals accordingly."
             "7) Output can only be 1000 characters maximum."
         )
 
@@ -178,7 +170,7 @@ class EquityAgent:
             "role": "user",
             "content": base_content,
         }
-        messages=[user_message]
+        messages = [user_message]
 
         # Call Azure OpenAI Chat Completions using chat completion endpoint
         try:
