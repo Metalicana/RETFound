@@ -7,11 +7,20 @@ from openai import AzureOpenAI
 AZURE_ENDPOINT =os.getenv("AZURE_OPENAI_ENDPOINT")
 AZURE_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 DEPLOYMENT="gpt-5.1"
-
-client = AzureOpenAI(
-    api_key="",
-    api_version="2024-12-01-preview",
-    azure_endpoint="")
+# Initialize AzureOpenAI client only if env vars are provided; otherwise disable LLM calls
+client = None
+if AZURE_KEY and AZURE_ENDPOINT:
+    try:
+        client = AzureOpenAI(
+            api_key=AZURE_KEY,
+            api_version="2024-12-01-preview",
+            azure_endpoint=AZURE_ENDPOINT
+        )
+    except Exception as e:
+        print(f"[evidence_tool] AzureOpenAI init error: {e}")
+        client = None
+else:
+    print("[evidence_tool] AZURE_OPENAI_API_KEY or AZURE_OPENAI_ENDPOINT not set; LLM calls disabled")
 
 # check relevance of document before running through LLMs using keyword matching
 # TO BE ADJUSTED FOR NOT JUST GLAUCOMA IN THE FUTURE
@@ -127,6 +136,17 @@ Return only JSON:
 Return empty arrays/strings if not found.
 """
         
+        if client is None:
+            print("[evidence_tool] AzureOpenAI client not configured; skipping LLM extraction")
+            return {
+                "condition": query,
+                "key_recommendations": [],
+                "treatments": [],
+                "risk_factors": [],
+                "dosage_info": "",
+                "confidence": "low"
+            }
+
         response = client.chat.completions.create(
             model=DEPLOYMENT,
             messages=[{"role": "user", "content": prompt}],
@@ -156,7 +176,14 @@ Return empty arrays/strings if not found.
 
 def process_evidence(pubmed_result: dict, query: str) -> dict:
     title = pubmed_result.get("title", "")
-    abstract = pubmed_result.get("text", "")
+    # Accept multiple possible text fields for different sources (pubmed vs web)
+    abstract = (
+        pubmed_result.get("text")
+        or pubmed_result.get("abstract")
+        or pubmed_result.get("snippet")
+        or pubmed_result.get("description")
+        or ""
+    )
     
     is_rel, reason = is_relevant(title, abstract, query)
     
@@ -176,11 +203,16 @@ def process_evidence(pubmed_result: dict, query: str) -> dict:
         }
     
     fulltext=""
-    pmcid = pubmed_result.get("pmcid","")
+    pmcid = pubmed_result.get("pmcid", "")
+    # For web results, there may be a URL instead of pmid/pmcid
+    url = pubmed_result.get("url", "")
     
     if pmcid:
         print(f"  [Fetching full-text] PMC{pmcid}...")
         fulltext = fetch_pmc_fulltext(pmcid)
+    elif url and pubmed_result.get("source", "").lower() != "pubmed":
+        # For web results, use the snippet/description as the text to extract from
+        print(f"  [Web item] using snippet from {url}")
     
     text_to_extract = fulltext or abstract or title
     clinical_info = extract_clinical_recommendations(text_to_extract, query)
