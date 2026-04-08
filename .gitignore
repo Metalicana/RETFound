@@ -149,3 +149,13 @@ OphthalmicAgent/data/AMD/**/*.npz
 # Keep the CSVs and Python scripts
 !OphthalmicAgent/data/**/*.csv
 !OphthalmicAgent/data/**/*.py
+
+OphthalmicAgent/VisionAgent/MIRAGE/
+OphthalmicAgent/*.jpg
+OphthalmicAgent/*.png
+
+OphthalmicAgent/slurm_logs/
+OphthalmicAgent/prompts/
+OphthalmicAgent/CSVs/
+
+
