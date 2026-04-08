@@ -42,53 +42,65 @@ class GenericEyeLoader:
         # 3. Load NPZ (OCT/Tensors)
         npz_path = os.path.join(disease_dir, npz_filename)
         container = np.load(npz_path)
-        oct_data = container['oct_bscans']
         
-        # 4. Load JPG (Fundus Photo)
-        jpg_path = os.path.join(disease_dir, jpg_filename)
-        fundus_img = Image.open(jpg_path)
+#        print(f"path is: {npz_path}")
+        
+        if(disease == "AMD"): 
+           
+          amd_map = {
+              'not.in.icd.table': 0., 'no.amd.diagnosis': 0.,
+              'early.dry': 1., 'intermediate.dry': 2., 
+              'advanced.atrophic.dry.with.subfoveal.involvement': 3.,
+              'advanced.atrophic.dry.without.subfoveal.involvement': 3.,
+              'wet.amd.active.choroidal.neovascularization': 3.,
+              'wet.amd.inactive.choroidal.neovascularization': 3.,
+              'wet.amd.inactive.scar': 3.
+          }
+          
+          stage = amd_map.get(container['amd_condition'].item(), "Unknown")
+          
+          print(f"\nDisease folder is {disease} and the ground truth is {container['amd_condition']} which is stage {stage}")
+          
+        elif(disease == "DR"): 
+        
+          dr_map = {
+              'not.in.icd.table': 0., 'no.dr.diagnosis': 0.,
+              'mild.npdr': 0., 'moderate.npdr': 0.,
+              'severe.npdr': 1., 'pdr': 1.
+          }
+          
+          stage = dr_map.get(container['dr_subtype'].item(), "Unknown")
+          print(f"\nDisease folder is {disease} and the ground truth is {stage} (0 means negative, 1 means positive)")
+          
+        elif(disease == "Glaucoma"): 
+          stage = container['glaucoma']
+          print(f"\nDisease folder is {disease} and the ground truth is {container['glaucoma']} (0 means negative, 1 means positive)")
+        
+        oct_volume = container['oct_bscans']  
+        
+        # Logic for extracting the center slice
+        mid_idx = oct_volume.shape[0] // 2
+        
+        oct_slice = oct_volume[mid_idx]
+        # Intensity Normalization
+        if oct_slice.max() <= 1.0:
+            oct_slice = (oct_slice * 255).astype(np.uint8)
+        else:
+            oct_slice = oct_slice.astype(np.uint8)
+        oct_image = oct_slice.astype(np.uint8)       
+  
+        fundus_img = container['slo_fundus']
+        fundus_img = fundus_img.astype(np.float32)
+        f_min, f_max = fundus_img.min(), fundus_img.max()
+        if f_max - f_min > 0:
+          fundus_img = 255 * (fundus_img - f_min) / (f_max - f_min)
+        fundus_img = fundus_img.astype(np.uint8)
         
         return {
             "metadata": patient_row.to_dict(),
-            "oct_tensors": oct_data,
-            "fundus_img": fundus_img
+            "oct_tensors": oct_volume,
+            "fundus_img": fundus_img,
+            "directory": npz_path,
+            "stage": stage,
+            "oct_img": oct_image
         }
-
-#loader = GenericEyeLoader("/lustre/fs1/home/yu395012/OphthalmicAgent/")
-#
-#disease_name = 'Glaucoma'
-#df_glaucoma = loader.get_metadata(disease_name)
-#
-## Get only the test patients
-#test_patients = df_glaucoma[df_glaucoma['use'] == 'test']
-#
-#if not test_patients.empty:
-#    # 1. Load the first test patient
-#    patient_data = loader.load_patient(disease_name, test_patients.iloc[0])
-#    
-#    # 2. Print the whole metadata
-#    print("\n--- PATIENT METADATA ---")
-#    pprint(patient_data['metadata'])
-#    
-#    # 3. Visualize the Fundus Image
-#    print("\n--- VISUALIZING FUNDUS IMAGE ---")
-#    fundus_img = patient_data['fundus_image']
-#    
-#    # Save the plot so you can view it on the cluster
-#    output_filename = "fundus_check.png"
-#    plt.savefig(output_filename)
-#    print(f"Visualization saved as {output_filename}")
-#    
-##    print(f"OCT Shape: {patient_data['oct_tensors'][list(patient_data['oct_tensors'].keys())[0]].shape}")
-#    
-#    # See what's actually inside
-##    print(f"Inside this NPZ, I found these keys: {patient_data['oct_tensors'].files}")
-#    
-#    print(f"Shape of OCT: {patient_data['oct_tensors'].shape}")       
-#else:
-#    print("No test patients found in the CSV.")
-##
-##volume = patient_data['oct_tensors']
-##
-##single_slice = volume[100, :, :] 
-##print(single_slice.shape) # Result: (200, 200)

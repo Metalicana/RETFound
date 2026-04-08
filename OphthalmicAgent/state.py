@@ -7,9 +7,13 @@ class AgentState(TypedDict):
     metadata: Dict[str, Any]
     
     fundus_img: np.ndarray
+    oct_img: np.ndarray
     clinical_narrative: str
-    vision_features: Any  
-
-    specialist_opinions: Annotated[List[Dict[str, Any]], operator.add]
-    final_diagnosis: str
+    oct_diagnosis: Any
+    slo_diagnosis: Any  
+    
+    vision_opinion: Dict[str, Any]
+    functional_opinion: Dict[str, Any]
+    
+    final_diagnosis: Dict[str, Any]
     fairness_flag: bool

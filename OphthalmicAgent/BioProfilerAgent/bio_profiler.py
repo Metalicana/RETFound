@@ -52,7 +52,7 @@ class BioProfiler:
         
        # 4. Call the OpenAI API
         response = self.model_client.chat.completions.create(
-            model="gpt-5.1",  
+            model=DEPLOYMENT,  
             messages=[
                 {"role": "system", "content": "You are a professional medical scribe."},
                 {"role": "user", "content": prompt}
