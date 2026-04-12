@@ -17,3 +17,5 @@ class AgentState(TypedDict):
     
     final_diagnosis: Dict[str, Any]
     fairness_flag: bool
+    
+    safety_output: str

@@ -7,6 +7,7 @@ from VisionAgent.vision import VisionSpecialist
 from VisionAgent.linear_probing_oct3 import FairVisionNPZ
 from FunctionalInterpretationAgent.function_interpreter import FunctionalSpecialist
 from GuidelineAgent.guidelines_agent import GuidelinesAgent
+from SafetyAgent.safety_agent import SafetyAgent
 
 from data.loader import GenericEyeLoader
 from ophthalmic_agent import Orchestrator
@@ -19,7 +20,7 @@ import re
 #Intiializing agents
 profiler = BioProfiler()
 
-vision_agent = VisionSpecialist("oct_model_best.pth", "slo_model_best.pth")
+vision_agent = VisionSpecialist("./weights/oct_model_best.pth", "./weights/slo_model_best.pth")
 
 functional_agent = FunctionalSpecialist()
 
@@ -27,6 +28,7 @@ guideline_agent = GuidelinesAgent()
 
 ophthalmic_agent = Orchestrator()
 
+safety_agent = SafetyAgent()
 
 DATA_DIRS = {
     "AMD": "/path/to/data/AMD",
@@ -73,7 +75,8 @@ def initialize_state(patient_data):
         "vision_opinion": {},
         "functional_opinion": {},
         "final_diagnosis": {},
-        "fairness_flag": False
+        "fairness_flag": False,
+        "safety_output": ""
     }
     
     Image.fromarray(state['oct_img']).save("check_my_work.png")
@@ -88,7 +91,7 @@ def run_diagnostic_pipeline(patient_data):
     final_state["clinical_narrative"] = profiler.generate_narrative(final_state["metadata"])
     
     print("\n\nNarrative Ready: ")
-    print(f"{final_state['clinical_narrative']}...")
+    print(f"{final_state['clinical_narrative']}")
     
     print("\n" + "-"*30)
     
@@ -145,7 +148,15 @@ def run_diagnostic_pipeline(patient_data):
     print("\n\n Ophthalmic Agent's Final Diagnosis Ready: ")
     
     print(f"{final_state['final_diagnosis']['decision']}")
-
+    print("\n" + "-"*30)  
+    
+    print("\n\n--- Sending Case to Safety Agent ---")
+    final_state["safety_output"] = safety_agent.run(final_state)
+    print("\n\n Safety Agent's Output Ready: ")
+    
+    print(f"{final_state['safety_output']}")
+    print("\n" + "-"*30)  
+    
 #    print("\n" + "-"*30) 
 #    print(f"check2: {final_state['final_diagnosis']['labels']}")
     

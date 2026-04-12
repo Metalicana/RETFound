@@ -36,7 +36,7 @@ class Orchestrator:
                     "1. BASELINE: Start with the numerical probabilities (p-values) provided in the Vision Summary. "
                     "A p-value > 0.50 generally indicates a positive finding.\n"
                     
-                    "2. OVERRIDE PROTOCOL FOR AMD: 
+                    "2. OVERRIDE PROTOCOL FOR AMD: "
                     "a. If the Foundation Models (RETFound/MIRAGE) predict a lower "
                     "stage (e.g., Stage 0 or 1), but the Vision Specialist identifies clear visual evidence of a "
                     "higher stage (e.g., 'Small Drusen' for Stage 1 or 'Large Mounded Drusen/Pigment Clumping' for Stage 2), "
@@ -60,9 +60,9 @@ class Orchestrator:
             {
                 "role": "user",
                 "content": f"""
-                ### SPECIALIST EVIDENCE LOG
+                ### Agent Summaries
                 - **Clinical Narrative**: {narrative}
-                - **Vision Specialist Verification**: {vision_summary}
+                - **Vision Specialist Findings**: {vision_summary}
                 - **Functional Specialist Findings**: {functional_summary}
                 
                 ### DIAGNOSTIC TASK

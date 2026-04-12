@@ -238,6 +238,8 @@ class VisionSpecialist:
                     "1. NUMERICAL DATA: Repeat the raw probabilities for AMD, DR, and Glaucoma.\n" 
                     "2. VISUAL AUDIT: Describe specific markers (drusen, hemmorrhages, disc cupping) seen in the images. If you visually identify any "                       "hyper-reflective bumps or elevations at the RPE-Bruch's membrane interface in the OCT B-scan you MUST flag this as 'Visual Evidence                       of AMD'.\n"                
                     "3. ALIGNMENT STATUS: Explicitly state 'Agree' or 'Conflict' for each disease.\n"
+                    "4. CRITICAL: You must conclude your report with a section titled '[EXECUTIVE SUMMARY]' "
+                    "summarizing your findings in 3-5 bullet points for the next agent."
                 )
             },
             {
