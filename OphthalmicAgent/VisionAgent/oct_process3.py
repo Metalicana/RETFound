@@ -13,7 +13,7 @@ from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_sc
 from VisionAgent.linear_probing_oct3 import FairVisionNPZ, get_model_oct
 
 DATA_ROOT = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/data/"
-MODEL_WEIGHTS = "oct_model_best.pth" 
+MODEL_WEIGHTS = "weights/oct_model_best.pth" 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 THRESHOLDS = {
@@ -83,14 +83,38 @@ def main():
     model = load_trained_model(MODEL_WEIGHTS)
 
     results = []
-
+    equity = []
     print(f"Running inference on {len(test_ds)} test cases...")
-
+#    with torch.no_grad():
+#        for i, (imgs, labels, _) in enumerate(tqdm(test_loader)):
+#            imgs = imgs.to(DEVICE)
+#            outputs = model(imgs) 
+#            
+#            amd_probs = torch.sigmoid(outputs['amd']).cpu().numpy()
+#            dr_probs = torch.sigmoid(outputs['dr']).cpu().numpy()
+#            gl_probs = torch.sigmoid(outputs['glaucoma']).cpu().numpy()
+#            
+#            for j in range(len(imgs)):
+#                idx = i * imgs.size(0) + j
+#                if idx >= len(test_ds.files): break
+#                
+#                results.append({
+#                    'amd_p_L1': amd_probs[j, 0], 'amd_p_L2': amd_probs[j, 1], 'amd_p_L3': amd_probs[j, 2],
+#                    'prob_DR': dr_probs[j, 0], 'prob_Glaucoma': gl_probs[j, 0],
+#                    'target_AMD_L1': labels[j, 0].item(), 'target_AMD_L2': labels[j, 1].item(),
+#                    'target_AMD_L3': labels[j, 2].item(), 'target_DR': labels[j, 3].item(),
+#                    'target_Glaucoma': labels[j, 4].item()
+#                })
+#
+#    df = pd.DataFrame(results)
+#    
+#    # 1. Update the loop to catch 'metas' instead of '_'
     with torch.no_grad():
-        for i, (imgs, labels, _) in enumerate(tqdm(test_loader)):
+        for i, (imgs, labels, metas) in enumerate(tqdm(test_loader)):
             imgs = imgs.to(DEVICE)
             outputs = model(imgs) 
             
+            # Convert logits to probabilities
             amd_probs = torch.sigmoid(outputs['amd']).cpu().numpy()
             dr_probs = torch.sigmoid(outputs['dr']).cpu().numpy()
             gl_probs = torch.sigmoid(outputs['glaucoma']).cpu().numpy()
@@ -98,6 +122,40 @@ def main():
             for j in range(len(imgs)):
                 idx = i * imgs.size(0) + j
                 if idx >= len(test_ds.files): break
+
+                if amd_probs[j, 2] >= 0.5:
+                  pred_amd = 3
+                elif amd_probs[j,1] >= 0.5:
+                  pred_amd = 2
+                elif amd_probs[j,0] >= 0.5:
+                  pred_amd = 1
+                else:
+                  pred_amd = 0
+                                                
+                # DR and Glaucoma: Simple binary threshold
+                pred_dr = 1 if dr_probs[j, 0] >= 0.5 else 0
+                pred_gl = 1 if gl_probs[j, 0] >= 0.5 else 0
+
+                # --- Create the Row Dictionary ---
+                row = {
+                    # Metadata from our custom dataset/CSV
+                    'filename': metas['filename'][j],
+                    'disease_folder': metas['disease'][j],
+                    'age': metas['age'][j].item() if torch.is_tensor(metas['age']) else metas['age'][j],
+                    'gender': metas['gender'][j],
+                    'race': metas['race'][j],
+                    'ethnicity': metas['ethnicity'][j],
+                    'language': metas['language'][j],
+                    'maritalstatus': metas['maritalstatus'][j],
+                    'groundtruth': metas['groundtruth'][j].item() if torch.is_tensor(metas['groundtruth']) else metas['groundtruth'][j],
+                            
+                    # Categorical Predictions
+                    'Pred_AMD': pred_amd,
+                    'Pred_DR': pred_dr,
+                    'Pred_GL': pred_gl,
+                }
+                
+                equity.append(row)
                 
                 results.append({
                     'amd_p_L1': amd_probs[j, 0], 'amd_p_L2': amd_probs[j, 1], 'amd_p_L3': amd_probs[j, 2],
@@ -107,18 +165,20 @@ def main():
                     'target_Glaucoma': labels[j, 4].item()
                 })
 
+    # 2. Convert to DataFrame and Save
     df = pd.DataFrame(results)
+    df_equity = pd.DataFrame(equity)
+    
+    df_equity.to_csv('equity_retfound.csv', index=False)
     
     print("\n" + "="*80)
-#    print(f"{'Task':<16} | {'Prec':<7} | {'Rec':<7} | {'F1':<7} | {'Acc':<7}")
     print(f"{'Task':<16} | {'Prec':<7} | {'Rec':<7} | {'F1':<6} | {'Count':<6} | {'Correct':<7}")
     print("-" * 80)
     
-    # --- DR & Glaucoma metrics (binary) ---
     for disease in ['Glaucoma', 'AMD', 'DR']:
     
         if disease == 'AMD':
-        # --- Compute AMD stages ---
+        # Compute AMD stages
           df['AMD_stage'] = df.apply(get_amd_stage, axis=1)
           df['AMD_pred_stage'] = df.apply(get_predicted_amd_stage, axis=1, thresholds=THRESHOLDS)
       
@@ -137,7 +197,6 @@ def main():
                       stage_mask = y_true == int(stage_key)
                       stage_count = stage_mask.sum()
                       stage_correct = (y_pred[stage_mask] == y_true[stage_mask]).sum()
-#                      print(f"{stage_label:<16} | {metrics['precision']:.4f}  | {metrics['recall']:.4f}  | {metrics['f1-score']:.4f}  | {'-':<7}")
                       print(f"{stage_label:<16} | {metrics['precision']:.4f}  | {metrics['recall']:.4f}  | {metrics['f1-score']:.4f} | {stage_count:<6} | {stage_correct:<7}")
         else:  
           target_col, prob_col = f'target_{disease}', f'prob_{disease}'

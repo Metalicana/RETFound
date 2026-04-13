@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
+import pandas as pd
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from PIL import Image
@@ -25,13 +26,103 @@ EPOCHS = 60
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 PATH = "oct_model_best.pth"
 
+#class FairVisionNPZ(Dataset):
+#    def __init__(self, root_dir, split='Training', transform=None):
+#        self.files = []
+#        self.transform = transform
+#        self.sources = ['AMD', 'DR', 'Glaucoma']
+#                
+#        self.amd_map = {
+#            'not.in.icd.table': 0., 'no.amd.diagnosis': 0.,
+#            'early.dry': 1., 'intermediate.dry': 2., 
+#            'advanced.atrophic.dry.with.subfoveal.involvement': 3.,
+#            'advanced.atrophic.dry.without.subfoveal.involvement': 3.,
+#            'wet.amd.active.choroidal.neovascularization': 3.,
+#            'wet.amd.inactive.choroidal.neovascularization': 3.,
+#            'wet.amd.inactive.scar': 3.
+#        }
+#        
+#        self.dr_map = {
+#            'not.in.icd.table': 0., 'no.dr.diagnosis': 0.,
+#            'mild.npdr': 0., 'moderate.npdr': 0.,
+#            'severe.npdr': 1., 'pdr': 1.
+#        }
+#
+#        print(f"Scanning {split} data in {root_dir}...")
+#        for source in self.sources:
+#            path = os.path.join(root_dir, source, split)
+#            if not os.path.exists(path):
+#                print(f"Warning: Directory not found: {path}")
+#                continue
+#            
+#            # Find all .npz files
+#            all_files_found = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.npz')]
+#            all_files_found.sort()
+#            
+##            taking first 100 only for each disease
+#            files_found = all_files_found[:100]
+#            
+##            files_found = all_files_found
+#
+#            for f_path in files_found:
+#                self.files.append({'path': f_path, 'source': source})
+#
+#        print(f"Found {len(self.files)} images for {split}.")
+#
+#    def __len__(self):
+#        return len(self.files)
+#
+#    def __getitem__(self, idx):
+#        item = self.files[idx]
+#        try:
+#            data = np.load(item['path'])
+#            oct_volume = data['oct_bscans']
+#            oct_slice = oct_volume[oct_volume.shape[0] // 2]
+#            
+#            if oct_slice.max() <= 1.0: oct_slice = (oct_slice * 255).astype(np.uint8)
+#            else: oct_slice = oct_slice.astype(np.uint8)
+##            min_val = oct_slice.min()
+##            max_val = oct_slice.max()           
+##            if max_val - min_val > 0:
+##              oct_slice = 255 * (oct_slice - min_val) / (max_val - min_val)      
+##            oct_slice = oct_slice.astype(np.uint8)    
+##            
+#            image = Image.fromarray(oct_slice).convert('RGB')
+#            if self.transform: image = self.transform(image)
+#            
+#            label = torch.full((5,), -1.0) 
+#            source = item['source']
+#            
+#            if source == 'AMD':
+#                cond = str(data['amd_condition'])
+#                severity = int(self.amd_map.get(cond, 0.))
+#                # AMD uses indices 0, 1, and 2
+#                label[0] = 1.0 if severity >= 1 else 0.0
+#                label[1] = 1.0 if severity >= 2 else 0.0
+#                label[2] = 1.0 if severity >= 3 else 0.0
+#                
+#            elif source == 'DR':
+#                cond = str(data['dr_subtype'])
+#                severity = int(self.dr_map.get(cond, 0.))
+#                label[3] = 1.0 if severity  >= 1.0 else 0.0
+#                
+#            elif source == 'Glaucoma':
+#                severity = int(data['glaucoma'])
+#                label[4] = 1.0 if severity == 1 else 0.0
+#                
+#            return image, label, -1
+#        except Exception:
+#            return self.__getitem__(idx - 1 if idx > 0 else 0)
 
 class FairVisionNPZ(Dataset):
     def __init__(self, root_dir, split='Training', transform=None):
         self.files = []
         self.transform = transform
         self.sources = ['AMD', 'DR', 'Glaucoma']
-                
+        self.csv_base_path = root_dir
+        
+        self.metadata_lookup = self._load_all_metadata()
+
         self.amd_map = {
             'not.in.icd.table': 0., 'no.amd.diagnosis': 0.,
             'early.dry': 1., 'intermediate.dry': 2., 
@@ -52,48 +143,64 @@ class FairVisionNPZ(Dataset):
         for source in self.sources:
             path = os.path.join(root_dir, source, split)
             if not os.path.exists(path):
-                print(f"Warning: Directory not found: {path}")
                 continue
             
-            # Find all .npz files
             all_files_found = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.npz')]
             all_files_found.sort()
             
-#            #taking first 100 only for each disease
-            files_found = all_files_found[:200]
-#            files_found = all_files_found
-#            count = 0
-            for f_path in files_found:
-                self.files.append({'path': f_path, 'source': source})
-#                if count <= 2 or count>=97:
-#                  print(f"count: {count}, f_path: {f_path}")
-#                count+=1
-                
-        print(f"Found {len(self.files)} images for {split}.")
+#            taking first 100 only for each disease
+#            files_found = all_files_found[:100]
+            
+            files_found = all_files_found
 
-    def __len__(self):
-        return len(self.files)
+            
+            for f_path in files_found:
+                fname = os.path.basename(f_path)
+                # Attach the specific metadata for this file immediately
+                file_meta = self.metadata_lookup.get(fname, {})
+                
+                self.files.append({
+                    'path': f_path, 
+                    'source': source,
+                    'meta': file_meta
+                })
+
+        print(f"Found {len(self.files)} images with metadata for {split}.")
+
+    def _load_all_metadata(self):
+        """Pre-loads CSVs and converts them to a fast-access dictionary."""
+        combined_meta = {}
+        for source in self.sources:
+            csv_name = f"data_summary_{source.lower()}.csv"
+            csv_path = os.path.join(self.csv_base_path, source, csv_name)
+            
+            if os.path.exists(csv_path):
+                df = pd.read_csv(csv_path)
+                records = df.to_dict('records')
+                for rec in records:
+                    # Use 'filename' column as the key
+                    combined_meta[rec['filename']] = rec
+            else:
+                print(f"Warning: Metadata CSV not found at {csv_path}")
+        return combined_meta
 
     def __getitem__(self, idx):
         item = self.files[idx]
         try:
             data = np.load(item['path'])
+            
+            # --- Image Processing ---
             oct_volume = data['oct_bscans']
             oct_slice = oct_volume[oct_volume.shape[0] // 2]
-            
             if oct_slice.max() <= 1.0: oct_slice = (oct_slice * 255).astype(np.uint8)
             else: oct_slice = oct_slice.astype(np.uint8)
-#            min_val = oct_slice.min()
-#            max_val = oct_slice.max()           
-#            if max_val - min_val > 0:
-#              oct_slice = 255 * (oct_slice - min_val) / (max_val - min_val)      
-#            oct_slice = oct_slice.astype(np.uint8)    
-#            
             image = Image.fromarray(oct_slice).convert('RGB')
             if self.transform: image = self.transform(image)
             
+            # --- Label Processing ---
             label = torch.full((5,), -1.0) 
             source = item['source']
+            csv_meta = item['meta'] # This is the pre-loaded metadata dict
             
             if source == 'AMD':
                 cond = str(data['amd_condition'])
@@ -105,16 +212,36 @@ class FairVisionNPZ(Dataset):
                 
             elif source == 'DR':
                 cond = str(data['dr_subtype'])
-                label[3] = 1.0 if self.dr_map.get(cond, 0.) >= 1.0 else 0.0
+                severity = int(self.dr_map.get(cond, 0.))
+                label[3] = 1.0 if severity  >= 1.0 else 0.0
                 
             elif source == 'Glaucoma':
-                label[4] = 1.0 if int(data['glaucoma']) == 1 else 0.0
+                severity = int(data['glaucoma'])
+                label[4] = 1.0 if severity == 1 else 0.0
+                
+            # --- Metadata Assembly ---
+            # We pull from the dictionary we populated in __init__
+            metadata = {
+                'disease': source,
+                'age': csv_meta.get('age', 'unknown'),
+                'gender': csv_meta.get('gender', 'unknown'),
+                'race': csv_meta.get('race', 'unknown'),
+                'ethnicity': csv_meta.get('ethnicity', 'unknown'),
+                'language': csv_meta.get('language', 'unknown'),
+                'maritalstatus': csv_meta.get('maritalstatus', 'unknown'),
+                'filename': os.path.basename(item['path']),
+                'groundtruth': severity
+            }
+            
+            return image, label, metadata
 
-            return image, label, -1
-        except Exception:
+        except Exception as e:
+            print(f"Error at index {idx}: {e}")
             return self.__getitem__(idx - 1 if idx > 0 else 0)
 
-
+    def __len__(self):
+        return len(self.files)
+        
 class RETFoundMultiHead(nn.Module):
     def __init__(self, backbone):
         super(RETFoundMultiHead, self).__init__()
