@@ -22,6 +22,200 @@ if AZURE_KEY and AZURE_ENDPOINT:
 else:
     print("[evidence_tool] AZURE_OPENAI_API_KEY or AZURE_OPENAI_ENDPOINT not set; LLM calls disabled")
 
+
+EMPTY_EXTRACTION = {
+    "condition": "",
+    "required_clinical_info": [],
+    "guideline_pathway": [],
+    "diagnostic_criteria": [],
+    "diagnostic_procedures": [],
+    "risk_factors": [],
+    "image_findings": [],
+    "differential_diagnoses": [],
+    "confidence": "low",
+}
+
+
+def _empty_extraction(query: str) -> dict:
+    return {
+        **EMPTY_EXTRACTION,
+        "condition": query,
+    }
+
+
+def _extract_matching_terms(text: str, terms: list[str]) -> list[str]:
+    found = []
+    lowered = text.lower()
+    for term in terms:
+        if term.lower() in lowered and term not in found:
+            found.append(term)
+    return found
+
+
+def heuristic_extract_clinical_recommendations(text: str, query: str) -> dict:
+    lowered = text.lower()
+
+    required_info = _extract_matching_terms(
+        lowered,
+        [
+            "age",
+            "sex",
+            "race",
+            "ethnicity",
+            "family history",
+            "migraine",
+            "vasospasm",
+            "raynaud",
+            "steroid",
+            "trauma",
+            "symptoms",
+            "intraocular pressure",
+            "iop",
+            "central corneal thickness",
+        ],
+    )
+
+    guideline_pathway = _extract_matching_terms(
+        lowered,
+        [
+            "guideline",
+            "consensus",
+            "preferred practice pattern",
+            "aao",
+            "nice",
+            "diagnostic workup",
+            "screening",
+        ],
+    )
+
+    diagnostic_criteria = _extract_matching_terms(
+        lowered,
+        [
+            "visual field defect",
+            "optic nerve damage",
+            "progressive cupping",
+            "normal iop",
+            "open angle",
+            "retinal nerve fiber layer thinning",
+        ],
+    )
+
+    diagnostic_procedures = _extract_matching_terms(
+        lowered,
+        [
+            "tonometry",
+            "gonioscopy",
+            "pachymetry",
+            "oct",
+            "optical coherence tomography",
+            "perimetry",
+            "visual field",
+            "fundus exam",
+            "disc exam",
+            "optic nerve exam",
+        ],
+    )
+
+    risk_factors = _extract_matching_terms(
+        lowered,
+        [
+            "family history",
+            "asian",
+            "african",
+            "migraine",
+            "vasospasm",
+            "raynaud",
+            "age",
+            "steroid",
+            "myopia",
+        ],
+    )
+
+    image_findings = _extract_matching_terms(
+        lowered,
+        [
+            "rnfl thinning",
+            "retinal nerve fiber layer thinning",
+            "optic disc cupping",
+            "cupping",
+            "disc hemorrhage",
+            "notching",
+            "rim thinning",
+        ],
+    )
+
+    differential_diagnoses = _extract_matching_terms(
+        lowered,
+        [
+            "optic neuropathy",
+            "compressive lesion",
+            "ischemic optic neuropathy",
+            "retinal disease",
+            "nonglaucomatous optic neuropathy",
+        ],
+    )
+
+    non_empty_groups = sum(
+        bool(group)
+        for group in [
+            required_info,
+            guideline_pathway,
+            diagnostic_criteria,
+            diagnostic_procedures,
+            risk_factors,
+            image_findings,
+            differential_diagnoses,
+        ]
+    )
+
+    confidence = "low"
+    if non_empty_groups >= 4:
+        confidence = "high"
+    elif non_empty_groups >= 2:
+        confidence = "medium"
+
+    return {
+        "condition": query,
+        "required_clinical_info": required_info,
+        "guideline_pathway": guideline_pathway,
+        "diagnostic_criteria": diagnostic_criteria,
+        "diagnostic_procedures": diagnostic_procedures,
+        "risk_factors": risk_factors,
+        "image_findings": image_findings,
+        "differential_diagnoses": differential_diagnoses,
+        "confidence": confidence,
+    }
+
+
+def _parse_llm_json(result_text: str) -> dict | None:
+    if not result_text:
+        return None
+
+    candidate = result_text.strip()
+    json_match = re.search(r'\{.*\}', candidate, re.DOTALL)
+    if json_match:
+        candidate = json_match.group(0)
+
+    try:
+        parsed = json.loads(candidate)
+    except json.JSONDecodeError:
+        return None
+
+    if not isinstance(parsed, dict):
+        return None
+
+    return {
+        "condition": parsed.get("condition", ""),
+        "required_clinical_info": parsed.get("required_clinical_info", []),
+        "guideline_pathway": parsed.get("guideline_pathway", []),
+        "diagnostic_criteria": parsed.get("diagnostic_criteria", []),
+        "diagnostic_procedures": parsed.get("diagnostic_procedures", []),
+        "risk_factors": parsed.get("risk_factors", []),
+        "image_findings": parsed.get("image_findings", []),
+        "differential_diagnoses": parsed.get("differential_diagnoses", []),
+        "confidence": parsed.get("confidence", "low"),
+    }
+
 # check relevance of document before running through LLMs using keyword matching
 # TO BE ADJUSTED FOR NOT JUST GLAUCOMA IN THE FUTURE
 def is_relevant(title: str, abstract: str, query: str) -> tuple[bool, str]:
@@ -35,8 +229,9 @@ def is_relevant(title: str, abstract: str, query: str) -> tuple[bool, str]:
     medical_keywords = {
         "glaucoma": ["glaucoma", "iop", "intraocular pressure", "optic nerve", "glaucomatous"],
         "ophthalmology": ["eye", "ocular", "ophthalm", "vision", "retina", "cornea", "lens", "iris"],
-        "treatment": ["treatment", "therapy", "drug", "medication", "management", "intervention", "surgery", "implant"],
         "guideline": ["guideline", "recommendation", "protocol", "standard", "consensus"],
+        "diagnosis": ["diagnos", "workup", "screen", "criterion", "criteria", "exam", "imaging", "finding"],
+        "treatment": ["treatment", "therapy", "drug", "medication", "management", "intervention", "surgery", "implant"],
     }
     
     relevant_keywords = set()
@@ -47,11 +242,20 @@ def is_relevant(title: str, abstract: str, query: str) -> tuple[bool, str]:
     
     if "glaucoma" in query_lower:
         if any(kw in text for kw in medical_keywords["glaucoma"]):
+            # For diagnosis support, avoid treatment-only content with no diagnostic signal.
+            has_diag = any(kw in text for kw in medical_keywords["diagnosis"])
+            has_treat = any(kw in text for kw in medical_keywords["treatment"])
+            if has_treat and not has_diag:
+                return False, "Treatment-focused"
             return True, "Glaucoma-related"
         else:
             return False, "No glaucoma keywords"
     
     if any(kw in text for kw in medical_keywords["ophthalmology"]):
+        has_diag = any(kw in text for kw in medical_keywords["diagnosis"])
+        has_treat = any(kw in text for kw in medical_keywords["treatment"])
+        if has_treat and not has_diag:
+            return False, "Treatment-focused"
         return True, "Ophthalmology-related"
     
     return False, "Not medical/ophthalmology"
@@ -103,20 +307,13 @@ def fetch_pmc_fulltext(pmcid: str) -> str:
 # clinical recommendations using LLM
 def extract_clinical_recommendations(text: str, query: str) -> dict:
     if not text or len(text) < 50:
-        return {
-            "condition": query,
-            "key_recommendations": [],
-            "treatments": [],
-            "risk_factors": [],
-            "dosage_info": "",
-            "confidence": "low"
-        }
+        return _empty_extraction(query)
     
     try:
         text = text[:3000]
         
         prompt = f"""
-You are an expert ophthalmic physician. Extract structured clinical info.
+You are an expert ophthalmic physician. Extract structured diagnosis-support guideline info.
 
 Original Clinical Query: {query}
 
@@ -126,26 +323,23 @@ Medical Text:
 Return only JSON:
 {{
     "condition": "condition or disease mentioned",
-    "key_recommendations": ["recommendation 1", "recommendation 2"],
-    "treatments": ["treatment option 1", "treatment option 2"],
+    "required_clinical_info": ["history or demographics needed (e.g., race, age, family history, comorbidities)"],
+    "guideline_pathway": ["which diagnostic guideline or pathway to follow"],
+    "diagnostic_criteria": ["diagnostic criteria or thresholds"],
+    "diagnostic_procedures": ["recommended tests/exam steps for diagnosis"],
     "risk_factors": ["risk factor 1", "risk factor 2"],
-    "dosage_info": "any dosage/administration info",
+    "image_findings": ["imaging/fundus/OCT findings relevant to diagnosis"],
+    "differential_diagnoses": ["alternative diagnoses to rule out"],
     "confidence": "high/medium/low"
 }}
 
+Do not include treatment plans, medications, dosages, or procedures for treatment.
 Return empty arrays/strings if not found.
 """
         
         if client is None:
             print("[evidence_tool] AzureOpenAI client not configured; skipping LLM extraction")
-            return {
-                "condition": query,
-                "key_recommendations": [],
-                "treatments": [],
-                "risk_factors": [],
-                "dosage_info": "",
-                "confidence": "low"
-            }
+            return heuristic_extract_clinical_recommendations(text, query)
 
         response = client.chat.completions.create(
             model=DEPLOYMENT,
@@ -155,23 +349,16 @@ Return empty arrays/strings if not found.
         )
         
         result_text = response.choices[0].message.content
-        json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
-        if json_match:
-            result_text = json_match.group(0)
-        
-        result = json.loads(result_text)
-        return result
+        result = _parse_llm_json(result_text)
+        if result is not None:
+            return result
+
+        print("[evidence_tool] LLM returned non-JSON output; using heuristic extraction")
+        return heuristic_extract_clinical_recommendations(text, query)
     
     except Exception as e:
         print(f"Error extracting recommendations: {str(e)}")
-        return {
-            "condition": query,
-            "key_recommendations": [],
-            "treatments": [],
-            "risk_factors": [],
-            "dosage_info": "",
-            "confidence": "low"
-        }
+        return heuristic_extract_clinical_recommendations(text, query)
 
 
 def process_evidence(pubmed_result: dict, query: str) -> dict:
@@ -192,12 +379,7 @@ def process_evidence(pubmed_result: dict, query: str) -> dict:
         return {
             **pubmed_result,
             "clinical_extraction": {
-                "condition": "",
-                "key_recommendations": [],
-                "treatments": [],
-                "risk_factors": [],
-                "dosage_info": "",
-                "confidence": "low",
+                **EMPTY_EXTRACTION,
                 "skipped_reason": reason
             }
         }
