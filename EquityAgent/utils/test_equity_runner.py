@@ -4,38 +4,34 @@ import json
 from equity_agent import EquityAgent
 
 
-def make_fake_patients():
-    # 10 dummy examples with varied demographics for testing
+def make_patient_summaries():
     return [
-        {"id": "P001", "race": "Black", "sex": "Female", "age": 68, "location": "Urban", "imaging_findings": "optic_disc_cupping"},
-        {"id": "P002", "race": "White", "sex": "Male", "age": 55, "location": "Rural", "imaging_findings": "normal"},
-        {"id": "P003", "race": "Asian", "sex": "Female", "age": 72, "location": "Urban", "imaging_findings": "macular_drusen"},
-        {"id": "P004", "race": "Hispanic", "sex": "Male", "age": 45, "location": "Suburban", "imaging_findings": "optic_disc_asymmetry"},
-        {"id": "P005", "race": "Black", "sex": "Male", "age": 59, "location": "Urban", "imaging_findings": "retinal_hemorrhage"},
-        {"id": "P006", "race": "White", "sex": "Female", "age": 32, "location": "Rural", "imaging_findings": "normal"},
-        {"id": "P007", "race": "Native American", "sex": "Female", "age": 66, "location": "Rural", "imaging_findings": "peripapillary_atrophy"},
-        {"id": "P008", "race": "Black", "sex": "Female", "age": 80, "location": "Urban", "imaging_findings": "narrow_angles"},
-        {"id": "P009", "race": "Asian", "sex": "Male", "age": 50, "location": "Suburban", "imaging_findings": "epiretinal_membrane"},
-        {"id": "P010", "race": "White", "sex": "Male", "age": 74, "location": "Urban", "imaging_findings": "advanced_cup_to_disc_ratio"},
+        (
+            "Patient P003 is a 72-year-old Asian female living in an urban area with delayed retina follow-up because specialty access has been inconsistent. "
+            "Current symptoms include gradually reduced central vision, distortion while reading, and nighttime glare. "
+            "Mirage imaging findings note bilateral macular drusen, pigmentary change near the fovea, and no convincing diabetic retinopathy pattern. "
+            "Retfound flags macular drusen with moderate-to-high AMD concern and mild optic disc asymmetry, but does not strongly support proliferative retinopathy or advanced glaucomatous loss. "
+            "Earlier upstream models reported mildly reduced visual acuity, family history of age-related macular degeneration, no diabetes, and no documented prior glaucoma diagnosis."
+        ),
+        (
+            "Patient P011 is a 64-year-old Black male from a rural area presenting for evaluation of progressive peripheral vision loss and intermittent headaches. "
+            "Mirage describes enlarged peripapillary atrophy, and subtle nerve fiber layer thinning. "
+            "Retfound marks only low-to-moderate glaucoma concern despite optic nerve cupping and gives no strong AMD or diabetic retinopathy signal. "
+            "Prior models and chart context note elevated intraocular pressure at an outside screening visit, transportation barriers, and missed ophthalmology follow-up over the last year."
+        ),
     ]
 
 
 def main():
-    # Example free-form paragraph summary for a patient
-    patient_summary = (
-        "Patient P003 is a 72-year-old Asian female living in an urban area. "
-        "She presents with macular drusen on imaging. No prior history of glaucoma, "
-        "but family history of age-related macular degeneration. Visual acuity is mildly reduced. "
-        "No other systemic risk factors reported."
-    )
-
     agent = EquityAgent()
+    patient_summaries = make_patient_summaries()[1] # try 0 or 1
 
     print("EquityAgent running...")
-    results = agent.analyze_patients([patient_summary])
+    results = agent.analyze_patients(patient_summaries, output_format="text")
 
-    print(json.dumps(results, indent=2, ensure_ascii=False))
+    print(results)
 
 
 if __name__ == "__main__":
     main()
+
