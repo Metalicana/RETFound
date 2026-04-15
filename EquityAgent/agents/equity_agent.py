@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-import os
 import logging
-from typing import List, Dict, Any, Optional
+import os
+from typing import Any, Literal, Optional
 
 try:
     from openai import AzureOpenAI
@@ -27,45 +27,15 @@ class EquityAgent:
     to compensate accordingly in risk estimates and recommendations.
     """
 
-    def __init__(self, calibration_db_path: Optional[str] = None):
-        self.deployment = "gpt-5.1"
-        self.azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+    def __init__(self, deployment: Optional[str] = None):
+        self.deployment = deployment or os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.1")
+        self.azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT") or os.getenv("AZURE_OPENAI_API_BASE")
         self.api_key = os.getenv("AZURE_OPENAI_API_KEY")
-        self.api_version = "2024-12-01-preview"
+        self.api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
 
-        # Optional small on-disk JSON database with historical model performance
-        # and demographics. This is intended to capture limitations of the
-        # base imaging model (e.g., `retfound` having higher false negatives
-        # in Black patients) so that downstream LLM reasoning can calibrate
-        # risk estimates.
-        #
-        # Expected JSON format (list of records), e.g.:
-        # [
-        #   {
-        #     "id": "P001",
-        #     "race": "Black",
-        #     "sex": "Female",
-        #     "age": 68,
-        #     "location": "Urban",
-        #     "imaging_findings": "optic_disc_cupping",
-        #     "ai_risk_percentage": 8.0,           # prior model estimate
-        #     "true_diagnosis": "glaucoma"        # ground truth outcome
-        #   },
-        #   ...
-        # ]
-        #
-        # Path can be provided directly or via environment variable
-        # EQUITY_AGENT_DB_PATH. The file itself is optional.
-        self.calibration_db_path: Optional[str] = (
-            calibration_db_path
-            or os.getenv("EQUITY_AGENT_DB_PATH")
-            or os.path.join(os.path.dirname(__file__), "dummy_db.json")
-        )
-        self.bias_database: Optional[List[Dict[str, Any]]] = None
-
-        if not all([self.deployment, self.azure_endpoint, self.api_key]):
+        if not all([self.azure_endpoint, self.api_key]):
             raise ValueError(
-                "Missing Azure OpenAI configuration. Set AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, and AZURE_OPENAI_DEPLOYMENT."
+                "Missing Azure OpenAI configuration. Set AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT (or AZURE_OPENAI_API_BASE)."
             )
 
         self.client = AzureOpenAI(
@@ -74,97 +44,94 @@ class EquityAgent:
             azure_endpoint=self.azure_endpoint,
         )
 
-    def _load_calibration_db(self) -> Optional[List[Dict[str, Any]]]:
-        """Load the optional JSON calibration database, if present.
+        base_dir = os.path.dirname(os.path.dirname(__file__))
+        self.calibration_summary = self._load_calibration_jsons(
+            {
+                "mirage": os.path.join(base_dir, "model_specific_data", "equity_mirage_calibration.json"),
+                "retfound": os.path.join(base_dir, "model_specific_data", "equity_retfound_calibration.json"),
+            }
+        )
 
-        The database should be small (for example, a few dozen records) so it
-        can be safely inlined into the LLM prompt when available. If the file
-        is missing or cannot be parsed, the agent simply proceeds without it.
-        """
-        if not self.calibration_db_path:
-            return None
+    def _load_calibration_jsons(self, json_paths: dict[str, str]) -> dict[str, Any]:
+        summary: dict[str, Any] = {"models": {}}
+        for model_name, path in json_paths.items():
+            if not os.path.exists(path):
+                logger.warning(f"Calibration JSON not found: {path}")
+                continue
+            with open(path, encoding="utf-8") as file_handle:
+                summary["models"][model_name] = json.load(file_handle)
 
-        if not os.path.exists(self.calibration_db_path):
-            logger.info("No calibration DB found at %s; continuing without it.", self.calibration_db_path)
-            return None
+        logger.info(f"Loaded calibration JSON for {len(summary['models'])} models.")
+        return summary
 
-        try:
-            with open(self.calibration_db_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if not isinstance(data, list):
-                logger.warning("Calibration DB at %s is not a list; ignoring.", self.calibration_db_path)
-                return None
-            logger.info("Loaded calibration DB with %d records from %s", len(data), self.calibration_db_path)
-            return data
-        except Exception:
-            logger.exception("Failed to load calibration DB from %s", self.calibration_db_path)
-            return None
+    def _format_patient_input(self, patients: Any) -> str:
+        if isinstance(patients, str):
+            return patients.strip()
+        if isinstance(patients, list):
+            sections = []
+            for index, patient in enumerate(patients, start=1):
+                if isinstance(patient, str):
+                    body = patient.strip()
+                else:
+                    body = json.dumps(patient, ensure_ascii=False)
+                sections.append(f"PATIENT_{index}:\n{body}")
+            return "\n\n".join(sections)
+        return str(patients)
 
-    def analyze_patients(self, patients: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Send patients to the LLM and return equity-aware recommendations.
-
-        The assistant is asked to return strict JSON: an array of objects with keys:
-        - `id` : original patient id (if any)
-        - `diagnosis` : high-level likely findings
-        - `risk_score` : 0..1 clinical risk probability (float)
-        - `adjusted_for_equity` : boolean
-        - `notes` : short text explaining adjustments
-
-        """
-        # Restore: full prompt and all patients, but keep system/user split and temp 0.0
+    def analyze_patients(self, patients: Any, output_format: Literal["json", "text"] = "json") -> Any:
+        """Send patient summaries to the LLM and return either JSON or concise text."""
         import re
 
-        # Lazily load the optional bias / calibration database so the LLM can
-        # explicitly reason about systematic errors of the base model
-        # (e.g., `retfound` having higher false-negative rates in Black
-        # patients) across demographics.
-        if self.bias_database is None:
-            self.bias_database = self._load_calibration_db()
+        if output_format not in {"json", "text"}:
+            raise ValueError("output_format must be 'json' or 'text'.")
 
-
-        # Accept both rigid JSON and free-form paragraph summaries for patient input
-        if isinstance(patients, list):
-            patient_blob = json.dumps(patients, ensure_ascii=False)
-        else:
-            patient_blob = str(patients)
+        patient_blob = self._format_patient_input(patients)
         calibration_blob = (
-            json.dumps(self.bias_database, ensure_ascii=False)
-            if self.bias_database is not None
+            json.dumps(self.calibration_summary, ensure_ascii=False)
+            if self.calibration_summary is not None
             else None
         )
 
         base_content = (
-            "You are an equity-aware ophthalmology decision-support assistant built on top of an imaging model called 'retfound'. "
-            "Retfound is known to have higher false-negative rates for glaucoma and other optic nerve diseases in Black patients, and potential calibration issues across other demographic subgroups. "
-            "You are given patient data, which may be either a structured JSON array of patient records or a free-form paragraph summary for each patient provided by a bio profiler agent. "
-            "For each patient, extract all relevant demographic and clinical information from the input, whether it is structured or unstructured. "
-            "When available, a small JSON calibration database of prior patients is also provided, including demographics, AI-assigned risk percentages from retfound, and true disease diagnoses. "
-            "Use this database to understand and correct for systematic errors of the base model across race, ethnicity, age, sex, and location, with particular attention to historically under-served groups. "
-            "Here are current patient records (may be JSON array or paragraph summaries):\n\n"
+            "You are an equity-aware ophthalmology decision-support assistant that integrates outputs from two primary vision models: mirage and retfound. "
+            "The patient input is a freeform paragraph per patient and may include demographics, imaging findings attributed to mirage, imaging findings attributed to retfound, and findings from other upstream models or clinical context. "
+            "Extract the relevant patient facts from each paragraph, including demographics, symptoms, imaging findings, model-specific concerns, and any prior model outputs. "
+            "You are also given precomputed JSON calibration data for mirage and retfound. Each model includes false_positive and false_negative rates by disease, race, gender, and age_group. "
+            "Use the calibration summary to reason about systematic error by model, disease, race, gender, and age group. If the patient paragraph mentions location or access-to-care context, use that as additional clinical and equity context, but do not invent calibration data that is not present in the JSON summary. "
+            "Here are the current patient summaries:\n\n"
             f"PATIENTS_INPUT:\n{patient_blob}\n\n"
         )
 
         if calibration_blob is not None:
             base_content += (
-                "CALIBRATION_DB_JSON (historical retfound performance with true outcomes):\n"
+                "CALIBRATION_SUMMARY_JSON (loaded from precomputed mirage and retfound calibration JSON files):\n"
                 f"{calibration_blob}\n\n"
             )
         else:
             base_content += (
-                "CALIBRATION_DB_JSON: null (no on-disk calibration database loaded). "
-                "Still, explicitly reason about known limitations of retfound, especially higher false-negative risk in Black patients, and compensate accordingly in your risk estimates.\n\n"
+                "CALIBRATION_SUMMARY_JSON: null (no calibration JSON data could be loaded). "
+                "Still, explicitly reason about likely calibration limitations across mirage and retfound and compensate conservatively in your risk estimates.\n\n"
             )
 
         base_content += (
             "Rules:\n"
-            "1) Explicitly adjust risk estimates and recommendations based on demographic factors AND observed systematic errors of the base model in the calibration database: for example, increase sensitivity for glaucoma in Black, Hispanic, and Asian patients when prior data show under-detection; consider higher AMD risk in White and older patients; account for socioeconomic factors via location.\n"
-            "2) Where evidence from patient fields or calibration data is insufficient, state uncertainty and recommend low-risk, high-value follow-up. Suggest surrogate ways to triage risk if possible.\n"
-            "3) Output must be valid JSON only; do not include extra commentary."
-            "4) Instead of just qualitative labels, provide a numeric risk estimate for each relevant eye disease's progression in this patient. Give a 5-year risk probability as a percentage. Include a confidence interval if appropriate (e.g., 25–35%). Explain briefly why this numeric risk was chosen, referencing patient age, race, optic nerve findings, base-model limitations, calibration data, and missing data."
-            "5) Assess all relevant eye diseases for each patient, allowing for multiple coexisting conditions, and provide separate numeric 5-year risk estimates for each disease."
-            "6) Where patient fields are missing or only available in free-form text, explicitly estimate or impute numeric risk using population averages, calibration database signals, or validated surrogate measures, and adjust confidence intervals accordingly."
-            "7) Output can only be 1000 characters maximum."
+            "1) Explicitly compare mirage and retfound findings when both are present. Use the calibration summary to up-weight or down-weight each model's concern based on the disease and the patient's demographic profile.\n"
+            "2) Use disease-specific reasoning. Do not treat mirage or retfound predictions for unrelated diseases as evidence for the current disease.\n"
+            "3) Where calibration data shows higher false-negative risk for a subgroup, increase sensitivity and recommend appropriate follow-up rather than dismissing the finding.\n"
+            "4) Where evidence from patient fields or calibration data is insufficient, state uncertainty and recommend low-risk, high-value follow-up. Suggest surrogate ways to triage risk if possible.\n"
+            "5) Assess only the most relevant eye diseases for each patient and keep the full response under 1200 characters.\n"
         )
+
+        if output_format == "json":
+            base_content += (
+                "6) Output must be valid JSON only and no prose outside the JSON. Return an array with one object per patient. Each object must contain patient_id and disease_summaries.\n"
+                "7) disease_summaries must be an array of short objects with disease, rationale, confidence, and recommended_actions. Keep rationale and recommended_actions brief."
+            )
+        else:
+            base_content += (
+                "6) Output must be plain text only, not JSON or markdown.\n"
+                "7) Write one short paragraph per patient. Start with the patient ID, then summarize the main likely disease concern, key evidence from mirage and retfound, the equity-aware calibration caveat if relevant, confidence, and the most important next step."
+            )
 
         user_message = {
             "role": "user",
@@ -185,6 +152,16 @@ class EquityAgent:
             raise
 
         assistant_text = resp.choices[0].message.content
+        if isinstance(assistant_text, list):
+            assistant_text = "".join(
+                part.get("text", "") if isinstance(part, dict) else str(part)
+                for part in assistant_text
+            )
+
+        assistant_text = assistant_text.strip()
+
+        if output_format == "text":
+            return assistant_text
 
         try:
             return json.loads(assistant_text)
