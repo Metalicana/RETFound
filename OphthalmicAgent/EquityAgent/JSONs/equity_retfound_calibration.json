@@ -1,0 +1,108 @@
+{
+  "false_positive": {
+    "amd": {
+      "race": {
+        "Black": 0.0857,
+        "Hispanic": 0.1067,
+        "Asian": 0.0414,
+        "Caucasian": 0.0797
+      },
+      "gender": {
+        "male": 0.0796,
+        "female": 0.0781
+      },
+      "age_group": {
+        "older": 0.0801,
+        "middle-aged": 0.0692,
+        "younger": 0.0935
+      }
+    },
+    "diabetic_retinopathy": {
+      "race": {
+        "Black": 0.0688,
+        "Hispanic": 0.1031,
+        "Asian": 0.0873,
+        "Caucasian": 0.0713
+      },
+      "gender": {
+        "male": 0.0774,
+        "female": 0.0704
+      },
+      "age_group": {
+        "older": 0.0702,
+        "middle-aged": 0.0673,
+        "younger": 0.1011
+      }
+    },
+    "glaucoma": {
+      "race": {
+        "Black": 0.1562,
+        "Hispanic": 0.0392,
+        "Asian": 0.0682,
+        "Caucasian": 0.094
+      },
+      "gender": {
+        "male": 0.1033,
+        "female": 0.0917
+      },
+      "age_group": {
+        "older": 0.1624,
+        "middle-aged": 0.0364,
+        "younger": 0.0127
+      }
+    }
+  },
+  "false_negative": {
+    "amd": {
+      "race": {
+        "Black": 0.2183,
+        "Hispanic": 0.3548,
+        "Asian": 0.2308,
+        "Caucasian": 0.2273
+      },
+      "gender": {
+        "male": 0.2248,
+        "female": 0.2342
+      },
+      "age_group": {
+        "older": 0.2336,
+        "middle-aged": 0.211,
+        "younger": 0.2574
+      }
+    },
+    "diabetic_retinopathy": {
+      "race": {
+        "Black": 0.2727,
+        "Hispanic": 0.2222,
+        "Asian": 0.3,
+        "Caucasian": 0.2394
+      },
+      "gender": {
+        "male": 0.25,
+        "female": 0.2484
+      },
+      "age_group": {
+        "older": 0.2583,
+        "middle-aged": 0.2619,
+        "younger": 0.1538
+      }
+    },
+    "glaucoma": {
+      "race": {
+        "Black": 0.3702,
+        "Hispanic": 0.6,
+        "Asian": 0.4359,
+        "Caucasian": 0.3905
+      },
+      "gender": {
+        "male": 0.3603,
+        "female": 0.4291
+      },
+      "age_group": {
+        "older": 0.2975,
+        "middle-aged": 0.5672,
+        "younger": 0.6918
+      }
+    }
+  }
+}

@@ -1,3 +1,2 @@
 Filename,Task_Folder,Ground_Truth,Pred_AMD,Pred_DR,Pred_GL,Is_Correct
 data/Glaucoma/Test/data_07001.npz,Glaucoma,1,0,0,1,True
-data/AMD/Test/data_07001.npz,AMD,2.0,0,0,1,False

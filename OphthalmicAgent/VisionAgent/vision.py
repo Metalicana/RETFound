@@ -267,8 +267,6 @@ class VisionSpecialist:
             }
         ]
         
-        print("\n\n--- Sending Visual Data to Vision Specialist ---")
-        
         response = self.model_client.chat.completions.create(
             model=self.deployment_name,
             messages=messages,

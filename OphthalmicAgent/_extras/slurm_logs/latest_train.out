@@ -1,0 +1,213 @@
+--- Starting job on node evc4 ---
+Mon Mar 30 18:33:42 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.105.08             Driver Version: 580.105.08     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  Tesla V100-PCIE-16GB           Off |   00000000:D8:00.0 Off |                    0 |
+| N/A   35C    P0             40W /  250W |       0MiB /  16384MiB |      1%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+Running main training script: linear_probing_oct2.py
+Scanning Training data in /lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/data/...
+Found 18000 images for Training.
+Scanning Validation data in /lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/data/...
+Found 3000 images for Validation.
+
+[Epoch 1] Avg Loss: 1.8943
+AMD Avg AUC: 0.9172 | DR AUC: 0.9160 | GL AUC: 0.7773
+New Best Model Saved! (Avg AUC: 0.8709)
+
+[Epoch 2] Avg Loss: 1.6942
+AMD Avg AUC: 0.9290 | DR AUC: 0.9250 | GL AUC: 0.7866
+New Best Model Saved! (Avg AUC: 0.8835)
+
+[Epoch 3] Avg Loss: 1.6201
+AMD Avg AUC: 0.9346 | DR AUC: 0.9348 | GL AUC: 0.7994
+New Best Model Saved! (Avg AUC: 0.8926)
+
+[Epoch 4] Avg Loss: 1.5853
+AMD Avg AUC: 0.9360 | DR AUC: 0.9413 | GL AUC: 0.8008
+New Best Model Saved! (Avg AUC: 0.8957)
+
+[Epoch 5] Avg Loss: 1.5428
+AMD Avg AUC: 0.9389 | DR AUC: 0.9431 | GL AUC: 0.8055
+New Best Model Saved! (Avg AUC: 0.8996)
+
+[Epoch 6] Avg Loss: 1.5495
+AMD Avg AUC: 0.9392 | DR AUC: 0.9449 | GL AUC: 0.8059
+New Best Model Saved! (Avg AUC: 0.9000)
+
+[Epoch 7] Avg Loss: 1.5309
+AMD Avg AUC: 0.9410 | DR AUC: 0.9456 | GL AUC: 0.8074
+New Best Model Saved! (Avg AUC: 0.9021)
+
+[Epoch 8] Avg Loss: 1.5185
+AMD Avg AUC: 0.9408 | DR AUC: 0.9427 | GL AUC: 0.8096
+
+[Epoch 9] Avg Loss: 1.5324
+AMD Avg AUC: 0.9378 | DR AUC: 0.9409 | GL AUC: 0.8104
+
+[Epoch 10] Avg Loss: 1.5209
+AMD Avg AUC: 0.9384 | DR AUC: 0.9451 | GL AUC: 0.8093
+
+[Epoch 11] Avg Loss: 1.5226
+AMD Avg AUC: 0.9404 | DR AUC: 0.9480 | GL AUC: 0.8120
+New Best Model Saved! (Avg AUC: 0.9032)
+
+[Epoch 12] Avg Loss: 1.5078
+AMD Avg AUC: 0.9393 | DR AUC: 0.9435 | GL AUC: 0.8126
+
+[Epoch 13] Avg Loss: 1.4875
+AMD Avg AUC: 0.9400 | DR AUC: 0.9476 | GL AUC: 0.8167
+New Best Model Saved! (Avg AUC: 0.9037)
+
+[Epoch 14] Avg Loss: 1.5025
+AMD Avg AUC: 0.9417 | DR AUC: 0.9478 | GL AUC: 0.8126
+New Best Model Saved! (Avg AUC: 0.9037)
+
+[Epoch 15] Avg Loss: 1.4999
+AMD Avg AUC: 0.9417 | DR AUC: 0.9463 | GL AUC: 0.8136
+New Best Model Saved! (Avg AUC: 0.9042)
+
+[Epoch 16] Avg Loss: 1.4848
+AMD Avg AUC: 0.9409 | DR AUC: 0.9457 | GL AUC: 0.8140
+
+[Epoch 17] Avg Loss: 1.4910
+AMD Avg AUC: 0.9405 | DR AUC: 0.9520 | GL AUC: 0.8107
+
+[Epoch 18] Avg Loss: 1.4888
+AMD Avg AUC: 0.9416 | DR AUC: 0.9459 | GL AUC: 0.8144
+New Best Model Saved! (Avg AUC: 0.9044)
+
+[Epoch 19] Avg Loss: 1.4912
+AMD Avg AUC: 0.9420 | DR AUC: 0.9487 | GL AUC: 0.8156
+New Best Model Saved! (Avg AUC: 0.9055)
+
+[Epoch 20] Avg Loss: 1.4898
+AMD Avg AUC: 0.9440 | DR AUC: 0.9519 | GL AUC: 0.8186
+New Best Model Saved! (Avg AUC: 0.9079)
+
+[Epoch 21] Avg Loss: 1.4668
+AMD Avg AUC: 0.9411 | DR AUC: 0.9436 | GL AUC: 0.8164
+
+[Epoch 22] Avg Loss: 1.4660
+AMD Avg AUC: 0.9420 | DR AUC: 0.9477 | GL AUC: 0.8180
+
+[Epoch 23] Avg Loss: 1.4717
+AMD Avg AUC: 0.9428 | DR AUC: 0.9526 | GL AUC: 0.8118
+
+[Epoch 24] Avg Loss: 1.4429
+AMD Avg AUC: 0.9430 | DR AUC: 0.9545 | GL AUC: 0.8141
+
+[Epoch 25] Avg Loss: 1.4712
+AMD Avg AUC: 0.9428 | DR AUC: 0.9497 | GL AUC: 0.8189
+
+[Epoch 26] Avg Loss: 1.4716
+AMD Avg AUC: 0.9420 | DR AUC: 0.9503 | GL AUC: 0.8161
+
+[Epoch 27] Avg Loss: 1.4620
+AMD Avg AUC: 0.9417 | DR AUC: 0.9511 | GL AUC: 0.8163
+
+[Epoch 28] Avg Loss: 1.4849
+AMD Avg AUC: 0.9422 | DR AUC: 0.9504 | GL AUC: 0.8190
+
+[Epoch 29] Avg Loss: 1.4894
+AMD Avg AUC: 0.9413 | DR AUC: 0.9489 | GL AUC: 0.8181
+
+[Epoch 30] Avg Loss: 1.4716
+AMD Avg AUC: 0.9430 | DR AUC: 0.9490 | GL AUC: 0.8214
+
+[Epoch 31] Avg Loss: 1.4407
+AMD Avg AUC: 0.9423 | DR AUC: 0.9486 | GL AUC: 0.8174
+
+[Epoch 32] Avg Loss: 1.4581
+AMD Avg AUC: 0.9429 | DR AUC: 0.9516 | GL AUC: 0.8217
+New Best Model Saved! (Avg AUC: 0.9080)
+
+[Epoch 33] Avg Loss: 1.4864
+AMD Avg AUC: 0.9419 | DR AUC: 0.9512 | GL AUC: 0.8211
+
+[Epoch 34] Avg Loss: 1.4530
+AMD Avg AUC: 0.9428 | DR AUC: 0.9467 | GL AUC: 0.8176
+
+[Epoch 35] Avg Loss: 1.4278
+AMD Avg AUC: 0.9403 | DR AUC: 0.9493 | GL AUC: 0.8189
+
+[Epoch 36] Avg Loss: 1.4621
+AMD Avg AUC: 0.9419 | DR AUC: 0.9487 | GL AUC: 0.8199
+
+[Epoch 37] Avg Loss: 1.4303
+AMD Avg AUC: 0.9425 | DR AUC: 0.9446 | GL AUC: 0.8200
+
+[Epoch 38] Avg Loss: 1.4517
+AMD Avg AUC: 0.9437 | DR AUC: 0.9477 | GL AUC: 0.8168
+
+[Epoch 39] Avg Loss: 1.4578
+AMD Avg AUC: 0.9406 | DR AUC: 0.9487 | GL AUC: 0.8210
+
+[Epoch 40] Avg Loss: 1.4114
+AMD Avg AUC: 0.9450 | DR AUC: 0.9494 | GL AUC: 0.8217
+New Best Model Saved! (Avg AUC: 0.9089)
+
+[Epoch 41] Avg Loss: 1.4578
+AMD Avg AUC: 0.9421 | DR AUC: 0.9493 | GL AUC: 0.8202
+
+[Epoch 42] Avg Loss: 1.4472
+AMD Avg AUC: 0.9411 | DR AUC: 0.9499 | GL AUC: 0.8181
+
+[Epoch 43] Avg Loss: 1.4391
+AMD Avg AUC: 0.9427 | DR AUC: 0.9479 | GL AUC: 0.8202
+
+[Epoch 44] Avg Loss: 1.4563
+AMD Avg AUC: 0.9413 | DR AUC: 0.9485 | GL AUC: 0.8182
+
+[Epoch 45] Avg Loss: 1.4437
+AMD Avg AUC: 0.9401 | DR AUC: 0.9512 | GL AUC: 0.8208
+
+[Epoch 46] Avg Loss: 1.4454
+AMD Avg AUC: 0.9419 | DR AUC: 0.9497 | GL AUC: 0.8202
+
+[Epoch 47] Avg Loss: 1.4503
+AMD Avg AUC: 0.9436 | DR AUC: 0.9497 | GL AUC: 0.8176
+
+[Epoch 48] Avg Loss: 1.4640
+AMD Avg AUC: 0.9427 | DR AUC: 0.9515 | GL AUC: 0.8186
+
+[Epoch 49] Avg Loss: 1.4391
+AMD Avg AUC: 0.9436 | DR AUC: 0.9500 | GL AUC: 0.8181
+
+[Epoch 50] Avg Loss: 1.4247
+AMD Avg AUC: 0.9437 | DR AUC: 0.9479 | GL AUC: 0.8175
+
+[Epoch 51] Avg Loss: 1.4411
+AMD Avg AUC: 0.9433 | DR AUC: 0.9492 | GL AUC: 0.8197
+
+[Epoch 52] Avg Loss: 1.4355
+AMD Avg AUC: 0.9443 | DR AUC: 0.9489 | GL AUC: 0.8215
+
+[Epoch 53] Avg Loss: 1.4447
+AMD Avg AUC: 0.9451 | DR AUC: 0.9485 | GL AUC: 0.8233
+
+[Epoch 54] Avg Loss: 1.4176
+AMD Avg AUC: 0.9427 | DR AUC: 0.9453 | GL AUC: 0.8207
+
+[Epoch 55] Avg Loss: 1.4279
+AMD Avg AUC: 0.9447 | DR AUC: 0.9482 | GL AUC: 0.8219
+
+[Epoch 56] Avg Loss: 1.4493
+AMD Avg AUC: 0.9439 | DR AUC: 0.9523 | GL AUC: 0.8213
+
+[Epoch 57] Avg Loss: 1.4560
+AMD Avg AUC: 0.9444 | DR AUC: 0.9479 | GL AUC: 0.8221

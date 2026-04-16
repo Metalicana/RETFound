@@ -9,13 +9,16 @@ class AgentState(TypedDict):
     fundus_img: np.ndarray
     oct_img: np.ndarray
     clinical_narrative: str
+    equity_opinion: str 
+    
     oct_diagnosis: Any
     slo_diagnosis: Any  
     
     vision_opinion: Dict[str, Any]
     functional_opinion: Dict[str, Any]
     
+    guidelines: str
+    safety_output: str
+    
     final_diagnosis: Dict[str, Any]
     fairness_flag: bool
-    
-    safety_output: str
