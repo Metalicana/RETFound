@@ -6,7 +6,7 @@ from BioProfilerAgent.bio_profiler import BioProfiler
 from VisionAgent.vision import VisionSpecialist
 from VisionAgent.linear_probing_oct3 import FairVisionNPZ
 from FunctionalInterpretationAgent.function_interpreter import FunctionalSpecialist
-from GuidelineAgent.guidelines_agent import GuidelinesAgent
+from GuidelinesAgent.guidelines_agent import GuidelinesAgent
 from SafetyAgent.safety_agent import SafetyAgent
 
 from data.loader import GenericEyeLoader
@@ -24,11 +24,13 @@ vision_agent = VisionSpecialist("./weights/oct_model_best.pth", "./weights/slo_m
 
 functional_agent = FunctionalSpecialist()
 
-guideline_agent = GuidelinesAgent()
+#guideline_agent = GuidelinesAgent()
 
 ophthalmic_agent = Orchestrator()
 
 safety_agent = SafetyAgent()
+
+guidelines_agent = GuidelinesAgent()
 
 DATA_DIRS = {
     "AMD": "/path/to/data/AMD",
@@ -156,18 +158,23 @@ def run_diagnostic_pipeline(patient_data):
     
     print(f"{final_state['safety_output']}")
     print("\n" + "-"*30)  
-    
-#    print("\n" + "-"*30) 
-#    print(f"check2: {final_state['final_diagnosis']['labels']}")
-    
-#    print("\n\n--- Sending Query to Guideline Agent ---")
+
+    print("\n\n--- Sending Query to Guideline Agent ---")
 #    query = final_state['final_diagnosis']['pubmed_query']
 #    results = guideline_agent.consult(query, max_results=5)
-#
-#    print("\n\nRetrieved Evidence from Guideline Agent: ")
-#    print(json.dumps(results, indent=2))
-#    
-#    print("\n" + "-"*30) 
+
+#    note = (
+#        "62 year old Asian female with family history of glaucoma and migraine. "
+#        "Reports peripheral vision loss. Imaging shows inferior RNFL thinning and optic disc cupping. "
+#        "Concern for normal-tension glaucoma."
+#    )
+    note = final_state['final_diagnosis']['decision']
+    results = guidelines_agent.consult_note(note, max_results=5, diagnosis_only=True,)
+    
+    print(results)
+    
+    print("\n" + "-"*30) 
+    
     
 if __name__ == "__main__":
 
@@ -191,7 +198,7 @@ if __name__ == "__main__":
       test_rows = df[df['use'] == 'test']
       
       if not test_rows.empty: 
-          for i in range(100):     
+          for i in range(1):     
           
             try: 
               patient_record = loader.load_patient(disease, test_rows.iloc[i])
