@@ -23,7 +23,9 @@ class Orchestrator:
         narrative = state['clinical_narrative']
         vision_summary = state['vision_opinion']['summary']
         functional_summary = state['functional_opinion']['summary']
-        race = state['metadata']['race']
+        equity_output = state['equity_opinion']
+        guidelines = state['guidelines']
+#        race = state['metadata']['race']
         
         messages = [
             {
@@ -65,6 +67,8 @@ class Orchestrator:
                 - **Clinical Narrative**: {narrative}
                 - **Vision Specialist Findings**: {vision_summary}
                 - **Functional Specialist Findings**: {functional_summary}
+                - **Equity Agent's suggestions: {equity_output}
+                - **Guidelines: {guidelines}
                 
                 ### DIAGNOSTIC TASK
                 1. **Review Alignment**: Check the 'Alignment Status' in the Vision Summary (Agree/Conflict).

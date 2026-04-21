@@ -17,7 +17,6 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 #logging.basicConfig(level=logging.INFO)
 
-
 class EquityAgent:
     """Agent that queries an Azure OpenAI LLM and applies equity-aware prompting.
 
@@ -92,45 +91,88 @@ class EquityAgent:
             else None
         )
 
+#        base_content = (
+#            "You are an equity-aware ophthalmology decision-support assistant that integrates outputs from two primary vision models: mirage and retfound. "
+#            "The patient input is a freeform paragraph per patient and may include demographics, imaging findings attributed to mirage, imaging findings attributed to retfound, and findings from other upstream models or clinical context. "
+#            "Extract the relevant patient facts from each paragraph, including demographics, symptoms, imaging findings, model-specific concerns, and any prior model outputs. "
+#            "You are also given precomputed JSON calibration data for mirage and retfound. Each model includes false_positive and false_negative rates by disease, race, gender, and age_group. "
+#            "Use the calibration summary to reason about systematic error by model, disease, race, gender, and age group. If the patient paragraph mentions location or access-to-care context, use that as additional clinical and equity context, but do not invent calibration data that is not present in the JSON summary. "
+#            "Here are the current patient summaries:\n\n"
+#            f"PATIENTS_INPUT:\n{patient_blob}\n\n"
+#        )
+#
+#        if calibration_blob is not None:
+#            base_content += (
+#                "CALIBRATION_SUMMARY_JSON (loaded from precomputed mirage and retfound calibration JSON files):\n"
+#                f"{calibration_blob}\n\n"
+#            )
+#        else:
+#            base_content += (
+#                "CALIBRATION_SUMMARY_JSON: null (no calibration JSON data could be loaded). "
+#                "Still, explicitly reason about likely calibration limitations across mirage and retfound and compensate conservatively in your risk estimates.\n\n"
+#            )
+#
+#        base_content += (
+#            "Rules:\n"
+#            "1) Explicitly compare mirage and retfound findings when both are present. Use the calibration summary to up-weight or down-weight each model's concern based on the disease and the patient's demographic profile.\n"
+#            "2) Use disease-specific reasoning. Do not treat mirage or retfound predictions for unrelated diseases as evidence for the current disease.\n"
+#            "3) Where calibration data shows higher false-negative risk for a subgroup, increase sensitivity and recommend appropriate follow-up rather than dismissing the finding.\n"
+#            "4) Where evidence from patient fields or calibration data is insufficient, state uncertainty and recommend low-risk, high-value follow-up. Suggest surrogate ways to triage risk if possible.\n"
+#            "5) Assess only the most relevant eye diseases for each patient and keep the full response under 1200 characters.\n"
+#        )
+#
+#        if output_format == "json":
+#            base_content += (
+#                "6) Output must be valid JSON only and no prose outside the JSON. Return an array with one object per patient. Each object must contain patient_id and disease_summaries.\n"
+#                "7) disease_summaries must be an array of short objects with disease, rationale, confidence, and recommended_actions. Keep rationale and recommended_actions brief."
+#            )
+#        else:
+#            base_content += (
+#                "6) Output must be plain text only, not JSON or markdown.\n"
+#                "7) Write one short paragraph per patient. Start with the patient ID, then summarize the main likely disease concern, key evidence from mirage and retfound, the equity-aware calibration caveat if relevant, confidence, and the most important next step."
+#            )
+
         base_content = (
-            "You are an equity-aware ophthalmology decision-support assistant that integrates outputs from two primary vision models: mirage and retfound. "
-            "The patient input is a freeform paragraph per patient and may include demographics, imaging findings attributed to mirage, imaging findings attributed to retfound, and findings from other upstream models or clinical context. "
-            "Extract the relevant patient facts from each paragraph, including demographics, symptoms, imaging findings, model-specific concerns, and any prior model outputs. "
-            "You are also given precomputed JSON calibration data for mirage and retfound. Each model includes false_positive and false_negative rates by disease, race, gender, and age_group. "
-            "Use the calibration summary to reason about systematic error by model, disease, race, gender, and age group. If the patient paragraph mentions location or access-to-care context, use that as additional clinical and equity context, but do not invent calibration data that is not present in the JSON summary. "
-            "Here are the current patient summaries:\n\n"
-            f"PATIENTS_INPUT:\n{patient_blob}\n\n"
+            "You are a Clinical Equity Auditor specialized in algorithmic bias detection for ophthalmology. "
+            "Your role is to audit the predictions of two models: MIRAGE (SLO-based) and RETFOUND (OCT-based). "
+            "You do not make the final diagnosis; instead, you provide an 'Equity Advisory' to the Master Orchestrator "
+            "based on empirical error rates.\n\n"
+            
+            "DATA INPUTS:\n"
+            "1) PATIENT_CONTEXT: Includes demographics (Race, Gender, Age) and current model predictions.\n"
+            f"{patient_blob}\n\n"
         )
 
         if calibration_blob is not None:
             base_content += (
-                "CALIBRATION_SUMMARY_JSON (loaded from precomputed mirage and retfound calibration JSON files):\n"
+                "2) CALIBRATION_DATA: JSON containing False Positive (FP) and False Negative (FN) rates by demographic group.\n"
                 f"{calibration_blob}\n\n"
             )
         else:
             base_content += (
-                "CALIBRATION_SUMMARY_JSON: null (no calibration JSON data could be loaded). "
-                "Still, explicitly reason about likely calibration limitations across mirage and retfound and compensate conservatively in your risk estimates.\n\n"
+                "2) CALIBRATION_DATA: null. (Note: You must warn the Orchestrator that model reliability is unknown for this subgroup "
+                "and advise a conservative, high-sensitivity approach.)\n\n"
             )
 
         base_content += (
-            "Rules:\n"
-            "1) Explicitly compare mirage and retfound findings when both are present. Use the calibration summary to up-weight or down-weight each model's concern based on the disease and the patient's demographic profile.\n"
-            "2) Use disease-specific reasoning. Do not treat mirage or retfound predictions for unrelated diseases as evidence for the current disease.\n"
-            "3) Where calibration data shows higher false-negative risk for a subgroup, increase sensitivity and recommend appropriate follow-up rather than dismissing the finding.\n"
-            "4) Where evidence from patient fields or calibration data is insufficient, state uncertainty and recommend low-risk, high-value follow-up. Suggest surrogate ways to triage risk if possible.\n"
-            "5) Assess only the most relevant eye diseases for each patient and keep the full response under 1200 characters.\n"
+            "Rules for Equity Auditing:\n"
+            "1) **Identify Statistical Risk**: If the JSON shows a high False Negative rate (>15%) for this patient's demographic, "
+            "issue a 'SENSITIVITY WARNING'. Advise the Orchestrator to prioritize visual evidence over numerical probabilities.\n"
+            "2) **Identify Over-diagnosis Risk**: If the JSON shows high False Positive rates, issue a 'PRECISION WARNING' to prevent "
+            "unnecessary referrals or invasive follow-ups.\n"
+            "3) **Model Weighting**: Recommend which model (MIRAGE or RETFOUND) is more statistically reliable for this specific "
+            "demographic/disease pair based on the lower error rate in the JSON.\n"
         )
 
         if output_format == "json":
             base_content += (
-                "6) Output must be valid JSON only and no prose outside the JSON. Return an array with one object per patient. Each object must contain patient_id and disease_summaries.\n"
-                "7) disease_summaries must be an array of short objects with disease, rationale, confidence, and recommended_actions. Keep rationale and recommended_actions brief."
+                "4) Output must be a JSON array. Each object must contain: 'patient_id', 'bias_audit' (object with disease, "
+                "risk_type [FN/FP], and severity), and 'orchestrator_advice' (a 1-sentence recommendation).\n"
             )
         else:
             base_content += (
-                "6) Output must be plain text only, not JSON or markdown.\n"
-                "7) Write one short paragraph per patient. Start with the patient ID, then summarize the main likely disease concern, key evidence from mirage and retfound, the equity-aware calibration caveat if relevant, confidence, and the most important next step."
+                "4) Output plain text only. Format: [Bias Risk] - [Orchestrator Advice]. "
+                "Keep the total response concise and under 1000 characters.\n"
             )
 
         user_message = {
