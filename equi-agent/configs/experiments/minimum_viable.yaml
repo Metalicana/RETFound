@@ -1,0 +1,19 @@
+name: minimum_viable_equi_agent_paper
+priority_experiments:
+  - exp1_standalone_failure_modes
+  - exp2_main_comparison
+  - exp4_dynamic_vs_static
+  - exp5_ablation
+  - exp6_metadata_safety
+  - exp7_calibration
+defer_until_longitudinal_data_ready:
+  - exp8_longitudinal_glaucoma
+  - exp9_error_modes
+  - exp10_reproducibility_cost
+outputs:
+  predictions_dir: outputs/predictions
+  metrics_dir: outputs/metrics
+  tables_dir: outputs/tables
+  figures_dir: outputs/figures
+  logs_dir: outputs/logs
+

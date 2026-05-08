@@ -1,0 +1,22 @@
+name: harvard_fairvision
+manifest_format: fairvision_summary_csv
+tasks:
+  - amd
+  - dr
+  - glaucoma
+demographic_attributes:
+  - race
+  - ethnicity
+  - sex_gender
+  - age_group
+intersectional_attributes:
+  - race_x_sex_gender
+  - race_x_age_group
+  - sex_gender_x_age_group
+split_policy:
+  unit: patient_id
+  keep_eyes_together: true
+subgroup_reporting:
+  min_positive: 20
+  min_negative: 20
+
