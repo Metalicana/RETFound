@@ -18,7 +18,7 @@ import pandas as pd
 import json
 import re
 
-OUTPUT_CSV = "ophthalmic_performance_results_apr30.csv"
+OUTPUT_CSV = "ophthalmic_performance_results_may03.csv"
 
 #Intiializing agents
 profiler = BioProfiler()
@@ -31,13 +31,13 @@ guidelines_agent = GuidelinesAgent()
 
 def run_diagnostic_pipeline(patient_data):
     
-    #BIO PROFILER AGENT
-    print("\n\n--- Sending Meta Data to Bio Profiler Agent ---")
-    final_state["clinical_narrative"] = profiler.generate_narrative(final_state["metadata"])
-    print("\n\nNarrative Ready: ")
-    print(f"{final_state['clinical_narrative']}") 
-    print("\n" + "-"*30)
-    
+#    #BIO PROFILER AGENT
+#    print("\n\n--- Sending Meta Data to Bio Profiler Agent ---")
+#    final_state["clinical_narrative"] = profiler.generate_narrative(final_state["metadata"])
+#    print("\n\nNarrative Ready: ")
+#    print(f"{final_state['clinical_narrative']}") 
+#    print("\n" + "-"*30)
+#    
     #VISION AGENT
     print("\n\n--- Sending Visual Data to Vision Specialist ---")
     final_state["vision_opinion"] = vision_agent.analyze(patient_data['oct_img'], patient_data['fundus_img'], final_state)
@@ -45,30 +45,12 @@ def run_diagnostic_pipeline(patient_data):
     print("\n\nOCT DIAGNOSIS USING FINETUNED RETFOUND")
     
     oct_diagnosis = final_state['oct_diagnosis']
-
-#    retfound_scores = (
-#        f"SOURCE MODEL: RETFound (OCT-based)\n"
-#        f"- AMD: Stage {oct_diagnosis['AMD']['Predicted_Stage']} ({oct_diagnosis['AMD']['Description']}), "
-#        f"Confidence: {oct_diagnosis['AMD']['Probability'] :.1f}%\n"
-#        f"- DR: {oct_diagnosis['DR']['Status']}, Confidence: {oct_diagnosis['DR']['Probability'] :.1f}%\n"
-#        f"- Glaucoma: {oct_diagnosis['Glaucoma']['Status']}, Confidence: {oct_diagnosis['Glaucoma']['Probability'] :.1f}%"
-#    ) 
-    retfound_scores = final_state["vision_opinion"]["retfound_scores"]
-    
+    retfound_scores = final_state["vision_opinion"]["retfound_scores"]  
     print(retfound_scores)
     
     print("\nSLO DIAGNOSIS USING FINETUNED MIRAGE")
     slo_diagnosis = final_state['slo_diagnosis']
-
-#    mirage_scores = (
-#      f"SOURCE MODEL: MIRAGE (SLO-based)\n"
-#      f"- AMD: Stage {slo_diagnosis['AMD']['Predicted_Stage']} ({slo_diagnosis['AMD']['Description']}), "
-#      f"Confidence: {slo_diagnosis['AMD']['Probability'] :.1f}%\n"
-#      f"- DR: {slo_diagnosis['DR']['Status']}, Confidence: {slo_diagnosis['DR']['Probability'] :.1f}%\n"
-#      f"- Glaucoma: {slo_diagnosis['Glaucoma']['Status']}, Confidence: {slo_diagnosis['Glaucoma']['Probability'] :.1f}%"
-#    ) 
     mirage_scores = final_state["vision_opinion"]["mirage_scores"]
-    
     print(mirage_scores)
     
     print("\n\nVision Specialist's Output Ready: ")
@@ -76,30 +58,30 @@ def run_diagnostic_pipeline(patient_data):
     
     print("\n" + "-"*30)
     
-    #FUNCTIONAL INTERPRETATION AGENT
-    print("\n\n--- Sending Visual Field Data to Functional Interpretation Agent ---")
-    final_state["functional_opinion"] = functional_agent.analyze(final_state)
-    print("\n\nFunctional Vision Interpreter's Output Ready: ")
-    print(f"{final_state['functional_opinion']['summary']}")
-
-    print("\n" + "-"*30)   
-    
-    #EQUITY AGENT
-    print("\n\n--- Sending Narrative and Visual Findings to Equity Agent ---")
-    equity_input = f"""
-    ### PATIENT DATA 
-    Patient narrative: {final_state['clinical_narrative']}
-        
-    ### AI MODEL OUTPUTS
-    {retfound_scores} 
-        
-         
-    {mirage_scores}"""
-
-    final_state["equity_opinion"] = equity_agent.analyze_patients(equity_input, output_format="text")
-    print("\n\nEquity Agent's Output Ready: ")
-    print(f"{final_state['equity_opinion']}") 
-    print("\n" + "-"*30)
+#    #FUNCTIONAL INTERPRETATION AGENT
+#    print("\n\n--- Sending Visual Field Data to Functional Interpretation Agent ---")
+#    final_state["functional_opinion"] = functional_agent.analyze(final_state)
+#    print("\n\nFunctional Vision Interpreter's Output Ready: ")
+#    print(f"{final_state['functional_opinion']['summary']}")
+#
+#    print("\n" + "-"*30)   
+#    
+#    #EQUITY AGENT
+#    print("\n\n--- Sending Narrative and Visual Findings to Equity Agent ---")
+#    equity_input = f"""
+#    ### PATIENT DATA 
+#    Patient narrative: {final_state['clinical_narrative']}
+#        
+#    ### AI MODEL OUTPUTS
+#    {retfound_scores} 
+#        
+#         
+#    {mirage_scores}"""
+#
+#    final_state["equity_opinion"] = equity_agent.analyze_patients(equity_input, output_format="text")
+#    print("\n\nEquity Agent's Output Ready: ")
+#    print(f"{final_state['equity_opinion']}") 
+#    print("\n" + "-"*30)
     
 #    #GUIDELINES AGENT
 #    print("\n\n--- Sending Query to Guidelines Agent ---")
@@ -119,13 +101,13 @@ def run_diagnostic_pipeline(patient_data):
     print("\n\n Ophthalmic Agent's Final Diagnosis Ready: ")
     print(f"{final_state['final_diagnosis']['decision']}")
     print("\n" + "-"*30)  
-    
-    #SAFETY AGENT
-    print("\n\n--- Sending Case to Safety Agent ---")
-    final_state["safety_output"] = safety_agent.run(final_state)
-    print("\n\n Safety Agent's Output Ready: ")
-    print(f"{final_state['safety_output']}")
-    print("\n" + "-"*30)  
+#    
+#    #SAFETY AGENT
+#    print("\n\n--- Sending Case to Safety Agent ---")
+#    final_state["safety_output"] = safety_agent.run(final_state)
+#    print("\n\n Safety Agent's Output Ready: ")
+#    print(f"{final_state['safety_output']}")
+#    print("\n" + "-"*30)  
     
 def parse_agent_labels(final_state):
     label_text = final_state['final_diagnosis']['labels']

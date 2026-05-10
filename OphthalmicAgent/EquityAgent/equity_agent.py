@@ -132,55 +132,72 @@ class EquityAgent:
 #                "7) Write one short paragraph per patient. Start with the patient ID, then summarize the main likely disease concern, key evidence from mirage and retfound, the equity-aware calibration caveat if relevant, confidence, and the most important next step."
 #            )
 
-        base_content = (
-            "You are a Clinical Equity Auditor specialized in algorithmic bias detection for ophthalmology. "
-            "Your role is to audit the predictions of two models: MIRAGE (SLO-based) and RETFOUND (OCT-based). "
-            "You do not make the final diagnosis; instead, you provide an 'Equity Advisory' to the Master Orchestrator "
-            "based on empirical error rates.\n\n"
+# SYSTEM ROLE: Define the specialized auditor persona
+# SYSTEM CONTENT: Focus on the translation of statistical risk to operational thresholds
+        system_content = (
+            "You are a Clinical Equity Auditor. Your task is to translate decimal error rates (Calibration Data) "
+            "into percentage-based diagnostic thresholds for the Orchestrator.\n\n"
             
-            "DATA INPUTS:\n"
-            "1) PATIENT_CONTEXT: Includes demographics (Race, Gender, Age) and current model predictions.\n"
+            "SCALE TRANSLATION PROTOCOL:\n"
+            "- Calibration Input: Decimals (e.g., 0.15 = 15% error rate).\n"
+            "- Orchestrator Output: Percentages (e.g., 35%, 50%, or 65% threshold).\n\n"
+            
+            "CORE MISSION: You prevent demographic-based False Negatives by lowering the diagnostic bar (35% threshold) "
+            "when a patient belongs to a subgroup where the AI models are prone to missing disease."
+        )
+
+        # BASE CONTENT: Incorporating the new Distribution and Pathology Signal data
+        base_content = (
+            "### TASK OVERVIEW\n"
+            "Audit the patient's AI data against empirical calibration JSONs. You must determine if a "
+            "'Sensitivity Shift' is required to prevent missing early/intermediate pathology.\n\n"
+            
+            "### DATA INPUTS\n"
+            "1) PATIENT_CONTEXT (Full Distributions & [!] TOTAL PATHOLOGY SIGNAL):\n"
             f"{patient_blob}\n\n"
         )
 
         if calibration_blob is not None:
             base_content += (
-                "2) CALIBRATION_DATA: JSON containing False Positive (FP) and False Negative (FN) rates by demographic group.\n"
+                "2) CALIBRATION_DATA (Rates in Decimals):\n"
                 f"{calibration_blob}\n\n"
+                "INSTRUCTION: If any FN rate for the patient's subgroup is > 0.15, you MUST prioritize SENSITIVITY.\n\n"
             )
         else:
             base_content += (
-                "2) CALIBRATION_DATA: null. (Note: You must warn the Orchestrator that model reliability is unknown for this subgroup "
-                "and advise a conservative, high-sensitivity approach.)\n\n"
+                "2) CALIBRATION_DATA: NULL.\n"
+                "ACTION: Historical reliability for this demographic is unknown. Assume high FN risk by default.\n\n"
             )
 
         base_content += (
-            "Rules for Equity Auditing:\n"
-            "1) **Identify Statistical Risk**: If the JSON shows a high False Negative rate (>15%) for this patient's demographic, "
-            "issue a 'SENSITIVITY WARNING'. Advise the Orchestrator to prioritize visual evidence over numerical probabilities.\n"
-            "2) **Identify Over-diagnosis Risk**: If the JSON shows high False Positive rates, issue a 'PRECISION WARNING' to prevent "
-            "unnecessary referrals or invasive follow-ups.\n"
-            "3) **Model Weighting**: Recommend which model (MIRAGE or RETFOUND) is more statistically reliable for this specific "
-            "demographic/disease pair based on the lower error rate in the JSON.\n"
+            "### RULES FOR EQUITY AUDITING\n"
+            "1) **SENSITIVITY_SHIFT (Threshold = 35%)**: \n"
+            "   - Trigger this if FN rate > 0.15.\n"
+            "   - MANDATORY: If a 35% shift is active, and the '[!] TOTAL PATHOLOGY SIGNAL' (Sum of Stages 1-3) "
+            "is > 35%, command the Orchestrator to investigate Stage 1 or 2, even if Stage 0 is the single highest probability.\n\n"
+            
+            "2) **PRECISION_SHIFT (Threshold = 65%)**: \n"
+            "   - Trigger this if FP rate > 0.15 and FN rate is low (< 0.10).\n\n"
+            
+            "3) **PRIMARY_MODEL SELECTION**: \n"
+            "   - Compare RETFOUND and MIRAGE decimal error rates. Favor the model with the lowest cumulative error "
+            "for this specific patient's race/age/gender.\n\n"
+            
+            "### REQUIRED OUTPUT FORMAT\n"
+            "[BIAS_AUDIT_REPORT]\n"
+            "- RISK_TYPE: [FN Risk / FP Risk / Minimal Risk]\n"
+            "- RECOMMENDED_THRESHOLD: [35%, 50%, or 65%]\n"
+            "- PRIMARY_MODEL: [MIRAGE or RETFOUND]\n"
+            "- ORCHESTRATOR_ADVICE: [Justify the threshold shift by citing the specific FN/FP rates and the "
+            "Total Pathology Signal found in the distribution.]\n"
+            "[/BIAS_AUDIT_REPORT]"
         )
-
-        if output_format == "json":
-            base_content += (
-                "4) Output must be a JSON array. Each object must contain: 'patient_id', 'bias_audit' (object with disease, "
-                "risk_type [FN/FP], and severity), and 'orchestrator_advice' (a 1-sentence recommendation).\n"
-            )
-        else:
-            base_content += (
-                "4) Output plain text only. Format: [Bias Risk] - [Orchestrator Advice]. "
-                "Keep the total response concise and under 1000 characters.\n"
-            )
-
-        user_message = {
-            "role": "user",
-            "content": base_content,
-        }
-        messages = [user_message]
-
+        
+        messages = [
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": base_content}
+        ]
+        
         # Call Azure OpenAI Chat Completions using chat completion endpoint
         try:
             resp = self.client.chat.completions.create(

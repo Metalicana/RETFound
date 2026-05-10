@@ -43,8 +43,6 @@ class GenericEyeLoader:
         npz_path = os.path.join(disease_dir, npz_filename)
         container = np.load(npz_path)
         
-#        print(f"path is: {npz_path}")
-        
         if(disease == "AMD"): 
            
           amd_map = {

@@ -30,15 +30,16 @@ class FunctionalSpecialist:
             {
                 "role": "system",
                 "content": (
-                    "You are a Specialist in Functional Vision Assessment. Your role is to interpret "
-                    "perimetry data, specifically Mean Deviation (MD) scores, and correlate them "
+                    "You are a Specialist at interpreting retinal visual field tests. "
+                    "You will be given perimetry data, specifically Mean Deviation (MD) scores, and have to correlate them "
                     "with patient history. You translate numerical deficits into clinical severity "
                     "(Early, Moderate, or Advanced loss).\n\n"
                     "CRITICAL: You must conclude your report with a section titled '[EXECUTIVE SUMMARY]' "
                     "containing 3-5 bullet points for the Lead Ophthalmic Surgeon."
                 )
             },
-            {
+            {    
+              #visual field data, harvard gdp 54 sized vector
                 "role": "user",
                 "content": f"""
                 ### INPUT DATA

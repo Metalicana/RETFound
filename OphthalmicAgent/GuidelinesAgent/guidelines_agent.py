@@ -137,7 +137,7 @@ Patient note:
             )
 
         prompt = f"""
-You are summarizing ophthalmology guideline retrieval results for a downstream diagnostic model.
+You are summarizing retrieved ophthalmology guidelines for diagnosing eye diseases.
 
 Write the output as plain text paragraphs only.
 

@@ -30,8 +30,8 @@ nvidia-smi
 cd /lustre/fs1/home/yu395012/RETFound/OphthalmicAgent
 
 # --- EXECUTE PYTHON SCRIPT ---
-echo "Running main training script: main.py"
+echo "Running baseline testing script: main_baseline.py"
 
-python -u -m main
+python -u -m main_baseline
 
 echo "--- Job finished successfully ---"
