@@ -46,13 +46,6 @@ def run_diagnostic_pipeline(patient_data):
     
     oct_diagnosis = final_state['oct_diagnosis']
 
-#    retfound_scores = (
-#        f"SOURCE MODEL: RETFound (OCT-based)\n"
-#        f"- AMD: Stage {oct_diagnosis['AMD']['Predicted_Stage']} ({oct_diagnosis['AMD']['Description']}), "
-#        f"Confidence: {oct_diagnosis['AMD']['Probability'] :.1f}%\n"
-#        f"- DR: {oct_diagnosis['DR']['Status']}, Confidence: {oct_diagnosis['DR']['Probability'] :.1f}%\n"
-#        f"- Glaucoma: {oct_diagnosis['Glaucoma']['Status']}, Confidence: {oct_diagnosis['Glaucoma']['Probability'] :.1f}%"
-#    ) 
     retfound_scores = final_state["vision_opinion"]["retfound_scores"]
     
     print(retfound_scores)
@@ -60,13 +53,6 @@ def run_diagnostic_pipeline(patient_data):
     print("\nSLO DIAGNOSIS USING FINETUNED MIRAGE")
     slo_diagnosis = final_state['slo_diagnosis']
 
-#    mirage_scores = (
-#      f"SOURCE MODEL: MIRAGE (SLO-based)\n"
-#      f"- AMD: Stage {slo_diagnosis['AMD']['Predicted_Stage']} ({slo_diagnosis['AMD']['Description']}), "
-#      f"Confidence: {slo_diagnosis['AMD']['Probability'] :.1f}%\n"
-#      f"- DR: {slo_diagnosis['DR']['Status']}, Confidence: {slo_diagnosis['DR']['Probability'] :.1f}%\n"
-#      f"- Glaucoma: {slo_diagnosis['Glaucoma']['Status']}, Confidence: {slo_diagnosis['Glaucoma']['Probability'] :.1f}%"
-#    ) 
     mirage_scores = final_state["vision_opinion"]["mirage_scores"]
     
     print(mirage_scores)
@@ -101,17 +87,17 @@ def run_diagnostic_pipeline(patient_data):
     print(f"{final_state['equity_opinion']}") 
     print("\n" + "-"*30)
     
-#    #GUIDELINES AGENT
-#    print("\n\n--- Sending Query to Guidelines Agent ---")
-#    note = f"""
-#    Patient Narrative: {final_state['clinical_narrative']} 
-#    Functional Interpretation Agent output: {final_state['functional_opinion']['summary']}"""
-#
-#    final_state['guidelines'] = guidelines_agent.consult_note(note, max_results=5, diagnosis_only=True,)
-#    print("\n\n Guidelines Agent's Output   Ready: ")
-#    print(f"{final_state['guidelines']}")
-#    
-#    print("\n" + "-"*30) 
+    #GUIDELINES AGENT
+    print("\n\n--- Sending Query to Guidelines Agent ---")
+    note = f"""
+    Patient Narrative: {final_state['clinical_narrative']} 
+    Functional Interpretation Agent output: {final_state['functional_opinion']['summary']}"""
+
+    final_state['guidelines'] = guidelines_agent.consult_note(note, max_results=5, diagnosis_only=True,)
+    print("\n\n Guidelines Agent's Output   Ready: ")
+    print(f"{final_state['guidelines']}")
+    
+    print("\n" + "-"*30) 
     
     #ORCHESTRATOR
     print("\n\n--- Sending Case to Orchestrator ---")
@@ -202,33 +188,6 @@ if __name__ == "__main__":
               gender = patient_record['metadata']['gender']
               race = patient_record['metadata']['race']
               ethnicity = patient_record['metadata']['ethnicity']
-              
-#              pred_labels = parse_agent_labels(final_state)
-#  
-#              ground_truth = patient_record['stage']
-#              
-#              row = {
-#                    "Filename": patient_record['directory'],
-#                    "Task_Folder": disease,
-#                    "Ground_Truth": ground_truth,
-#                    "Pred_AMD": pred_labels["AMD"] if pred_labels else -1,
-#                    "Pred_DR": pred_labels["DR"] if pred_labels else -1,
-#                    "Pred_GL": pred_labels["GL"] if pred_labels else -1,
-#                    }
-#                    
-#              if "AMD" in disease:
-#                  # Grades the stage (0-3)
-#                  row["Is_Correct"] = (pred_labels["AMD"] == ground_truth)
-#              
-#              elif "DR" in disease:
-#                  # Grades binary detection (0 or 1)
-#                  row["Is_Correct"] = (pred_labels["DR"] == ground_truth)
-#              
-#              elif "Glaucoma" in disease:
-#                  # Grades binary detection (0 or 1)
-#                  row["Is_Correct"] = (pred_labels["GL"] == ground_truth)
-#              
-#              results.append(row)
 
               pred_labels = parse_agent_labels(final_state)
               ground_truth = patient_record['stage']
