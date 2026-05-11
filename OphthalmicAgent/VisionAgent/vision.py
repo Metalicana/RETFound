@@ -253,85 +253,30 @@ class VisionSpecialist:
             f"2. DR Status: {slo_data['DR']['Status']} (Confidence: {slo_data['DR']['Prob_Pct']}%)\n"
             f"3. Glaucoma Status: {slo_data['Glaucoma']['Status']} (Confidence: {slo_data['Glaucoma']['Prob_Pct']}%)\n"
         )
-#            
-#        messages = [
-#            {
-#                "role": "system",
-#                "content": (
-#                """You are a Senior Ophthalmic Imaging Specialist. Your task is to perform a "Grounded Visual Audit" of retinal images (OCT and SLO/Fundus), cross-referencing your visual findings against AI probability distributions.
-#
-#### CLINICAL DIAGNOSTIC CRITERIA
-#You must use the following morphological benchmarks to determine disease staging. Prioritize your physical visual evidence over the AI's numerical classification.
-#
-#1. **AMD STAGING (Focus on the RPE-Bruch's membrane interface):**
-# - STAGE 0 (Healthy): perfectly smooth RPE; no elevations or granular deposits.
-# - STAGE 1 (Early): Small, isolated dots (< 1/2 retinal vein width).
-# - STAGE 2 (Intermediate): Multiple distinct bumps OR confluent lumpy/granular texture (1/2 to 1 full retinal vein width).
-# - STAGE 3 (Advanced): Fluid, geographic atrophy (missing tissue), or sub-RPE scarring.
-#
-#2. **DR MARKERS:** Identify microaneurysms, intraretinal hemorrhages, or hard exudates.
-#3. **GLAUCOMA MARKERS:** Identify significant optic disc cupping (increased cup-to-disc ratio) or localized RNFL defects.
-#
-#### AUDIT PROTOCOL
-#- **Step 1: Independent Inspection.** Perform an initial independent visual review of the macula (OCT) and optic disc (SLO) for physical lesions.
-#- **Step 2: Compare against Pathology Signals.** Read the AI_PROBABILITIES, specifically looking at the full distributions and the `[!] TOTAL PATHOLOGY SIGNAL` (the sum of disease Stages 1-3).
-#- **Step 3: Resolve "Subtle Pathology" Tension.** A conflict occurs if you initially see Stage 0 but the AI's Pathology Signal is > 30\%. In this scenario, you must zoom in on the RPE interface and look for subtle "textured granularity" or "pebble-like" bumps (Stage 2) that might be ignored at lower magnification.
-#- **Step 4: Identify CRITICAL CONFLICTS.** A conflict is defined if the physical visual markers do not substantiate the AI's primary classification (e.g., AI calls Stage 3 but there is absolutely no visible fluid or atrophy). """
-#
-#                )
-#            },
-#            {
-#                "role": "user",
-#                "content": [
-#                    {
-#                        "type": "text",
-#                        "text": f"""
-#                        ### INPUT DATA FOR CASE
-#                        1. IMAGE_OCT: [Attached B-scan]
-#                        2. IMAGE_SLO: [Attached SLO/Fundus image]
-#                        3. AI_PROBABILITIES (Full Distributions):
-#                        {retfound_scores}
-#                        
-#                        {mirage_scores}
-#                        
-#                        ### YOUR ASSIGNMENT
-#                        1. Perform a detailed inspection of the macula foveal contour and the RPE interface on the OCT. Characterize any drusen or RPE                            elevations using the specific clinical benchmarks provided in your instructions. Identify if the macula is centered. If not                               centered (e.g., Disc-centered image), do not abstain. Instead, scan the visible temporal retina for drusen or pigmentary changes.
-#                        
-#                        Revised Staging: If the macula is not visible, but the visible retina is healthy, report "Stage 0 (Periphery Clear)." Only report                         "Indeterminate" if the image is so blurry or poorly framed that no retina is visible.
-#                        
-#                        2. In the SLO image, audit the vasculature for hemorrhages/exudates and the optic disc for cupping.
-#                        3. Compare your visual staging against the AI distribution. Pay close attention to the `[!] TOTAL PATHOLOGY SIGNAL`. If the signal                        is high, perform a targeted, high-magnification check of the RPE interface for subtle granularity or very small "bumps"                                   (indicating Stage 2).
-#                        4. Conclude your report with an Executive Summary detailing your visual evidence and any critical conflicts.
-#                        
-#                        ### REQUIRED OUTPUT STRUCTURE
-#                        You must conclude your report with the following formatted block:
-#                        
-#                        [EXECUTIVE SUMMARY]
-#                        - VISUAL FINDINGS: (e.g., "OCT: smooth RPE, foveal contour preserved. Fundus: normal vasculature, physiological cup. SLO macula                           not visible.")
-#                        - INDEPENDENT STAGE: (Identify Stage 0, 1, 2, or 3)
-#                        - ALIGNMENT: (Agree / Conflict / Uncertain)
-#                        - CONFLICT DETAIL: (If 'Conflict', explain why the physical image morphology does not substantiate the AI's classification or                             pathology signal.)
-#                        [/EXECUTIVE SUMMARY]
-#                        """
-#                    },
-#                    { "type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_oct_image}"} },
-#                    { "type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_slo_image}"} }
-#                ]
-#            }
-#        ]
             
         messages = [
             {
                 "role": "system",
                 "content": (
-                """You are a specialized Ophthalmic Imaging Agent. Your sole responsibility is to identify and quantify structural biomarkers in fundus and OCT images.
-                **Your Task**:
-                Analyze the provided image data for the following:
-                1. **Glaucoma**: Cup-to-Disc ratio, RNFL thinning, notch presence
-                2. **AMD**: Drusen size (small < 63um, medium 63-125um, large > 125um), pigmentary changes, sub-retinal fluid.
-                3. **DR**: Count microaneurysms, hemorrhages, and exudates
-                
-                Constraint: Do not suggest a final diagnosis or staging. Report only morphological proof. Provide a concise summary of all findings."""
+                """You are a Senior Ophthalmic Imaging Specialist. Your task is to perform a "Grounded Visual Audit" of retinal images (OCT and SLO/Fundus), cross-referencing your visual findings against AI probability distributions.
+
+### CLINICAL DIAGNOSTIC CRITERIA
+You must use the following morphological benchmarks to determine disease staging. Prioritize your physical visual evidence over the AI's numerical classification.
+
+1. **AMD STAGING (Focus on the RPE-Bruch's membrane interface):**
+ - STAGE 0 (Healthy): perfectly smooth RPE; no elevations or granular deposits.
+ - STAGE 1 (Early): Small, isolated dots (< 1/2 retinal vein width).
+ - STAGE 2 (Intermediate): Multiple distinct bumps OR confluent lumpy/granular texture (1/2 to 1 full retinal vein width).
+ - STAGE 3 (Advanced): Fluid, geographic atrophy (missing tissue), or sub-RPE scarring.
+
+2. **DR MARKERS:** Identify microaneurysms, intraretinal hemorrhages, or hard exudates.
+3. **GLAUCOMA MARKERS:** Identify significant optic disc cupping (increased cup-to-disc ratio) or localized RNFL defects.
+
+### AUDIT PROTOCOL
+- **Step 1: Independent Inspection.** Perform an initial independent visual review of the macula (OCT) and optic disc (SLO) for physical lesions.
+- **Step 2: Compare against Pathology Signals.** Read the AI_PROBABILITIES, specifically looking at the full distributions and the `[!] TOTAL PATHOLOGY SIGNAL` (the sum of disease Stages 1-3).
+- **Step 3: Resolve "Subtle Pathology" Tension.** A conflict occurs if you initially see Stage 0 but the AI's Pathology Signal is > 30\%. In this scenario, you must zoom in on the RPE interface and look for subtle "textured granularity" or "pebble-like" bumps (Stage 2) that might be ignored at lower magnification.
+- **Step 4: Identify CRITICAL CONFLICTS.** A conflict is defined if the physical visual markers do not substantiate the AI's primary classification (e.g., AI calls Stage 3 but there is absolutely no visible fluid or atrophy). """
 
                 )
             },
@@ -344,15 +289,28 @@ class VisionSpecialist:
                         ### INPUT DATA FOR CASE
                         1. IMAGE_OCT: [Attached B-scan]
                         2. IMAGE_SLO: [Attached SLO/Fundus image]
+                        3. AI_PROBABILITIES (Full Distributions):
+                        {retfound_scores}
+                        
+                        {mirage_scores}
                         
                         ### YOUR ASSIGNMENT
-                        Perform an inspection of the provided images as described above.
+                        1. Perform a detailed inspection of the macula foveal contour and the RPE interface on the OCT. Characterize any drusen or RPE                            elevations using the specific clinical benchmarks provided in your instructions. Identify if the macula is centered. If not                               centered (e.g., Disc-centered image), do not abstain. Instead, scan the visible temporal retina for drusen or pigmentary changes.
+                        
+                        Revised Staging: If the macula is not visible, but the visible retina is healthy, report "Stage 0 (Periphery Clear)." Only report                         "Indeterminate" if the image is so blurry or poorly framed that no retina is visible.
+                        
+                        2. In the SLO image, audit the vasculature for hemorrhages/exudates and the optic disc for cupping.
+                        3. Compare your visual staging against the AI distribution. Pay close attention to the `[!] TOTAL PATHOLOGY SIGNAL`. If the signal                        is high, perform a targeted, high-magnification check of the RPE interface for subtle granularity or very small "bumps"                                   (indicating Stage 2).
+                        4. Conclude your report with an Executive Summary detailing your visual evidence and any critical conflicts.
                         
                         ### REQUIRED OUTPUT STRUCTURE
                         You must conclude your report with the following formatted block:
                         
                         [EXECUTIVE SUMMARY]
-                        - VISUAL FINDINGS
+                        - VISUAL FINDINGS: (e.g., "OCT: smooth RPE, foveal contour preserved. Fundus: normal vasculature, physiological cup. SLO macula                           not visible.")
+                        - INDEPENDENT STAGE: (Identify Stage 0, 1, 2, or 3)
+                        - ALIGNMENT: (Agree / Conflict / Uncertain)
+                        - CONFLICT DETAIL: (If 'Conflict', explain why the physical image morphology does not substantiate the AI's classification or                             pathology signal.)
                         [/EXECUTIVE SUMMARY]
                         """
                     },
@@ -361,7 +319,7 @@ class VisionSpecialist:
                 ]
             }
         ]
-        
+            
         response = self.model_client.chat.completions.create(
             model=self.deployment_name,
             messages=messages,
