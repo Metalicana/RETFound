@@ -2,4 +2,11 @@ pandas
 numpy
 scikit-learn
 pyyaml
-
+pillow
+requests
+tqdm
+python-dotenv
+openai
+torch
+torchvision
+timm

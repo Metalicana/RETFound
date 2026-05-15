@@ -1,5 +1,11 @@
 name: harvard_fairvision
+root: ../Datasets/FairVision
 manifest_format: fairvision_summary_csv
+metadata_root: ../Datasets/FairVision/HarvardFairVision30k
+split_roots:
+  train: ../Datasets/FairVision/Training
+  val: ../Datasets/FairVision/Validation
+  test: ../Datasets/FairVision/Test
 tasks:
   - amd
   - dr
@@ -19,4 +25,3 @@ split_policy:
 subgroup_reporting:
   min_positive: 20
   min_negative: 20
-

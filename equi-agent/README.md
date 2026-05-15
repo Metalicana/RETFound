@@ -32,6 +32,33 @@ manifests and patient/eye/visit labels before claims can be made.
 - `src/calibration/priors.py`: validation-only subgroup reliability prior builder.
 - `src/tables/export.py`: CSV/JSON/LaTeX export helpers.
 
+## Legacy Agent Mirror
+
+The legacy `OphthalmicAgent/` agent architecture has been mirrored into this folder for
+local experiments:
+
+`BioProfilerAgent/`, `EquityAgent/`, `FunctionalInterpretationAgent/`, `GuidelinesAgent/`,
+`Orchestrator/`, `SafetyAgent/`, `VisionAgent/`, `main.py`, and `main_baseline.py`.
+
+The intentional difference is data loading. `data/loader.py` expects the local mirror layout:
+
+```text
+RETFound/
+  Datasets/
+    FairVision/
+      HarvardFairVision30k/{AMD,DR,Glaucoma}/ReadMe/data_summary_*.csv
+      Training/{AMD,DR,Glaucoma}/data_*.npz
+      Validation/{AMD,DR,Glaucoma}/data_*.npz
+      Test/{AMD,DR,Glaucoma}/data_*.npz
+```
+
+Run the mirrored agent from this directory so relative weights and scripts resolve:
+
+```bash
+cd equi-agent
+python -u -m main
+```
+
 ## Standard Prediction Schema
 
 Every downstream method should emit one row per sample, task, split, and model:
@@ -41,4 +68,3 @@ Every downstream method should emit one row per sample, task, split, and model:
 Longitudinal experiments add:
 
 `sequence_id, visit_index, visit_date, time_since_baseline, num_visits, progression_label`
-
