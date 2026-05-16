@@ -130,7 +130,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--split", choices=("all", "train", "val", "test"), default="test")
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--device", default=None, help="Example: cuda, cuda:0, or cpu. Defaults to CUDA if available.")
-    parser.add_argument("--limit", type=int, default=None, help="Optional row limit for smoke testing.")
+    parser.add_argument("--limit", type=int, default=None, help="Optional total row limit for smoke testing.")
+    parser.add_argument(
+        "--limit-per-task",
+        type=int,
+        default=None,
+        help="Optional row limit per task for smoke testing. Prefer this over --limit.",
+    )
     return parser.parse_args()
 
 
@@ -152,6 +158,8 @@ def main() -> None:
             df = df[df["split"] == args.split].copy()
         df["task"] = task
         manifests.append(df)
+    if args.limit_per_task:
+        manifests = [df.head(args.limit_per_task).copy() for df in manifests]
     manifest = pd.concat(manifests, ignore_index=True)
     if args.limit:
         manifest = manifest.head(args.limit).copy()
