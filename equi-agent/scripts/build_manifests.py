@@ -114,6 +114,7 @@ def normalize_binary_label(value: object, task: str) -> int | float:
     key = str(value).strip().lower()
     if task == "amd":
         return {
+            "normal": 0,
             "no amd": 0,
             "no.amd.diagnosis": 0,
             "not.in.icd.table": 0,
@@ -209,9 +210,15 @@ def build_gdp_detection_manifest(gdp_root: Path) -> pd.DataFrame:
 
 def build_gdp_progression_manifest(gdp_root: Path) -> pd.DataFrame:
     raw = pd.read_csv(gdp_root / "ReadMe" / "data_summary.csv")
+    raw = raw[
+        raw["progression_forecasting_use"].notna()
+        & raw["progression.md"].notna()
+        & (raw["progression_forecasting_use"].astype(str).str.strip().str.lower() != "nan")
+    ].copy()
     filename_npz = raw["filename"].astype(str).map(lambda name: name if name.endswith(".npz") else f"{name}.npz")
 
     manifest = build_gdp_detection_manifest(gdp_root)
+    manifest = manifest[manifest["patient_id"].isin(raw["filename"].map(infer_patient_id))].copy()
     manifest["task"] = "progression_forecasting"
     manifest["split"] = raw["progression_forecasting_use"].map(normalize_split)
     manifest["label_raw"] = raw["progression.md"]
