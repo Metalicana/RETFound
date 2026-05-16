@@ -47,9 +47,16 @@ RETFound/
   Datasets/
     FairVision/
       HarvardFairVision30k/{AMD,DR,Glaucoma}/ReadMe/data_summary_*.csv
-      Training/{AMD,DR,Glaucoma}/data_*.npz
-      Validation/{AMD,DR,Glaucoma}/data_*.npz
-      Test/{AMD,DR,Glaucoma}/data_*.npz
+      Training/data_*.npz
+      Validation/data_*.npz
+      Test/data_*.npz
+      Training/slo_fundus_*.jpg
+      Validation/slo_fundus_*.jpg
+      Test/slo_fundus_*.jpg
+    GDP/
+      ReadMe/data_summary.csv
+      Bscan/
+      RNFLT/
 ```
 
 Run the mirrored agent from this directory so relative weights and scripts resolve:
@@ -57,6 +64,12 @@ Run the mirrored agent from this directory so relative weights and scripts resol
 ```bash
 cd equi-agent
 python -u -m main
+```
+
+Inspect local NPZ formats before wiring model inputs:
+
+```bash
+python equi-agent/scripts/smoke_npz_formats.py --max-per-group 1
 ```
 
 ## Standard Prediction Schema

@@ -139,39 +139,38 @@ class FairVisionNPZ(Dataset):
             'severe.npdr': 1., 'pdr': 1.
         }
 
-        print(f"Scanning {split} data in {root_dir}...")
-        for source in self.sources:
-            path = os.path.join(root_dir, split, source)
-            if not os.path.exists(path):
-                path = os.path.join(root_dir, source, split)
-            if not os.path.exists(path):
-                continue
-            
-            all_files_found = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.npz')]
-            all_files_found.sort()
-            
-#            taking first 100 only for each disease
-#            files_found = all_files_found[:100]
-            
-            files_found = all_files_found
+        split_key = str(split).strip().lower()
+        split_folder = {'training': 'Training', 'validation': 'Validation', 'test': 'Test'}.get(split_key, split)
 
-            
-            for f_path in files_found:
-                fname = os.path.basename(f_path)
-                # Attach the specific metadata for this file immediately
-                file_meta = self.metadata_lookup.get(fname, {})
-                
+        print(f"Scanning {split_folder} data in {root_dir}...")
+        for source in self.sources:
+            rows = [
+                rec for rec in self.metadata_by_source.get(source, [])
+                if str(rec.get('use', '')).strip().lower() == split_key
+            ]
+            if not rows:
+                continue
+
+            for file_meta in rows:
+                fname = file_meta['filename']
+                f_path = os.path.join(root_dir, split_folder, fname)
+                if not os.path.exists(f_path):
+                    f_path = os.path.join(root_dir, split_folder, source, fname)
+                if not os.path.exists(f_path):
+                    print(f"Warning: Data file not found: {f_path}")
+                    continue
                 self.files.append({
                     'path': f_path, 
                     'source': source,
                     'meta': file_meta
                 })
 
-        print(f"Found {len(self.files)} images with metadata for {split}.")
+        print(f"Found {len(self.files)} images with metadata for {split_folder}.")
 
     def _load_all_metadata(self):
         """Pre-loads CSVs and converts them to a fast-access dictionary."""
         combined_meta = {}
+        self.metadata_by_source = {}
         for source in self.sources:
             csv_name = f"data_summary_{source.lower()}.csv"
             csv_path = os.path.join(self.csv_base_path, "HarvardFairVision30k", source, "ReadMe", csv_name)
@@ -179,10 +178,12 @@ class FairVisionNPZ(Dataset):
             if os.path.exists(csv_path):
                 df = pd.read_csv(csv_path)
                 records = df.to_dict('records')
+                self.metadata_by_source[source] = records
                 for rec in records:
                     # Use 'filename' column as the key
-                    combined_meta[rec['filename']] = rec
+                    combined_meta[(source, rec['filename'])] = rec
             else:
+                self.metadata_by_source[source] = []
                 print(f"Warning: Metadata CSV not found at {csv_path}")
         return combined_meta
 

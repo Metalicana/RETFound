@@ -59,6 +59,10 @@ def default_fairvision_root() -> Path:
     return Path(__file__).resolve().parents[2] / "Datasets" / "FairVision"
 
 
+def default_gdp_root() -> Path:
+    return Path(__file__).resolve().parents[2] / "Datasets" / "GDP"
+
+
 def normalize_split(split: object) -> str:
     return SPLIT_MAP.get(str(split).strip().lower(), str(split))
 
@@ -111,9 +115,9 @@ class GenericEyeLoader:
         disease = self._normalize_disease(disease)
         split_folder = normalize_split(split)
         candidates = [
+            self.base_path / split_folder / filename,
             self.base_path / split_folder / disease / filename,
             self.base_path / disease / split_folder / filename,
-            self.base_path / split_folder / filename,
         ]
         for path in candidates:
             if path.exists():
@@ -169,4 +173,79 @@ class GenericEyeLoader:
         key = str(disease).strip().lower()
         if key not in aliases:
             raise ValueError(f"Unknown disease {disease!r}; expected one of {DISEASES}")
+        return aliases[key]
+
+
+class HarvardGDPLoader:
+    """Loader helpers for RETFound/Datasets/GDP."""
+
+    def __init__(self, base_path: str | Path | None = None):
+        self.base_path = Path(base_path).expanduser().resolve() if base_path else default_gdp_root()
+
+    def get_metadata(self) -> pd.DataFrame:
+        csv_path = self.base_path / "ReadMe" / "data_summary.csv"
+        if not csv_path.exists():
+            raise FileNotFoundError(f"GDP metadata CSV not found: {csv_path}")
+        return pd.read_csv(csv_path)
+
+    def iter_split(self, task: str = "glaucoma_detection", split: str = "test") -> pd.DataFrame:
+        metadata = self.get_metadata()
+        split_col = self._split_column(task)
+        wanted = str(split).strip().lower()
+        return metadata[metadata[split_col].astype(str).str.lower() == wanted]
+
+    def resolve_data_path(self, filename: str, modality: str = "Bscan", split: object | None = None) -> Path:
+        modality = self._normalize_modality(modality)
+        names = [filename]
+        if Path(filename).suffix == "":
+            names.append(f"{filename}.npz")
+
+        split_folder = normalize_split(split) if split is not None else None
+        candidates: list[Path] = []
+        for name in names:
+            if split_folder:
+                candidates.extend(
+                    [
+                        self.base_path / modality / split_folder / name,
+                        self.base_path / split_folder / modality / name,
+                    ]
+                )
+            candidates.append(self.base_path / modality / name)
+
+        for path in candidates:
+            if path.exists():
+                return path
+        return candidates[0]
+
+    def load_record(
+        self,
+        row: pd.Series | dict[str, Any],
+        modality: str = "Bscan",
+        split_col: str = "glaucoma_detection_use",
+    ) -> dict[str, Any]:
+        record = row.to_dict() if hasattr(row, "to_dict") else dict(row)
+        data_path = self.resolve_data_path(record["filename"], modality, record.get(split_col))
+        if not data_path.exists():
+            raise FileNotFoundError(f"GDP data file not found: {data_path}")
+        data = np.load(data_path)
+        return {
+            "metadata": record,
+            "data": data,
+            "directory": str(data_path),
+            "stage": normalize_stage(record.get("glaucoma"), "Glaucoma"),
+        }
+
+    def _split_column(self, task: str) -> str:
+        task_key = str(task).strip().lower()
+        if task_key in {"glaucoma", "glaucoma_detection", "detection"}:
+            return "glaucoma_detection_use"
+        if task_key in {"progression", "progression_forecasting", "forecasting"}:
+            return "progression_forecasting_use"
+        raise ValueError("GDP task must be glaucoma_detection or progression_forecasting")
+
+    def _normalize_modality(self, modality: str) -> str:
+        aliases = {"bscan": "Bscan", "bscans": "Bscan", "rnflt": "RNFLT"}
+        key = str(modality).strip().lower()
+        if key not in aliases:
+            raise ValueError("GDP modality must be Bscan or RNFLT")
         return aliases[key]

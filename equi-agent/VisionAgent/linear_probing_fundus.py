@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
+import pandas as pd
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from PIL import Image
@@ -32,6 +33,7 @@ class FairVisionNPZ(Dataset):
         self.files = []
         self.transform = transform
         self.sources = ['AMD', 'DR', 'Glaucoma']
+        self.root_dir = root_dir
         
         # Mappings: 0.0 = Healthy, 1.0 = Disease
         self.amd_map = {
@@ -49,21 +51,35 @@ class FairVisionNPZ(Dataset):
             'severe.npdr': 1., 'pdr': 1.
         }
 
-        print(f"Scanning {split} data in {root_dir}...")
+        split_key = str(split).strip().lower()
+        split_folder = {'training': 'Training', 'validation': 'Validation', 'test': 'Test'}.get(split_key, split)
+
+        print(f"Scanning {split_folder} data in {root_dir}...")
         for source in self.sources:
-            path = os.path.join(root_dir, split, source)
-            if not os.path.exists(path):
-                path = os.path.join(root_dir, source, split)
-            if not os.path.exists(path):
-                print(f"Warning: Directory not found: {path}")
+            rows = self._load_metadata(source)
+            rows = [rec for rec in rows if str(rec.get('use', '')).strip().lower() == split_key]
+            if not rows:
                 continue
-            
-            # Find all .npz files
-            files_found = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.npz')]
-            for f_path in files_found:
+
+            for rec in rows:
+                fname = rec['filename']
+                f_path = os.path.join(root_dir, split_folder, fname)
+                if not os.path.exists(f_path):
+                    f_path = os.path.join(root_dir, split_folder, source, fname)
+                if not os.path.exists(f_path):
+                    print(f"Warning: Data file not found: {f_path}")
+                    continue
                 self.files.append({'path': f_path, 'source': source})
                 
-        print(f"Found {len(self.files)} images for {split}.")
+        print(f"Found {len(self.files)} images for {split_folder}.")
+
+    def _load_metadata(self, source):
+        csv_name = f"data_summary_{source.lower()}.csv"
+        csv_path = os.path.join(self.root_dir, "HarvardFairVision30k", source, "ReadMe", csv_name)
+        if not os.path.exists(csv_path):
+            print(f"Warning: Metadata CSV not found at {csv_path}")
+            return []
+        return pd.read_csv(csv_path).to_dict('records')
 
     def __len__(self):
         return len(self.files)
