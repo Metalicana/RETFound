@@ -10,3 +10,5 @@ openai
 torch
 torchvision
 timm
+scikit-image
+einops

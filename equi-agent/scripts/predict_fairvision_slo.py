@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
 import sys
 from pathlib import Path
@@ -37,6 +38,18 @@ def equi_agent_root() -> Path:
 
 
 def require_runtime_libs(mirage_dir: Path):
+    missing = [
+        package
+        for package in ["skimage", "einops"]
+        if importlib.util.find_spec(package) is None
+    ]
+    if missing:
+        raise ImportError(
+            "Missing MIRAGE dependency/dependencies: "
+            f"{', '.join(missing)}. Install with: pip install "
+            f"{' '.join('scikit-image' if pkg == 'skimage' else pkg for pkg in missing)}"
+        )
+
     import numpy as np
     import pandas as pd
     import torch
