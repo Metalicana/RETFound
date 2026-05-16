@@ -72,6 +72,22 @@ def output_probability(torch, outputs, task: str, batch_index: int) -> float:
     raise ValueError(f"Unknown task: {task}")
 
 
+def select_device(torch, requested: str | None):
+    device = torch.device(requested or ("cuda" if torch.cuda.is_available() else "cpu"))
+    if device.type == "cuda":
+        major, minor = torch.cuda.get_device_capability(device)
+        required_arch = f"sm_{major}{minor}"
+        compiled_arches = set(torch.cuda.get_arch_list())
+        if compiled_arches and required_arch not in compiled_arches:
+            raise RuntimeError(
+                f"PyTorch was not compiled for this GPU architecture ({required_arch}). "
+                f"Compiled CUDA arches: {sorted(compiled_arches)}. "
+                "For a smoke test, rerun with --device cpu. For full experiments, use a "
+                "PyTorch/CUDA build or GPU node that supports this architecture."
+            )
+    return device
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate standard-schema FairVision OCT predictions.")
     parser.add_argument(
@@ -118,7 +134,7 @@ def main() -> None:
         os.environ["RETFOUND_SKIP_OCT_BACKBONE_PRELOAD"] = "1"
     np, pd, torch, Image, transforms, tqdm, get_model_oct = require_runtime_libs()
 
-    device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
+    device = select_device(torch, args.device)
     if not args.weights.exists():
         raise FileNotFoundError(f"OCT weights not found: {args.weights}")
     if not args.backbone_weights.exists():
