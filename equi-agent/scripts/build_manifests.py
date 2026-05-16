@@ -259,6 +259,9 @@ def summarize_manifest(name: str, manifest: pd.DataFrame) -> None:
     print(f"{name}: rows={len(manifest)}")
     print(f"  splits={manifest['split'].value_counts(dropna=False).to_dict()}")
     print(f"  labels={manifest['y_true'].value_counts(dropna=False).to_dict()}")
+    unknown = manifest[manifest["y_true"].isna()]
+    if not unknown.empty:
+        print(f"  unknown_label_raw={unknown['label_raw'].value_counts(dropna=False).to_dict()}")
     print(f"  races={manifest['race'].value_counts(dropna=False).head(10).to_dict()}")
     path_cols = [col for col in ["image_path", "bscan_path", "rnflt_path"] if col in manifest.columns]
     for col in path_cols:
