@@ -137,7 +137,7 @@ IDRiD_data
 *.pth
 *.weights
 *.onnx
-
+*.pdf
 # Ignore the actual image files inside the disease folders
 OphthalmicAgent/data/Glaucoma/**/*.jpg
 OphthalmicAgent/data/Glaucoma/**/*.npz
