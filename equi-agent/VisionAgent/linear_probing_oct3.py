@@ -300,7 +300,11 @@ class RETFoundMultiHead(nn.Module):
 def get_model_oct():
 #    print("Loading RETFound ViT-Large with Separate Specialist Heads...")
     
-    weight_path = os.path.join(os.path.dirname(__file__), "weights", "RETFound_mae_natureOCT.pth")
+    weight_path = os.environ.get(
+        "RETFOUND_OCT_BACKBONE_WEIGHTS",
+        os.path.join(os.path.dirname(__file__), "weights", "RETFound_mae_natureOCT.pth"),
+    )
+    skip_backbone_preload = os.environ.get("RETFOUND_SKIP_OCT_BACKBONE_PRELOAD", "").lower() in {"1", "true", "yes"}
         
     # 1. Initialize the backbone architecture
 
@@ -315,18 +319,27 @@ def get_model_oct():
     for param in backbone.parameters():
         param.requires_grad = False
     
-    # 3. LOAD PRE-TRAINED WEIGHTS INTO BACKBONE
-    checkpoint = torch.load(weight_path, map_location='cpu', weights_only=False)
-    state_dict = checkpoint['model'] if 'model' in checkpoint else checkpoint
+    # 3. LOAD PRE-TRAINED WEIGHTS INTO BACKBONE, unless a full fine-tuned model
+    # state dict will be loaded immediately after construction.
+    if not skip_backbone_preload:
+        if not os.path.exists(weight_path):
+            raise FileNotFoundError(
+                "RETFound OCT backbone weights not found. Expected "
+                f"{weight_path}. Set RETFOUND_OCT_BACKBONE_WEIGHTS, pass "
+                "--backbone-weights to scripts/predict_fairvision_oct.py, or pass "
+                "--skip-backbone-preload when --weights is a full model state dict."
+            )
+        checkpoint = torch.load(weight_path, map_location='cpu', weights_only=False)
+        state_dict = checkpoint['model'] if 'model' in checkpoint else checkpoint
 
-    # Clean the state_dict
-    keys_to_remove = [k for k in state_dict.keys() if 'head' in k or 'decoder' in k or 'fc_norm' in k]
-    for k in keys_to_remove:
-        if k in state_dict:
-            del state_dict[k]
-            
-    # Load into the backbone
-    msg = backbone.load_state_dict(state_dict, strict=False)
+        # Clean the state_dict
+        keys_to_remove = [k for k in state_dict.keys() if 'head' in k or 'decoder' in k or 'fc_norm' in k]
+        for k in keys_to_remove:
+            if k in state_dict:
+                del state_dict[k]
+                
+        # Load into the backbone
+        msg = backbone.load_state_dict(state_dict, strict=False)
 #    print(f"Backbone weights loaded. Missing keys (expected): {msg.missing_keys}")
     
     # 4. WRAP IN MULTI-HEAD ARCHITECTURE

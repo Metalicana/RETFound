@@ -36,7 +36,7 @@ def equi_agent_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def require_runtime_libs():
+def require_runtime_libs(mirage_dir: Path):
     import numpy as np
     import pandas as pd
     import torch
@@ -44,26 +44,27 @@ def require_runtime_libs():
     from torchvision import transforms
     from tqdm import tqdm
 
-    sys.path.insert(0, str(equi_agent_root()))
-    from VisionAgent.linear_probing_oct3 import get_model_oct
+    if not mirage_dir.exists():
+        raise FileNotFoundError(f"MIRAGE directory not found: {mirage_dir}")
+    sys.path.insert(0, str(mirage_dir))
+    from linear_probing_slo import get_model_slo
 
-    return np, pd, torch, Image, transforms, tqdm, get_model_oct
+    return np, pd, torch, Image, transforms, tqdm, get_model_slo
 
 
-def load_oct_image(np, Image, transforms, image_path: str, transform):
+def load_slo_image(np, Image, image_path: str, transform):
     with np.load(image_path) as data:
-        oct_volume = data["oct_bscans"]
-        oct_slice = oct_volume[oct_volume.shape[0] // 2]
-        if oct_slice.max() <= 1.0:
-            oct_slice = (oct_slice * 255).astype("uint8")
+        fundus_img = data["slo_fundus"]
+        if fundus_img.max() <= 1.0:
+            fundus_img = (fundus_img * 255).astype("uint8")
         else:
-            oct_slice = oct_slice.astype("uint8")
-    return transform(Image.fromarray(oct_slice).convert("RGB"))
+            fundus_img = fundus_img.astype("uint8")
+    return transform(Image.fromarray(fundus_img).convert("L"))
 
 
 def output_probability(torch, outputs, task: str, batch_index: int) -> float:
     if task == "amd":
-        # Binary AMD in the manifest means any AMD. OCT head node 0 is P(stage >= early).
+        # Binary AMD in the manifest means any AMD. SLO head node 0 is P(stage >= early).
         return float(torch.sigmoid(outputs["amd"])[batch_index, 0].detach().cpu().item())
     if task == "dr":
         return float(torch.sigmoid(outputs["dr"])[batch_index, 0].detach().cpu().item())
@@ -73,7 +74,7 @@ def output_probability(torch, outputs, task: str, batch_index: int) -> float:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate standard-schema FairVision OCT predictions.")
+    parser = argparse.ArgumentParser(description="Generate standard-schema FairVision SLO/MIRAGE predictions.")
     parser.add_argument(
         "--manifest-dir",
         type=Path,
@@ -83,28 +84,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--weights",
         type=Path,
-        default=equi_agent_root() / "weights" / "oct_model_best.pth",
-        help="Path to trained OCT multi-head weights.",
+        default=equi_agent_root() / "weights" / "slo_model_best.pth",
+        help="Path to trained SLO/MIRAGE multi-head weights.",
     )
     parser.add_argument(
-        "--backbone-weights",
+        "--mirage-dir",
         type=Path,
-        default=equi_agent_root() / "VisionAgent" / "weights" / "RETFound_mae_natureOCT.pth",
-        help="Path to RETFound OCT backbone checkpoint used to construct the model.",
-    )
-    parser.add_argument(
-        "--skip-backbone-preload",
-        action="store_true",
-        help="Use when --weights is a full RETFoundMultiHead state dict containing backbone and heads.",
+        default=equi_agent_root() / "VisionAgent" / "MIRAGE",
+        help="Path to MIRAGE source/checkpoint directory.",
     )
     parser.add_argument(
         "--out",
         type=Path,
-        default=equi_agent_root() / "outputs" / "predictions" / "fairvision_oct_retfound.csv",
+        default=equi_agent_root() / "outputs" / "predictions" / "fairvision_slo_mirage.csv",
     )
     parser.add_argument("--split", choices=("all", "train", "val", "test"), default="test")
     parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--num-workers", type=int, default=0, help="Reserved for future Dataset/DataLoader path.")
     parser.add_argument("--device", default=None, help="Example: cuda, cuda:0, or cpu. Defaults to CUDA if available.")
     parser.add_argument("--limit", type=int, default=None, help="Optional row limit for smoke testing.")
     return parser.parse_args()
@@ -112,20 +107,13 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    if args.backbone_weights.exists():
-        os.environ["RETFOUND_OCT_BACKBONE_WEIGHTS"] = str(args.backbone_weights)
-    if args.skip_backbone_preload or not args.backbone_weights.exists():
-        os.environ["RETFOUND_SKIP_OCT_BACKBONE_PRELOAD"] = "1"
-    np, pd, torch, Image, transforms, tqdm, get_model_oct = require_runtime_libs()
+    np, pd, torch, Image, transforms, tqdm, get_model_slo = require_runtime_libs(args.mirage_dir)
 
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
     if not args.weights.exists():
-        raise FileNotFoundError(f"OCT weights not found: {args.weights}")
-    if not args.backbone_weights.exists():
-        print(
-            "Backbone checkpoint not found; constructing architecture first and "
-            "loading --weights as the full model state dict."
-        )
+        raise FileNotFoundError(f"SLO/MIRAGE weights not found: {args.weights}")
+    if not (args.mirage_dir / "MIRAGE-Base.pth").exists():
+        print(f"Warning: MIRAGE-Base.pth not found under {args.mirage_dir}; continuing with get_model_slo().")
 
     manifests = []
     for task in TASKS:
@@ -141,21 +129,27 @@ def main() -> None:
 
     transform = transforms.Compose(
         [
-            transforms.Resize((224, 224)),
+            transforms.Resize((512, 512)),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            transforms.Normalize(mean=[0.5], std=[0.5]),
         ]
     )
 
-    model = get_model_oct()
-    model.load_state_dict(torch.load(args.weights, map_location=device, weights_only=False))
+    original_dir = Path.cwd()
+    os.chdir(args.mirage_dir)
+    try:
+        model = get_model_slo().to(device)
+    finally:
+        os.chdir(original_dir)
+
+    model.load_state_dict(torch.load(args.weights, map_location=device, weights_only=True))
     model.to(device)
     model.eval()
 
     rows = []
-    for start in tqdm(range(0, len(manifest), args.batch_size), desc="FairVision OCT"):
+    for start in tqdm(range(0, len(manifest), args.batch_size), desc="FairVision SLO/MIRAGE"):
         batch_df = manifest.iloc[start : start + args.batch_size]
-        images = [load_oct_image(np, Image, transforms, path, transform) for path in batch_df["image_path"]]
+        images = [load_slo_image(np, Image, path, transform) for path in batch_df["image_path"]]
         tensor = torch.stack(images).to(device)
 
         with torch.no_grad():
@@ -171,7 +165,7 @@ def main() -> None:
                     "image_id": row["image_id"],
                     "dataset": row["dataset"],
                     "task": row["task"],
-                    "model_name": "retfound_oct",
+                    "model_name": "mirage_slo",
                     "y_true": int(row["y_true"]),
                     "y_prob": y_prob,
                     "y_pred": int(y_prob >= 0.5),
