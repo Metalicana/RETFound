@@ -206,7 +206,7 @@ class FairVisionNPZ(Dataset):
             csv_meta = item['meta'] # This is the pre-loaded metadata dict
             
             if source == 'AMD':
-                cond = str(data['amd_condition'])
+                cond = str(csv_meta.get('amd', ''))
                 severity = int(self.amd_map.get(cond, 0.))
                 # AMD uses indices 0, 1, and 2
                 label[0] = 1.0 if severity >= 1 else 0.0
@@ -214,12 +214,13 @@ class FairVisionNPZ(Dataset):
                 label[2] = 1.0 if severity >= 3 else 0.0
                 
             elif source == 'DR':
-                cond = str(data['dr_subtype'])
+                cond = str(csv_meta.get('dr', ''))
                 severity = int(self.dr_map.get(cond, 0.))
                 label[3] = 1.0 if severity  >= 1.0 else 0.0
                 
             elif source == 'Glaucoma':
-                severity = int(data['glaucoma'])
+                glaucoma_value = csv_meta.get('glaucoma', data['glaucoma'] if 'glaucoma' in data else 0)
+                severity = 1 if str(glaucoma_value).strip().lower() in {'1', 'yes', 'true'} else 0
                 label[4] = 1.0 if severity == 1 else 0.0
                 
             # --- Metadata Assembly ---

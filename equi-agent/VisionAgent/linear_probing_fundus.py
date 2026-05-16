@@ -69,7 +69,7 @@ class FairVisionNPZ(Dataset):
                 if not os.path.exists(f_path):
                     print(f"Warning: Data file not found: {f_path}")
                     continue
-                self.files.append({'path': f_path, 'source': source})
+                self.files.append({'path': f_path, 'source': source, 'meta': rec})
                 
         print(f"Found {len(self.files)} images for {split_folder}.")
 
@@ -105,15 +105,17 @@ class FairVisionNPZ(Dataset):
                 
             label = torch.zeros(NUM_CLASSES)
             source = item['source']
+            csv_meta = item.get('meta', {})
                    
             if source == 'AMD':
-                cond = str(data['amd_condition'])
+                cond = str(csv_meta.get('amd', ''))
                 if self.amd_map.get(cond, 0.) >= 1.0: label[0] = 1.0
             elif source == 'DR':
-                cond = str(data['dr_subtype'])
+                cond = str(csv_meta.get('dr', ''))
                 if self.dr_map.get(cond, 0.) >= 1.0: label[1] = 1.0
             elif source == 'Glaucoma':
-                if int(data['glaucoma']) == 1: label[2] = 1.0
+                glaucoma_value = csv_meta.get('glaucoma', data['glaucoma'] if 'glaucoma' in data else 0)
+                if str(glaucoma_value).strip().lower() in {'1', 'yes', 'true'}: label[2] = 1.0
 
             race = int(data['race']) if 'race' in data else -1
             return image, label, race
