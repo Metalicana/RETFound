@@ -370,16 +370,21 @@ We compare Equi-Agent against single-visit models, temporal models, static ensem
 
 \begin{table*}[t]
 \centering
-\caption{Longitudinal glaucoma progression prediction on Harvard-GDP. Temporal context tests whether dynamic arbitration generalizes beyond single-image diagnosis.}
+\caption{Longitudinal glaucoma progression prediction on Harvard-GDP. Logistic baselines use the official progression forecasting split with 300 training and 200 test examples. Temporal context tests whether dynamic arbitration generalizes beyond single-image diagnosis.}
 \label{tab:longitudinal_glaucoma}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{@{}lllllllllll@{}}
 \toprule
 Method & Input & Temporal modeling & Fairness component & AUROC $\uparrow$ & F1 $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ \\
 \midrule
+RNFLT logistic baseline & RNFLT & No & No & 0.625 & 0.206 & 0.556 & 0.621 & 0.000 & 1.000 & 1.000 \\
+B-scan logistic baseline & OCT B-scan & No & No & 0.632 & 0.241 & 0.389 & 0.819 & 0.000 & 0.500 & 1.000 \\
+Clinical tabular logistic baseline & Metadata + visual field & No & No & 0.604 & 0.211 & 0.222 & 0.912 & 0.000 & 0.667 & 1.000 \\
+RNFLT + clinical logistic baseline & RNFLT + metadata + visual field & No & No & 0.562 & 0.195 & 0.222 & 0.896 & 0.000 & 0.360 & 1.000 \\
+B-scan + clinical logistic baseline & OCT B-scan + metadata + visual field & No & No & 0.620 & 0.256 & 0.278 & 0.912 & 0.000 & 0.400 & 1.000 \\
+OCT + RNFLT + clinical logistic baseline & OCT + RNFLT + metadata + visual field & No & No & 0.563 & 0.213 & 0.278 & 0.868 & 0.000 & 0.363 & 1.000 \\
 Single-visit 3D CNN & OCT & No & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 Single-visit 3D ViT / Swin & OCT & No & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Harvard-GDP pseudo-supervisor & OCT / multimodal & Weak / SSL & No / partial & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 Temporal LSTM & Visit sequence & Yes & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 Temporal Transformer & Visit sequence & Yes & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 FairDist / EqEffNet-style baseline & OCT & Optional & Yes & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
