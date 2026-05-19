@@ -175,14 +175,14 @@ The first experiment establishes the failure mode motivating Equi-Agent. We eval
 \toprule
 Model & Dataset & Disease & AUROC $\uparrow$ & F1 $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ & Subgroup ECE $\downarrow$ \\
 \midrule
-RETFound OCT & Harvard-FairVision & AMD & 0.494 & 0.525 & 1.000 & 0.000 & \tbd & \tbd & \tbd & \tbd \\
-MIRAGE SLO & Harvard-FairVision & AMD & 0.505 & 0.525 & 0.999 & 0.002 & \tbd & \tbd & \tbd & \tbd \\
+RETFound OCT & Harvard-FairVision & AMD & 0.494 & 0.525 & 1.000 & 0.000 & 0.131 & 0.000 & 0.000 & 0.598 \\
+MIRAGE SLO & Harvard-FairVision & AMD & 0.505 & 0.525 & 0.999 & 0.002 & 0.132 & 0.009 & 0.002 & 0.636 \\
 \midrule
-RETFound OCT & Harvard-FairVision & DR & 0.537 & 0.168 & 0.621 & 0.449 & \tbd & \tbd & \tbd & \tbd \\
-MIRAGE SLO & Harvard-FairVision & DR & 0.515 & 0.136 & 0.257 & 0.760 & \tbd & \tbd & \tbd & \tbd \\
+RETFound OCT & Harvard-FairVision & DR & 0.537 & 0.168 & 0.621 & 0.449 & 0.110 & 0.108 & 0.259 & 0.164 \\
+MIRAGE SLO & Harvard-FairVision & DR & 0.515 & 0.136 & 0.257 & 0.760 & 0.067 & 0.060 & 0.145 & 0.145 \\
 \midrule
-RETFound OCT & Harvard-FairVision & Glaucoma & 0.840 & 0.756 & 0.794 & 0.708 & \tbd & \tbd & \tbd & \tbd \\
-MIRAGE SLO & Harvard-FairVision & Glaucoma & 0.428 & 0.656 & 0.998 & 0.000 & \tbd & \tbd & \tbd & \tbd \\
+RETFound OCT & Harvard-FairVision & Glaucoma & 0.840 & 0.756 & 0.794 & 0.708 & 0.511 & 0.490 & 0.498 & 0.168 \\
+MIRAGE SLO & Harvard-FairVision & Glaucoma & 0.428 & 0.656 & 0.998 & 0.000 & 0.455 & 0.000 & 0.007 & 0.381 \\
 \botrule
 \end{tabular}%
 }
@@ -201,13 +201,13 @@ The second experiment evaluates whether Equi-Agent improves diagnostic performan
 \toprule
 Method & Type & AUROC $\uparrow$ & F1 $\uparrow$ & Balanced Acc. $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ \\
 \midrule
-RETFound OCT & Foundation model & 0.624 & 0.483 & 0.595 & 0.805 & 0.386 & \tbd & \tbd & \tbd \\
-MIRAGE SLO & Foundation model & 0.483 & 0.439 & 0.503 & 0.751 & 0.254 & \tbd & \tbd & \tbd \\
-Mean probability ensemble & Static ensemble & 0.615 & 0.469 & 0.577 & 0.730 & 0.425 & \tbd & \tbd & \tbd \\
-Confidence-weighted ensemble & Static ensemble & 0.616 & 0.476 & 0.584 & 0.829 & 0.339 & \tbd & \tbd & \tbd \\
-Dynamic global prior by AUROC & Rule-based arbitration & 0.620 & 0.473 & 0.587 & 0.751 & 0.490 & \tbd & \tbd & \tbd \\
-Dynamic global prior by ECE & Rule-based calibration & 0.616 & 0.476 & 0.585 & 0.829 & 0.340 & \tbd & \tbd & \tbd \\
-Dynamic subgroup prior by AUROC & Subgroup rule-based arbitration & 0.601 & 0.474 & 0.585 & 0.794 & 0.457 & \tbd & \tbd & \tbd \\
+RETFound OCT & Foundation model & 0.624 & 0.483 & 0.595 & 0.805 & 0.386 & 0.110 & 0.490 & 0.498 \\
+MIRAGE SLO & Foundation model & 0.483 & 0.439 & 0.503 & 0.751 & 0.254 & 0.067 & 0.060 & 0.145 \\
+Mean probability ensemble & Static ensemble & 0.615 & 0.469 & 0.577 & 0.730 & 0.425 & 0.058 & 0.509 & 0.484 \\
+Confidence-weighted ensemble & Static ensemble & 0.616 & 0.476 & 0.584 & 0.829 & 0.339 & 0.108 & 0.509 & 0.484 \\
+Dynamic global prior by AUROC & Rule-based arbitration & 0.620 & 0.473 & 0.587 & 0.683 & 0.490 & 0.067 & 0.490 & 0.498 \\
+Dynamic global prior by ECE & Rule-based calibration & 0.616 & 0.476 & 0.585 & 0.829 & 0.340 & 0.108 & 0.509 & 0.484 \\
+Dynamic subgroup prior by AUROC & Subgroup rule-based arbitration & 0.601 & 0.474 & 0.585 & 0.713 & 0.457 & 0.084 & 0.490 & 0.498 \\
 \textbf{Equi-Agent} & \textbf{Dynamic arbitration} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} \\
 \botrule
 \end{tabular}%
@@ -253,11 +253,11 @@ The fourth experiment tests whether dynamic trust calibration provides benefits 
 \toprule
 Method & Uses confidence? & Uses subgroup priors? & Uses disagreement? & Uses metadata? & AUROC $\uparrow$ & F1 $\uparrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ & ECE $\downarrow$ \\
 \midrule
-Mean probability ensemble & Yes & No & No & No & 0.615 & 0.469 & \tbd & \tbd & \tbd & 0.081 \\
-Confidence-weighted ensemble & Yes & No & Weak & No & 0.616 & 0.476 & \tbd & \tbd & \tbd & 0.077 \\
-Rule-based arbitration, global AUROC prior & Yes & No & Yes & No & 0.620 & 0.473 & \tbd & \tbd & \tbd & 0.184 \\
-Rule-based arbitration, global ECE prior & Yes & No & Yes & No & 0.616 & 0.476 & \tbd & \tbd & \tbd & 0.060 \\
-Rule-based arbitration, subgroup AUROC prior & Yes & Yes & Yes & Yes & 0.601 & 0.474 & \tbd & \tbd & \tbd & 0.182 \\
+Mean probability ensemble & Yes & No & No & No & 0.615 & 0.469 & 0.058 & 0.509 & 0.484 & 0.081 \\
+Confidence-weighted ensemble & Yes & No & Weak & No & 0.616 & 0.476 & 0.108 & 0.509 & 0.484 & 0.077 \\
+Rule-based arbitration, global AUROC prior & Yes & No & Yes & No & 0.620 & 0.473 & 0.067 & 0.490 & 0.498 & 0.184 \\
+Rule-based arbitration, global ECE prior & Yes & No & Yes & No & 0.616 & 0.476 & 0.108 & 0.509 & 0.484 & 0.060 \\
+Rule-based arbitration, subgroup AUROC prior & Yes & Yes & Yes & Yes & 0.601 & 0.474 & 0.084 & 0.490 & 0.498 & 0.182 \\
 \textbf{Equi-Agent} & \textbf{Yes} & \textbf{Yes} & \textbf{Yes} & \textbf{Yes} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} \\
 \botrule
 \end{tabular}%
@@ -350,11 +350,11 @@ The seventh experiment evaluates whether Equi-Agent improves confidence reliabil
 \toprule
 Method & AUROC $\uparrow$ & F1 $\uparrow$ & Global ECE $\downarrow$ & Subgroup ECE $\downarrow$ & Brier $\downarrow$ & NLL $\downarrow$ & Coverage at target risk $\uparrow$ & Worst-group coverage $\uparrow$ \\
 \midrule
-Best standalone foundation model & 0.624 & 0.483 & 0.156 & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Mean probability ensemble & 0.615 & 0.469 & 0.081 & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Confidence-weighted ensemble & 0.616 & 0.476 & 0.077 & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Dynamic global prior by AUROC & 0.620 & 0.473 & 0.184 & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Dynamic global prior by ECE & 0.616 & 0.476 & 0.060 & \tbd & \tbd & \tbd & \tbd & \tbd \\
+Best standalone foundation model & 0.624 & 0.483 & 0.156 & 0.598 & \tbd & \tbd & \tbd & \tbd \\
+Mean probability ensemble & 0.615 & 0.469 & 0.081 & 0.311 & \tbd & \tbd & \tbd & \tbd \\
+Confidence-weighted ensemble & 0.616 & 0.476 & 0.077 & 0.369 & \tbd & \tbd & \tbd & \tbd \\
+Dynamic global prior by AUROC & 0.620 & 0.473 & 0.184 & 0.636 & \tbd & \tbd & \tbd & \tbd \\
+Dynamic global prior by ECE & 0.616 & 0.476 & 0.060 & 0.311 & \tbd & \tbd & \tbd & \tbd \\
 Conformal prediction / abstention & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 \textbf{Equi-Agent} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} \\
 \botrule
