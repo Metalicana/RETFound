@@ -72,6 +72,45 @@ METHODS = {
     },
 }
 
+GDP_METHODS = {
+    "exp8_gdp_progression_rnflt": {
+        "method": "RNFLT logistic baseline",
+        "input": "RNFLT",
+        "temporal_modeling": "No",
+        "fairness_component": "No",
+    },
+    "exp8_gdp_progression_bscan": {
+        "method": "B-scan logistic baseline",
+        "input": "OCT B-scan",
+        "temporal_modeling": "No",
+        "fairness_component": "No",
+    },
+    "exp8_gdp_progression_clinical": {
+        "method": "Clinical tabular logistic baseline",
+        "input": "Metadata + visual field",
+        "temporal_modeling": "No",
+        "fairness_component": "No",
+    },
+    "exp8_gdp_progression_rnflt_clinical": {
+        "method": "RNFLT + clinical logistic baseline",
+        "input": "RNFLT + metadata + visual field",
+        "temporal_modeling": "No",
+        "fairness_component": "No",
+    },
+    "exp8_gdp_progression_bscan_clinical": {
+        "method": "B-scan + clinical logistic baseline",
+        "input": "OCT B-scan + metadata + visual field",
+        "temporal_modeling": "No",
+        "fairness_component": "No",
+    },
+    "exp8_gdp_progression_all": {
+        "method": "OCT + RNFLT + clinical logistic baseline",
+        "input": "OCT + RNFLT + metadata + visual field",
+        "temporal_modeling": "No",
+        "fairness_component": "No",
+    },
+}
+
 TASK_LABELS = {"amd": "AMD", "dr": "DR", "glaucoma": "Glaucoma"}
 
 
@@ -124,7 +163,7 @@ def add_method_metadata(df, pd):
         return df
     rows = []
     for row in df.to_dict("records"):
-        meta = METHODS.get(row["source_dir"])
+        meta = METHODS.get(row["source_dir"]) or GDP_METHODS.get(row["source_dir"])
         if meta is None:
             continue
         rows.append({**row, **meta})
@@ -229,6 +268,34 @@ def macro_summary(df, pd):
     return pd.DataFrame(rows)
 
 
+def gdp_summary(df, pd):
+    rows = []
+    subset = df[
+        (df["source_dir"].isin(GDP_METHODS))
+        & (df["dataset"] == "harvard_gdp")
+        & (df["task"] == "progression_forecasting")
+    ]
+    for source_dir, group in subset.groupby("source_dir", dropna=False):
+        meta = GDP_METHODS[source_dir]
+        rows.append(
+            {
+                "source_dir": source_dir,
+                "Method": meta["method"],
+                "Input": meta["input"],
+                "Temporal modeling": meta["temporal_modeling"],
+                "Fairness component": meta["fairness_component"],
+                "AUROC": group["auroc"].mean(skipna=True),
+                "F1": group["f1"].mean(skipna=True),
+                "Sens.": (1.0 - group["fnr"]).mean(skipna=True),
+                "Spec.": (1.0 - group["fpr"]).mean(skipna=True),
+                "Worst-group F1": group["worst_group_f1"].min(skipna=True),
+                "Delta FPR": group["delta_fpr"].max(skipna=True),
+                "Delta FNR": group["delta_fnr"].max(skipna=True),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def build_table4(df, pd):
     table = macro_summary(df, pd)
     order = [
@@ -240,7 +307,8 @@ def build_table4(df, pd):
         "exp1_dynamic_global_prior_ece",
         "exp1_dynamic_prior_auroc",
     ]
-    table["order"] = table["source_dir"].apply(lambda x: order.index(x) if x in order else 999)
+    table = table[table["source_dir"].isin(order)].copy()
+    table["order"] = table["source_dir"].apply(lambda x: order.index(x))
     return table.sort_values("order").drop(columns=["order", "source_dir"])
 
 
@@ -299,6 +367,29 @@ def build_table10(df, pd):
             }
         )
     return pd.DataFrame(rows)
+
+
+def build_table11(df, pd):
+    table = gdp_summary(df, pd)
+    if table.empty:
+        return pd.DataFrame(
+            columns=[
+                "Method",
+                "Input",
+                "Temporal modeling",
+                "Fairness component",
+                "AUROC",
+                "F1",
+                "Sens.",
+                "Spec.",
+                "Worst-group F1",
+                "Delta FPR",
+                "Delta FNR",
+            ]
+        )
+    order = list(GDP_METHODS.keys())
+    table["order"] = table["source_dir"].apply(lambda x: order.index(x) if x in order else 999)
+    return table.sort_values("order").drop(columns=["order", "source_dir"])
 
 
 def format_value(value, digits: int) -> str:
@@ -369,6 +460,7 @@ def main() -> None:
         "exp2_table4_main_comparison": build_table4(df, pd),
         "exp4_table6_dynamic_vs_static": build_table6(df, pd),
         "exp7_table10_calibration": build_table10(df, pd),
+        "exp8_table11_longitudinal_glaucoma": build_table11(df, pd),
     }
 
     for name, table in tables.items():
