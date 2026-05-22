@@ -106,11 +106,16 @@ Adjustment needed:
   other foundation models.
 - Extract image embeddings from SLO/fundus images, train task-specific logistic
   heads on FairVision train, tune thresholds on val, test on held-out test.
+  Initial runner: `scripts/train_fairvision_flair.py`.
 - Requires FLAIR model weights, likely from Hugging Face (`jusiro2/FLAIR`), so
   network/model-cache setup must be confirmed.
 
 Initial model name:
 - `flair_slo`
+
+Run notes:
+- Full run wrapper: `scripts/run_fairvision_flair.sh`.
+- Command reference: `docs/flair_fairvision_commands.md`.
 
 ## RetiZero
 
