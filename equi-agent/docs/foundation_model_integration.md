@@ -137,14 +137,21 @@ Existing entrypoints:
 - `ImageRetrieval.py`
 
 Adjustment needed:
-- `Finetuning.py` contains hardcoded placeholder paths; it needs a manifest
-  dataset wrapper and CLI arguments for train/val/test CSVs.
-- Use SLO/fundus only first.
+- Use `scripts/train_fairvision_retizero.py` to read FairVision NPZ files from
+  the manifest and return `slo_fundus` images.
+- Load the RetiZero LoRA-RETFound vision encoder only, avoiding the text encoder
+  path for linear-probe experiments.
+- Extract frozen image features and train a task-specific balanced logistic
+  linear probe, matching the other SLO foundation-model adapters.
 - Requires downloaded pretrained RetiZero weights from the Google Drive link in
   the README.
 
 Initial model name:
 - `retizero_slo`
+
+Run notes:
+- Full run wrapper: `scripts/run_fairvision_retizero.sh`.
+- Command reference: `docs/retizero_fairvision_commands.md`.
 
 ## RET-CLIP
 

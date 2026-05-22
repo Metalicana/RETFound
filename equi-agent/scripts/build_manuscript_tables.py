@@ -65,6 +65,16 @@ METHODS = {
         "disagreement": "No",
         "metadata": "No",
     },
+    "exp2_retizero_slo": {
+        "method": "RetiZero SLO",
+        "type": "Foundation model",
+        "table3_model": "RetiZero SLO",
+        "table6": False,
+        "confidence": "No",
+        "subgroup_priors": "No",
+        "disagreement": "No",
+        "metadata": "No",
+    },
     "exp1_static_fusion_mean_thresholded": {
         "method": "Mean probability ensemble",
         "type": "Static ensemble",
@@ -271,6 +281,7 @@ def build_table3(df, pd):
                 "exp2_ret_clip_slo",
                 "exp2_visionfm_slo",
                 "exp2_visionfm_oct",
+                "exp2_retizero_slo",
             ]
         )
     ]
@@ -356,6 +367,7 @@ def build_table4(df, pd):
         "exp2_ret_clip_slo",
         "exp2_visionfm_slo",
         "exp2_visionfm_oct",
+        "exp2_retizero_slo",
         "exp1_static_fusion_mean_thresholded",
         "exp1_static_fusion_confidence_weighted_thresholded",
         "exp1_dynamic_global_prior_auroc",
@@ -403,6 +415,7 @@ def build_table10(df, pd):
         "exp2_ret_clip_slo": "RET-CLIP SLO",
         "exp2_visionfm_slo": "VisionFM SLO",
         "exp2_visionfm_oct": "VisionFM OCT",
+        "exp2_retizero_slo": "RetiZero SLO",
         "exp1_static_fusion_mean_thresholded": "Mean probability ensemble",
         "exp1_static_fusion_confidence_weighted_thresholded": "Confidence-weighted ensemble",
         "exp1_dynamic_global_prior_auroc": "Dynamic global prior by AUROC",
