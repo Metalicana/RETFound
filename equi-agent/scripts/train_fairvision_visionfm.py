@@ -179,13 +179,27 @@ def build_visionfm_model(args, torch, models, utils, device):
         num_classes=0,
         use_mean_pooling=False,
     )
-    utils.load_pretrained_weights(
-        model,
-        str(args.pretrained_weights),
-        args.checkpoint_key,
-        args.arch,
-        args.patch_size,
-    )
+    # VisionFM checkpoints were serialized before PyTorch 2.6 changed
+    # torch.load's default to weights_only=True. The downloaded VisionFM
+    # checkpoints are trusted project inputs, so keep the upstream loader's
+    # behavior but make the trust decision explicit for modern PyTorch.
+    original_torch_load = torch.load
+
+    def torch_load_visionfm_compatible(*load_args, **load_kwargs):
+        load_kwargs.setdefault("weights_only", False)
+        return original_torch_load(*load_args, **load_kwargs)
+
+    torch.load = torch_load_visionfm_compatible
+    try:
+        utils.load_pretrained_weights(
+            model,
+            str(args.pretrained_weights),
+            args.checkpoint_key,
+            args.arch,
+            args.patch_size,
+        )
+    finally:
+        torch.load = original_torch_load
     model.to(device)
     model.eval()
     for parameter in model.parameters():
