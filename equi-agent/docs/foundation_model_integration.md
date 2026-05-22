@@ -157,11 +157,15 @@ Adjustment needed:
 - Use image-embedding extraction plus task-specific linear heads first.
 - The released model is Chinese-text CLIP; zero-shot English prompts may be
   inappropriate. Fine-tuned/linear-probe image embeddings are safer for the
-  manuscript.
+  manuscript. Initial runner: `scripts/train_fairvision_ret_clip.py`.
 - Requires pretrained RET-CLIP weights from the Google Drive link in the README.
 
 Initial model name:
 - `ret_clip_slo`
+
+Run notes:
+- Full run wrapper: `scripts/run_fairvision_ret_clip.sh`.
+- Command reference: `docs/ret_clip_fairvision_commands.md`.
 
 ## Current Unknowns
 

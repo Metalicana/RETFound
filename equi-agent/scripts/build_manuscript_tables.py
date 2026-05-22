@@ -35,6 +35,16 @@ METHODS = {
         "disagreement": "No",
         "metadata": "No",
     },
+    "exp2_ret_clip_slo": {
+        "method": "RET-CLIP SLO",
+        "type": "Foundation model",
+        "table3_model": "RET-CLIP SLO",
+        "table6": False,
+        "confidence": "No",
+        "subgroup_priors": "No",
+        "disagreement": "No",
+        "metadata": "No",
+    },
     "exp1_static_fusion_mean_thresholded": {
         "method": "Mean probability ensemble",
         "type": "Static ensemble",
@@ -234,7 +244,12 @@ def build_table3(df, pd):
     rows = []
     subset = df[
         df["source_dir"].isin(
-            ["exp1_standalone_oct_thresholded", "exp1_standalone_slo_thresholded", "exp2_flair_slo"]
+            [
+                "exp1_standalone_oct_thresholded",
+                "exp1_standalone_slo_thresholded",
+                "exp2_flair_slo",
+                "exp2_ret_clip_slo",
+            ]
         )
     ]
     for row in subset.to_dict("records"):
@@ -316,6 +331,7 @@ def build_table4(df, pd):
         "exp1_standalone_oct_thresholded",
         "exp1_standalone_slo_thresholded",
         "exp2_flair_slo",
+        "exp2_ret_clip_slo",
         "exp1_static_fusion_mean_thresholded",
         "exp1_static_fusion_confidence_weighted_thresholded",
         "exp1_dynamic_global_prior_auroc",
@@ -445,7 +461,10 @@ def write_table_artifacts(df, out_dir: Path, name: str, digits: int) -> None:
     df.to_csv(out_dir / f"{name}.csv", index=False)
 
     pretty = display_table(df, digits)
-    pretty.to_markdown(out_dir / f"{name}.md", index=False)
+    try:
+        pretty.to_markdown(out_dir / f"{name}.md", index=False)
+    except ImportError:
+        write_basic_markdown_table(pretty, out_dir / f"{name}.md")
 
     with (out_dir / f"{name}.tex").open("w") as f:
         col_spec = "l" * len(pretty.columns)
@@ -457,6 +476,16 @@ def write_table_artifacts(df, out_dir: Path, name: str, digits: int) -> None:
             f.write(" & ".join(latex_escape(row[col]) for col in pretty.columns) + r" \\" + "\n")
         f.write("\\botrule\n")
         f.write("\\end{tabular}\n")
+
+
+def write_basic_markdown_table(df, path: Path) -> None:
+    columns = [str(col) for col in df.columns]
+    rows = df.astype(str).to_dict("records")
+    with path.open("w") as f:
+        f.write("| " + " | ".join(columns) + " |\n")
+        f.write("| " + " | ".join(["---"] * len(columns)) + " |\n")
+        for row in rows:
+            f.write("| " + " | ".join(row[col] for col in df.columns) + " |\n")
 
 
 def main() -> None:

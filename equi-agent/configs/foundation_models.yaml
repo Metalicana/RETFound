@@ -62,4 +62,6 @@ models:
     pretrained_weights_required:
       - RET-CLIP ViT-B-16 checkpoint
     integration_route: image_embedding_linear_probe
-    status: extracted_needs_weights_and_adapter
+    train_script: scripts/train_fairvision_ret_clip.py
+    run_script: scripts/run_fairvision_ret_clip.sh
+    status: adapter_scaffolded_needs_data_environment_and_weights

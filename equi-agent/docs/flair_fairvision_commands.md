@@ -30,25 +30,27 @@ build before the remaining packages.
   - Hugging Face access/cache via `FROM_HF=true`, or
   - a local checkpoint path via `FLAIR_WEIGHTS=/path/to/flair_weights.pth`.
 
+On the cluster, the project base is:
+
+```text
+/home/ab575577/RETFound
+```
+
+The existing manifests already use this prefix, so do not pass
+`--path-prefix-from` or `--path-prefix-to` when running on the cluster.
+
 ## Smoke Run
 
 ```bash
 conda activate equi-flair
 
-PATH_PREFIX_FROM=/home/ab575577/RETFound \
-PATH_PREFIX_TO=/Users/metalicana/projects_spring_2026/RETFound \
-FROM_HF=true \
-TASKS=amd \
-BATCH_SIZE=8 \
-DEVICE=cpu \
 python equi-agent/scripts/train_fairvision_flair.py \
   --task amd \
   --from-hf \
   --limit-train 32 \
   --limit-val 16 \
   --limit-test 16 \
-  --path-prefix-from /home/ab575577/RETFound \
-  --path-prefix-to /Users/metalicana/projects_spring_2026/RETFound \
+  --device cpu \
   --out-val equi-agent/outputs/predictions/fairvision_amd_flair_slo_smoke_val.csv \
   --out-test equi-agent/outputs/predictions/fairvision_amd_flair_slo_smoke_test.csv
 ```
@@ -60,8 +62,6 @@ From the repo root:
 ```bash
 conda activate equi-flair
 
-PATH_PREFIX_FROM=/home/ab575577/RETFound \
-PATH_PREFIX_TO=/Users/metalicana/projects_spring_2026/RETFound \
 FROM_HF=true \
 TASKS="amd dr glaucoma" \
 BATCH_SIZE=16 \
@@ -72,8 +72,6 @@ bash equi-agent/scripts/run_fairvision_flair.sh
 With local FLAIR weights instead of Hugging Face:
 
 ```bash
-PATH_PREFIX_FROM=/home/ab575577/RETFound \
-PATH_PREFIX_TO=/Users/metalicana/projects_spring_2026/RETFound \
 FLAIR_WEIGHTS=/path/to/flair_weights.pth \
 TASKS="amd dr glaucoma" \
 BATCH_SIZE=16 \
