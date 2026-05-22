@@ -99,7 +99,7 @@ Harvard-FairVision is used for cross-sectional diagnosis of AMD, DR, and glaucom
 
 \subsection{Base Vision Foundation Models}
 \label{subsec:base_models_methods}
-We evaluate modality-specific foundation-model outputs using a standardized prediction schema. RETFound is evaluated as an OCT model and MIRAGE as an SLO/fundus model. FLAIR, RET-CLIP, and RetiZero are evaluated as SLO/fundus image encoders with task-specific linear probes. VisionFM is evaluated with both its Fundus/SLO and OCT encoders. For FLAIR, RET-CLIP, RetiZero, and VisionFM, image embeddings are extracted from the frozen pretrained model and a balanced logistic regression head is trained for each FairVision disease task. Thresholds are selected on the validation split using the prespecified validation metric for each run, and final metrics are computed only on the held-out test split.
+We evaluate modality-specific foundation-model outputs using a standardized prediction schema. RETFound is evaluated as an OCT model and MIRAGE as an SLO/fundus model. FLAIR, RET-CLIP, and RetiZero are evaluated as SLO/fundus image encoders with task-specific linear probes. VisionFM and UrFound are evaluated with both Fundus/SLO and OCT inputs. For FLAIR, RET-CLIP, RetiZero, VisionFM, and UrFound, image embeddings are extracted from the frozen pretrained model and a balanced logistic regression head is trained for each FairVision disease task. Thresholds are selected on the validation split using the prespecified validation metric for each run, and final metrics are computed only on the held-out test split.
 
 This design separates representation evaluation from model-specific fine-tuning optimization. It allows controlled comparison under the same downstream split, label, threshold, and metric contract, while acknowledging that some foundation models may perform differently under native full fine-tuning or prompt-based protocols.
 
@@ -124,7 +124,7 @@ Equi-Agent is organized as a structured arbitration system (Fig.~\ref{fig:equi_a
 \node[agent, right=14mm of image] (vision) {Vision\\Specialist};
 \node[agent, right=14mm of metadata] (bio) {BioProfiler};
 \node[agent, below=of bio] (functional) {Functional\\Specialist};
-\node[box, above=of vision] (models) {Foundation models\\RETFound, MIRAGE,\\FLAIR, RET-CLIP,\\VisionFM, RetiZero};
+\node[box, above=of vision] (models) {Foundation models\\RETFound, MIRAGE,\\FLAIR, RET-CLIP,\\VisionFM, RetiZero, UrFound};
 \node[box, below=of functional] (priors) {Validation-derived\\subgroup priors};
 \node[agent, right=17mm of bio] (equity) {Equity\\Auditor};
 \node[agent, above=of equity] (guidelines) {Guidelines\\Agent};
@@ -210,7 +210,7 @@ External validation cohort, if available & \tbd & Cross-dataset generalization &
 
 \subsection{Base Models and Baselines}\label{subsec:baselines}
 
-Equi-Agent is compared against three baseline families. The first includes standalone ophthalmic and general-purpose vision foundation models, such as RETFound, MIRAGE, FLAIR, RET-CLIP, VisionFM, RetiZero, DINOv2, CLIP-style retinal vision-language models, and task-specific supervised CNN or Transformer models. The second includes static fusion methods, including majority vote, mean probability ensembling, confidence-weighted ensembling, and logistic stacking. The third includes fairness and calibration baselines, including group reweighting, group distributionally robust optimization, subgroup temperature scaling, group-specific thresholding, and equalized-odds post-processing.
+Equi-Agent is compared against three baseline families. The first includes standalone ophthalmic and general-purpose vision foundation models, such as RETFound, MIRAGE, FLAIR, RET-CLIP, VisionFM, RetiZero, UrFound, DINOv2, CLIP-style retinal vision-language models, and task-specific supervised CNN or Transformer models. The second includes static fusion methods, including majority vote, mean probability ensembling, confidence-weighted ensembling, and logistic stacking. The third includes fairness and calibration baselines, including group reweighting, group distributionally robust optimization, subgroup temperature scaling, group-specific thresholding, and equalized-odds post-processing.
 
 Where code and training details are available, we also compare against ophthalmology-specific fairness methods, including Fair Identity Scaling, FairerOPTH-style implicit fairness learning, and longitudinal glaucoma fairness baselines such as FairDist or EqEffNet-style models. If a baseline cannot be reproduced exactly, we report the closest implementable variant and describe the difference explicitly.
 
@@ -230,6 +230,8 @@ Foundation models & RET-CLIP SLO & No & No & Standalone fundus/SLO vision-langua
 Foundation models & VisionFM SLO & No & No & Standalone VisionFM fundus/SLO encoder baseline using FairVision linear probing \\
 Foundation models & VisionFM OCT & No & No & Standalone VisionFM OCT encoder baseline using FairVision linear probing \\
 Foundation models & RetiZero SLO & No & No & Standalone RetiZero fundus/SLO vision-language encoder baseline using FairVision linear probing \\
+Foundation models & UrFound SLO & No & No & Standalone UrFound fundus/SLO encoder baseline using FairVision linear probing \\
+Foundation models & UrFound OCT & No & No & Standalone UrFound OCT encoder baseline using FairVision linear probing \\
 Static ensembles & Mean probability ensemble & No & Weak / implicit & Test whether simple averaging of RETFound OCT and MIRAGE SLO is sufficient \\
 Static ensembles & Confidence-weighted ensemble & No & Weak / implicit & Test whether confidence-weighted model fusion improves calibration and diagnostic reliability \\
 Calibration / thresholding & Validation-selected task thresholds & No & No & Correct task-specific probability scale mismatch using validation-only threshold tuning \\
@@ -294,7 +296,9 @@ FLAIR SLO & Harvard-FairVision & AMD & 0.507 & 0.525 & 0.995 & 0.004 & 0.132 & 0
 RET-CLIP SLO & Harvard-FairVision & AMD & 0.503 & 0.525 & 0.997 & 0.001 & 0.131 & 0.003 & 0.009 & 0.430 \\
 VisionFM SLO & Harvard-FairVision & AMD & 0.481 & 0.382 & 0.430 & 0.545 & 0.118 & 0.150 & 0.103 & 0.419 \\
 VisionFM OCT & Harvard-FairVision & AMD & 0.488 & 0.423 & 0.536 & 0.448 & 0.121 & 0.046 & 0.199 & 0.402 \\
-RetiZero SLO & Harvard-FairVision & AMD & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+RetiZero SLO & Harvard-FairVision & AMD & 0.500 & 0.462 & 0.664 & 0.331 & 0.088 & 0.139 & 0.240 & 0.403 \\
+UrFound SLO & Harvard-FairVision & AMD & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+UrFound OCT & Harvard-FairVision & AMD & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 \midrule
 RETFound OCT & Harvard-FairVision & DR & 0.537 & 0.168 & 0.621 & 0.449 & 0.110 & 0.108 & 0.259 & 0.164 \\
 MIRAGE SLO & Harvard-FairVision & DR & 0.515 & 0.136 & 0.257 & 0.760 & 0.067 & 0.060 & 0.145 & 0.145 \\
@@ -302,7 +306,9 @@ FLAIR SLO & Harvard-FairVision & DR & 0.527 & 0.160 & 1.000 & 0.001 & 0.117 & 0.
 RET-CLIP SLO & Harvard-FairVision & DR & 0.518 & 0.162 & 0.931 & 0.086 & 0.123 & 0.039 & 0.133 & 0.433 \\
 VisionFM SLO & Harvard-FairVision & DR & 0.547 & 0.166 & 0.670 & 0.391 & 0.131 & 0.056 & 0.258 & 0.273 \\
 VisionFM OCT & Harvard-FairVision & DR & 0.454 & 0.096 & 0.161 & 0.791 & 0.050 & 0.067 & 0.097 & 0.289 \\
-RetiZero SLO & Harvard-FairVision & DR & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+RetiZero SLO & Harvard-FairVision & DR & 0.512 & 0.157 & 0.927 & 0.061 & 0.112 & 0.028 & 0.081 & 0.312 \\
+UrFound SLO & Harvard-FairVision & DR & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+UrFound OCT & Harvard-FairVision & DR & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 \midrule
 RETFound OCT & Harvard-FairVision & Glaucoma & 0.840 & 0.756 & 0.794 & 0.708 & 0.511 & 0.490 & 0.498 & 0.168 \\
 MIRAGE SLO & Harvard-FairVision & Glaucoma & 0.428 & 0.656 & 0.998 & 0.000 & 0.455 & 0.000 & 0.007 & 0.381 \\
@@ -310,7 +316,9 @@ FLAIR SLO & Harvard-FairVision & Glaucoma & 0.695 & 0.674 & 0.915 & 0.236 & 0.50
 RET-CLIP SLO & Harvard-FairVision & Glaucoma & 0.730 & 0.684 & 0.923 & 0.258 & 0.516 & 0.346 & 0.221 & 0.150 \\
 VisionFM SLO & Harvard-FairVision & Glaucoma & 0.722 & 0.634 & 0.587 & 0.747 & 0.400 & 0.276 & 0.373 & 0.297 \\
 VisionFM OCT & Harvard-FairVision & Glaucoma & 0.779 & 0.698 & 0.689 & 0.727 & 0.441 & 0.266 & 0.299 & 0.248 \\
-RetiZero SLO & Harvard-FairVision & Glaucoma & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+RetiZero SLO & Harvard-FairVision & Glaucoma & 0.758 & 0.662 & 0.611 & 0.776 & 0.386 & 0.247 & 0.329 & 0.203 \\
+UrFound SLO & Harvard-FairVision & Glaucoma & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+UrFound OCT & Harvard-FairVision & Glaucoma & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 \botrule
 \end{tabular}%
 }
@@ -335,7 +343,9 @@ FLAIR SLO & Foundation model & 0.576 & 0.453 & 0.525 & 0.970 & 0.080 & 0.117 & 0
 RET-CLIP SLO & Foundation model & 0.584 & 0.457 & 0.533 & 0.950 & 0.115 & 0.123 & 0.346 & 0.221 \\
 VisionFM SLO & Foundation model & 0.583 & 0.394 & 0.562 & 0.562 & 0.561 & 0.118 & 0.276 & 0.373 \\
 VisionFM OCT & Foundation model & 0.574 & 0.406 & 0.559 & 0.462 & 0.655 & 0.050 & 0.266 & 0.299 \\
-RetiZero SLO & Foundation model & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+RetiZero SLO & Foundation model & 0.590 & 0.427 & 0.562 & 0.734 & 0.389 & 0.088 & 0.247 & 0.329 \\
+UrFound SLO & Foundation model & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+UrFound OCT & Foundation model & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 Mean probability ensemble & Static ensemble & 0.615 & 0.469 & 0.577 & 0.730 & 0.425 & 0.058 & 0.509 & 0.484 \\
 Confidence-weighted ensemble & Static ensemble & 0.616 & 0.476 & 0.584 & 0.829 & 0.339 & 0.108 & 0.509 & 0.484 \\
 Dynamic global prior by AUROC & Rule-based arbitration & 0.620 & 0.473 & 0.587 & 0.683 & 0.490 & 0.067 & 0.490 & 0.498 \\
@@ -488,7 +498,9 @@ FLAIR SLO & 0.576 & 0.453 & 0.202 & 0.434 & \tbd & \tbd & \tbd & \tbd \\
 RET-CLIP SLO & 0.584 & 0.457 & 0.201 & 0.433 & \tbd & \tbd & \tbd & \tbd \\
 VisionFM SLO & 0.583 & 0.394 & 0.222 & 0.419 & \tbd & \tbd & \tbd & \tbd \\
 VisionFM OCT & 0.574 & 0.406 & 0.225 & 0.402 & \tbd & \tbd & \tbd & \tbd \\
-RetiZero SLO & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+RetiZero SLO & 0.590 & 0.427 & 0.178 & 0.403 & \tbd & \tbd & \tbd & \tbd \\
+UrFound SLO & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+UrFound OCT & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 Mean probability ensemble & 0.615 & 0.469 & 0.081 & 0.311 & \tbd & \tbd & \tbd & \tbd \\
 Confidence-weighted ensemble & 0.616 & 0.476 & 0.077 & 0.369 & \tbd & \tbd & \tbd & \tbd \\
 Dynamic global prior by AUROC & 0.620 & 0.473 & 0.184 & 0.636 & \tbd & \tbd & \tbd & \tbd \\
@@ -594,7 +606,7 @@ We define success as an improvement in worst-group reliability without unaccepta
 \section{Results}
 \subsection{Diagnostic Performance Across Disease Tasks}
 \label{subsec:results_diagnostic}
-Standalone foundation-model performance varied substantially by disease task and modality. RETFound OCT performed strongest for glaucoma, with an AUROC of 0.840 and F1-score of 0.756, but was near chance for AMD under the thresholded evaluation. MIRAGE SLO produced similar AMD F1-score but weaker glaucoma discrimination. FLAIR and RET-CLIP SLO provided moderate glaucoma discrimination, with AUROC values of 0.695 and 0.730, respectively, but remained weak on AMD and DR. VisionFM showed the same task dependence: the OCT encoder reached an AUROC of 0.779 and F1-score of 0.698 for glaucoma, but both VisionFM encoders remained weak for AMD and especially DR under the current linear-probe protocol.
+Standalone foundation-model performance varied substantially by disease task and modality. RETFound OCT performed strongest for glaucoma, with an AUROC of 0.840 and F1-score of 0.756, but was near chance for AMD under the thresholded evaluation. MIRAGE SLO produced similar AMD F1-score but weaker glaucoma discrimination. FLAIR and RET-CLIP SLO provided moderate glaucoma discrimination, with AUROC values of 0.695 and 0.730, respectively, but remained weak on AMD and DR. VisionFM showed the same task dependence: the OCT encoder reached an AUROC of 0.779 and F1-score of 0.698 for glaucoma, but both VisionFM encoders remained weak for AMD and especially DR under the current linear-probe protocol. RetiZero SLO achieved competitive glaucoma discrimination relative to other SLO encoders, with AUROC 0.758 and F1-score 0.662, but remained close to chance on AMD and DR. UrFound results will be inserted after the same frozen-encoder linear-probe protocol is completed.
 
 Macro-averaged across AMD, DR, and glaucoma, RETFound OCT remained the strongest standalone model by F1-score, while confidence-weighted ensembling provided the strongest static ensemble F1-score among the non-agentic baselines. However, no standalone or static method simultaneously achieved strong aggregate performance and stable worst-group reliability, motivating dynamic trust calibration.
 
@@ -608,7 +620,7 @@ These findings support the premise that average performance is insufficient for 
 \label{subsec:results_calibration}
 Calibration results showed that lower aggregate error did not necessarily correspond to better subgroup calibration. Confidence-weighted ensembling had the lowest global ECE among static baselines, while dynamic global routing by ECE further reduced global ECE. However, subgroup ECE remained high for several methods, especially when performance was dominated by a disease task with highly imbalanced threshold behavior.
 
-FLAIR, RET-CLIP, and VisionFM had global ECE values near 0.20--0.23 in the macro-averaged FairVision summary, with worst subgroup ECE values around 0.40--0.43. These calibration patterns indicate that output probabilities should not be interpreted as uniformly reliable across demographic groups. Equi-Agent uses these calibration failures as inputs to trust adjustment rather than hiding them behind a single aggregate score.
+FLAIR, RET-CLIP, VisionFM, and RetiZero had global ECE values near 0.18--0.23 in the macro-averaged FairVision summary, with worst subgroup ECE values around 0.40--0.43. UrFound will be evaluated under the same calibration summary once its SLO and OCT runs complete. These calibration patterns indicate that output probabilities should not be interpreted as uniformly reliable across demographic groups. Equi-Agent uses these calibration failures as inputs to trust adjustment rather than hiding them behind a single aggregate score.
 
 \subsection{Longitudinal Glaucoma Progression Prediction}
 \label{subsec:results_longitudinal}

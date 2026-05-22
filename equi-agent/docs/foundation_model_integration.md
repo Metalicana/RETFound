@@ -81,18 +81,20 @@ Existing entrypoint:
 - `main_finetune.py`
 
 Adjustment needed:
-- Its native fine-tuning loader expects an ImageFolder-style downstream dataset.
-  Either create FairVision symlink/export folders per task or add a manifest
-  dataset class modeled after `finetune/datasets_finetune.py`.
-- For our pipeline, the cleaner route is a small Equi-Agent wrapper that imports
-  `finetune.models_vit`, loads the UrFound checkpoint, replaces the head with a
-  binary classifier, and writes standard prediction CSVs.
+- Use `scripts/train_fairvision_urfound.py` to read FairVision NPZ files from
+  the manifest and return either `slo_fundus` or the center OCT B-scan.
+- Import `finetune.models_vit`, load the UrFound checkpoint, extract frozen
+  ViT features, and train a task-specific balanced logistic linear probe.
 - Requires pretrained checkpoint from Hugging Face (`yyyyk/UrFound`) or a local
   path supplied by the user.
 
 Initial model names:
 - `urfound_oct`
 - `urfound_slo`
+
+Run notes:
+- Full run wrapper: `scripts/run_fairvision_urfound.sh`.
+- Command reference: `docs/urfound_fairvision_commands.md`.
 
 ## FLAIR
 

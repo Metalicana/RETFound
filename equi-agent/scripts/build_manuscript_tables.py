@@ -75,6 +75,26 @@ METHODS = {
         "disagreement": "No",
         "metadata": "No",
     },
+    "exp2_urfound_slo": {
+        "method": "UrFound SLO",
+        "type": "Foundation model",
+        "table3_model": "UrFound SLO",
+        "table6": False,
+        "confidence": "No",
+        "subgroup_priors": "No",
+        "disagreement": "No",
+        "metadata": "No",
+    },
+    "exp2_urfound_oct": {
+        "method": "UrFound OCT",
+        "type": "Foundation model",
+        "table3_model": "UrFound OCT",
+        "table6": False,
+        "confidence": "No",
+        "subgroup_priors": "No",
+        "disagreement": "No",
+        "metadata": "No",
+    },
     "exp1_static_fusion_mean_thresholded": {
         "method": "Mean probability ensemble",
         "type": "Static ensemble",
@@ -282,6 +302,8 @@ def build_table3(df, pd):
                 "exp2_visionfm_slo",
                 "exp2_visionfm_oct",
                 "exp2_retizero_slo",
+                "exp2_urfound_slo",
+                "exp2_urfound_oct",
             ]
         )
     ]
@@ -368,6 +390,8 @@ def build_table4(df, pd):
         "exp2_visionfm_slo",
         "exp2_visionfm_oct",
         "exp2_retizero_slo",
+        "exp2_urfound_slo",
+        "exp2_urfound_oct",
         "exp1_static_fusion_mean_thresholded",
         "exp1_static_fusion_confidence_weighted_thresholded",
         "exp1_dynamic_global_prior_auroc",
@@ -416,6 +440,8 @@ def build_table10(df, pd):
         "exp2_visionfm_slo": "VisionFM SLO",
         "exp2_visionfm_oct": "VisionFM OCT",
         "exp2_retizero_slo": "RetiZero SLO",
+        "exp2_urfound_slo": "UrFound SLO",
+        "exp2_urfound_oct": "UrFound OCT",
         "exp1_static_fusion_mean_thresholded": "Mean probability ensemble",
         "exp1_static_fusion_confidence_weighted_thresholded": "Confidence-weighted ensemble",
         "exp1_dynamic_global_prior_auroc": "Dynamic global prior by AUROC",

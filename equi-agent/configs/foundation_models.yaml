@@ -26,18 +26,22 @@ models:
     modalities: [oct]
     fairvision_tasks: [amd, dr, glaucoma]
     pretrained_weights_required:
-      - urfound_pretrained_checkpoint.pth
-    integration_route: finetune_vit_head
-    status: extracted_needs_weights_and_adapter
+      - UrFound pretrained checkpoint
+    integration_route: image_embedding_linear_probe
+    train_script: scripts/train_fairvision_urfound.py
+    run_script: scripts/run_fairvision_urfound.sh
+    status: adapter_scaffolded_needs_data_environment_and_weights
 
   urfound_slo:
     source_dir: ../Foundation_Models/UrFound-main
     modalities: [slo]
     fairvision_tasks: [amd, dr, glaucoma]
     pretrained_weights_required:
-      - urfound_pretrained_checkpoint.pth
-    integration_route: finetune_vit_head
-    status: extracted_needs_weights_and_adapter
+      - UrFound pretrained checkpoint
+    integration_route: image_embedding_linear_probe
+    train_script: scripts/train_fairvision_urfound.py
+    run_script: scripts/run_fairvision_urfound.sh
+    status: adapter_scaffolded_needs_data_environment_and_weights
 
   flair_slo:
     source_dir: ../Foundation_Models/FLAIR-main
