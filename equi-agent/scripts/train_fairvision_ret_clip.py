@@ -165,6 +165,7 @@ def build_ret_clip_model(create_model, torch, args, device):
     model_name = f"{args.vision_model}@{args.text_model}"
     checkpoint = load_checkpoint_for_create_model(torch, args.ret_clip_weights)
     model = create_model(model_name, checkpoint)
+    model.float()
     model.to(device)
     model.eval()
     for parameter in model.parameters():
