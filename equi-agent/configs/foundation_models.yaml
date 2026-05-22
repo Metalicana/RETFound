@@ -1,0 +1,63 @@
+models:
+  visionfm_oct:
+    source_dir: ../Foundation_Models/VisionFM-main
+    modalities: [oct]
+    fairvision_tasks: [amd, dr, glaucoma]
+    pretrained_weights_required:
+      - VFM_OCT_weights.pth
+    integration_route: classifier_head_or_linear_probe
+    status: extracted_needs_weights_and_adapter
+
+  visionfm_slo:
+    source_dir: ../Foundation_Models/VisionFM-main
+    modalities: [slo]
+    fairvision_tasks: [amd, dr, glaucoma]
+    pretrained_weights_required:
+      - VFM_Fundus_weights.pth
+    integration_route: classifier_head_or_linear_probe
+    status: extracted_needs_weights_and_adapter
+
+  urfound_oct:
+    source_dir: ../Foundation_Models/UrFound-main
+    modalities: [oct]
+    fairvision_tasks: [amd, dr, glaucoma]
+    pretrained_weights_required:
+      - urfound_pretrained_checkpoint.pth
+    integration_route: finetune_vit_head
+    status: extracted_needs_weights_and_adapter
+
+  urfound_slo:
+    source_dir: ../Foundation_Models/UrFound-main
+    modalities: [slo]
+    fairvision_tasks: [amd, dr, glaucoma]
+    pretrained_weights_required:
+      - urfound_pretrained_checkpoint.pth
+    integration_route: finetune_vit_head
+    status: extracted_needs_weights_and_adapter
+
+  flair_slo:
+    source_dir: ../Foundation_Models/FLAIR-main
+    modalities: [slo]
+    fairvision_tasks: [amd, dr, glaucoma]
+    pretrained_weights_required:
+      - jusiro2/FLAIR or local FLAIR checkpoint
+    integration_route: image_embedding_linear_probe
+    status: extracted_needs_weights_and_adapter
+
+  retizero_slo:
+    source_dir: ../Foundation_Models/RetiZero-main
+    modalities: [slo]
+    fairvision_tasks: [amd, dr, glaucoma]
+    pretrained_weights_required:
+      - RetiZero pretrained checkpoint
+    integration_route: image_embedding_or_classifier_head
+    status: extracted_needs_weights_and_adapter
+
+  ret_clip_slo:
+    source_dir: ../Foundation_Models/RET-CLIP-main
+    modalities: [slo]
+    fairvision_tasks: [amd, dr, glaucoma]
+    pretrained_weights_required:
+      - RET-CLIP ViT-B-16 checkpoint
+    integration_route: image_embedding_linear_probe
+    status: extracted_needs_weights_and_adapter

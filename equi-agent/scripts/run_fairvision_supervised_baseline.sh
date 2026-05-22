@@ -10,6 +10,13 @@ DEVICE="${DEVICE:-cuda}"
 METRICS_ROOT="${METRICS_ROOT:-equi-agent/outputs/metrics}"
 PREDICTIONS_ROOT="${PREDICTIONS_ROOT:-equi-agent/outputs/predictions}"
 CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-equi-agent/outputs/checkpoints}"
+PATH_PREFIX_FROM="${PATH_PREFIX_FROM:-}"
+PATH_PREFIX_TO="${PATH_PREFIX_TO:-}"
+
+PATH_ARGS=()
+if [[ -n "${PATH_PREFIX_FROM}" ]]; then
+  PATH_ARGS+=(--path-prefix-from "${PATH_PREFIX_FROM}" --path-prefix-to "${PATH_PREFIX_TO}")
+fi
 
 for task in ${TASKS}; do
   stem="fairvision_${task}_${ARCH}_${MODALITY}_supervised"
@@ -29,7 +36,8 @@ for task in ${TASKS}; do
     --device "${DEVICE}" \
     --checkpoint "${checkpoint_file}" \
     --out-val "${val_file}" \
-    --out-test "${test_file}"
+    --out-test "${test_file}" \
+    "${PATH_ARGS[@]}"
 
   python equi-agent/scripts/tune_thresholds.py \
     --validation "${val_file}" \

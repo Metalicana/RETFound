@@ -75,6 +75,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--limit-train", type=int, default=None)
     parser.add_argument("--limit-val", type=int, default=None)
     parser.add_argument("--limit-test", type=int, default=None)
+    parser.add_argument(
+        "--path-prefix-from",
+        default=None,
+        help="Optional stale prefix in manifest image_path values to replace before loading NPZ files.",
+    )
+    parser.add_argument(
+        "--path-prefix-to",
+        default=None,
+        help="Replacement prefix for --path-prefix-from. Useful when manifests were built on another machine.",
+    )
     return parser.parse_args()
 
 
@@ -138,6 +148,21 @@ def split_frame(pd, manifest, split: str, limit: int | None):
     frame["y_true"] = pd.to_numeric(frame["y_true"], errors="coerce")
     frame = frame[frame["y_true"].isin([0, 1])].copy()
     return frame
+
+
+def rewrite_image_paths(manifest, path_prefix_from: str | None, path_prefix_to: str | None):
+    if not path_prefix_from:
+        return manifest
+    if path_prefix_to is None:
+        raise ValueError("--path-prefix-to is required when --path-prefix-from is set")
+    manifest = manifest.copy()
+    manifest["image_path"] = manifest["image_path"].astype(str).str.replace(
+        path_prefix_from,
+        path_prefix_to,
+        n=1,
+        regex=False,
+    )
+    return manifest
 
 
 def train_one_epoch(torch, tqdm, model, loader, optimizer, criterion, device):
@@ -205,6 +230,7 @@ def main() -> None:
 
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
     manifest = pd.read_csv(args.manifest_dir / f"fairvision_{args.task}.csv")
+    manifest = rewrite_image_paths(manifest, args.path_prefix_from, args.path_prefix_to)
 
     train_df = split_frame(pd, manifest, "train", args.limit_train)
     val_df = split_frame(pd, manifest, "val", args.limit_val)
