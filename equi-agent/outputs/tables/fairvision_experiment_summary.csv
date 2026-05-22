@@ -17,3 +17,9 @@ thresholded,mean_prob_oct_slo,glaucoma,0.821346,0.735266,0.724422,0.138011
 thresholded,confidence_weighted_oct_slo,amd,0.5006,0.525436,0.5,0.109083
 thresholded,confidence_weighted_oct_slo,dr,0.530055,0.165836,0.528742,0.030613
 thresholded,confidence_weighted_oct_slo,glaucoma,0.817857,0.735266,0.724422,0.092072
+thresholded,flair_slo,amd,0.5066,0.524526,0.499474,0.143827
+thresholded,flair_slo,dr,0.52664,0.160221,0.500548,0.411149
+thresholded,flair_slo,glaucoma,0.695166,0.674039,0.575359,0.051162
+thresholded,ret_clip_slo,amd,0.503488,0.524606,0.499115,0.143629
+thresholded,ret_clip_slo,dr,0.518498,0.161623,0.508599,0.40917
+thresholded,ret_clip_slo,glaucoma,0.730481,0.683851,0.590534,0.050774

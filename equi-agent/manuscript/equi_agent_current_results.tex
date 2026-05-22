@@ -179,18 +179,18 @@ Model & Dataset & Disease & AUROC $\uparrow$ & F1 $\uparrow$ & Sens. $\uparrow$ 
 \midrule
 RETFound OCT & Harvard-FairVision & AMD & 0.494 & 0.525 & 1.000 & 0.000 & 0.131 & 0.000 & 0.000 & 0.598 \\
 MIRAGE SLO & Harvard-FairVision & AMD & 0.505 & 0.525 & 0.999 & 0.002 & 0.132 & 0.009 & 0.002 & 0.636 \\
-FLAIR SLO & Harvard-FairVision & AMD & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-RET-CLIP SLO & Harvard-FairVision & AMD & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+FLAIR SLO & Harvard-FairVision & AMD & 0.507 & 0.525 & 0.995 & 0.004 & 0.132 & 0.013 & 0.007 & 0.430 \\
+RET-CLIP SLO & Harvard-FairVision & AMD & 0.503 & 0.525 & 0.997 & 0.001 & 0.131 & 0.003 & 0.009 & 0.430 \\
 \midrule
 RETFound OCT & Harvard-FairVision & DR & 0.537 & 0.168 & 0.621 & 0.449 & 0.110 & 0.108 & 0.259 & 0.164 \\
 MIRAGE SLO & Harvard-FairVision & DR & 0.515 & 0.136 & 0.257 & 0.760 & 0.067 & 0.060 & 0.145 & 0.145 \\
-FLAIR SLO & Harvard-FairVision & DR & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-RET-CLIP SLO & Harvard-FairVision & DR & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+FLAIR SLO & Harvard-FairVision & DR & 0.527 & 0.160 & 1.000 & 0.001 & 0.117 & 0.009 & 0.000 & 0.434 \\
+RET-CLIP SLO & Harvard-FairVision & DR & 0.518 & 0.162 & 0.931 & 0.086 & 0.123 & 0.039 & 0.133 & 0.433 \\
 \midrule
 RETFound OCT & Harvard-FairVision & Glaucoma & 0.840 & 0.756 & 0.794 & 0.708 & 0.511 & 0.490 & 0.498 & 0.168 \\
 MIRAGE SLO & Harvard-FairVision & Glaucoma & 0.428 & 0.656 & 0.998 & 0.000 & 0.455 & 0.000 & 0.007 & 0.381 \\
-FLAIR SLO & Harvard-FairVision & Glaucoma & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-RET-CLIP SLO & Harvard-FairVision & Glaucoma & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+FLAIR SLO & Harvard-FairVision & Glaucoma & 0.695 & 0.674 & 0.915 & 0.236 & 0.500 & 0.276 & 0.160 & 0.148 \\
+RET-CLIP SLO & Harvard-FairVision & Glaucoma & 0.730 & 0.684 & 0.923 & 0.258 & 0.516 & 0.346 & 0.221 & 0.150 \\
 \botrule
 \end{tabular}%
 }
@@ -211,8 +211,8 @@ Method & Type & AUROC $\uparrow$ & F1 $\uparrow$ & Balanced Acc. $\uparrow$ & Se
 \midrule
 RETFound OCT & Foundation model & 0.624 & 0.483 & 0.595 & 0.805 & 0.386 & 0.110 & 0.490 & 0.498 \\
 MIRAGE SLO & Foundation model & 0.483 & 0.439 & 0.503 & 0.751 & 0.254 & 0.067 & 0.060 & 0.145 \\
-FLAIR SLO & Foundation model & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-RET-CLIP SLO & Foundation model & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+FLAIR SLO & Foundation model & 0.576 & 0.453 & 0.525 & 0.970 & 0.080 & 0.117 & 0.276 & 0.160 \\
+RET-CLIP SLO & Foundation model & 0.584 & 0.457 & 0.533 & 0.950 & 0.115 & 0.123 & 0.346 & 0.221 \\
 Mean probability ensemble & Static ensemble & 0.615 & 0.469 & 0.577 & 0.730 & 0.425 & 0.058 & 0.509 & 0.484 \\
 Confidence-weighted ensemble & Static ensemble & 0.616 & 0.476 & 0.584 & 0.829 & 0.339 & 0.108 & 0.509 & 0.484 \\
 Dynamic global prior by AUROC & Rule-based arbitration & 0.620 & 0.473 & 0.587 & 0.683 & 0.490 & 0.067 & 0.490 & 0.498 \\
@@ -361,8 +361,8 @@ The seventh experiment evaluates whether Equi-Agent improves confidence reliabil
 Method & AUROC $\uparrow$ & F1 $\uparrow$ & Global ECE $\downarrow$ & Subgroup ECE $\downarrow$ & Brier $\downarrow$ & NLL $\downarrow$ & Coverage at target risk $\uparrow$ & Worst-group coverage $\uparrow$ \\
 \midrule
 Best standalone foundation model & 0.624 & 0.483 & 0.156 & 0.598 & \tbd & \tbd & \tbd & \tbd \\
-FLAIR SLO & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-RET-CLIP SLO & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+FLAIR SLO & 0.576 & 0.453 & 0.202 & 0.434 & \tbd & \tbd & \tbd & \tbd \\
+RET-CLIP SLO & 0.584 & 0.457 & 0.201 & 0.433 & \tbd & \tbd & \tbd & \tbd \\
 Mean probability ensemble & 0.615 & 0.469 & 0.081 & 0.311 & \tbd & \tbd & \tbd & \tbd \\
 Confidence-weighted ensemble & 0.616 & 0.476 & 0.077 & 0.369 & \tbd & \tbd & \tbd & \tbd \\
 Dynamic global prior by AUROC & 0.620 & 0.473 & 0.184 & 0.636 & \tbd & \tbd & \tbd & \tbd \\
