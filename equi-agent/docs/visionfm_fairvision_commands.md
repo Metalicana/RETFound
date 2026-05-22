@@ -44,6 +44,7 @@ MODALITY=slo \
 TASKS="amd dr glaucoma" \
 BATCH_SIZE=64 \
 DEVICE=cuda \
+THRESHOLD_METRIC=balanced_accuracy \
 bash equi-agent/scripts/run_fairvision_visionfm.sh
 ```
 
@@ -55,8 +56,13 @@ MODALITY=oct \
 TASKS="amd dr glaucoma" \
 BATCH_SIZE=64 \
 DEVICE=cuda \
+THRESHOLD_METRIC=balanced_accuracy \
 bash equi-agent/scripts/run_fairvision_visionfm.sh
 ```
+
+`THRESHOLD_METRIC=balanced_accuracy` avoids the degenerate F1-selected
+threshold where imbalanced AMD/DR validation splits can choose threshold `0.0`
+and predict every test case as positive.
 
 Outputs are written to:
 

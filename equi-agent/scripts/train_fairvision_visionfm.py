@@ -46,6 +46,8 @@ def require_runtime_libs(visionfm_root: Path):
     import torch
     from PIL import Image
     from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
     from torch.utils.data import DataLoader
     from torchvision import transforms
     from tqdm import tqdm
@@ -54,7 +56,7 @@ def require_runtime_libs(visionfm_root: Path):
     import models
     import utils
 
-    return np, pd, torch, Image, LogisticRegression, DataLoader, transforms, tqdm, models, utils
+    return np, pd, torch, Image, LogisticRegression, make_pipeline, StandardScaler, DataLoader, transforms, tqdm, models, utils
 
 
 def parse_args() -> argparse.Namespace:
@@ -96,6 +98,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.316,
         help="Inverse regularization strength for the balanced logistic linear probe.",
+    )
+    parser.add_argument(
+        "--max-iter",
+        type=int,
+        default=5000,
+        help="Maximum iterations for the logistic linear probe.",
     )
     return parser.parse_args()
 
@@ -273,6 +281,8 @@ def main() -> None:
         torch,
         Image,
         LogisticRegression,
+        make_pipeline,
+        StandardScaler,
         DataLoader,
         transforms,
         tqdm,
@@ -325,11 +335,14 @@ def main() -> None:
     test_features, _ = extract_features(torch, tqdm, model, test_loader, device, args.feature_blocks)
 
     x_train, y_train = features_to_arrays(np, train_df, train_features, train_labels_by_index)
-    classifier = LogisticRegression(
-        random_state=args.seed,
-        C=args.logreg_c,
-        max_iter=1000,
-        class_weight="balanced",
+    classifier = make_pipeline(
+        StandardScaler(),
+        LogisticRegression(
+            random_state=args.seed,
+            C=args.logreg_c,
+            max_iter=args.max_iter,
+            class_weight="balanced",
+        ),
     )
     classifier.fit(x_train, y_train)
 

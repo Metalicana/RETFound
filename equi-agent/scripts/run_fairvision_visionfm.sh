@@ -14,6 +14,8 @@ CHECKPOINT_KEY="${CHECKPOINT_KEY:-teacher}"
 ARCH="${ARCH:-vit_base}"
 PATCH_SIZE="${PATCH_SIZE:-16}"
 FEATURE_BLOCKS="${FEATURE_BLOCKS:-4}"
+THRESHOLD_METRIC="${THRESHOLD_METRIC:-balanced_accuracy}"
+MAX_ITER="${MAX_ITER:-5000}"
 PATH_PREFIX_FROM="${PATH_PREFIX_FROM:-}"
 PATH_PREFIX_TO="${PATH_PREFIX_TO:-}"
 
@@ -34,6 +36,7 @@ COMMON_ARGS=(
   --arch "${ARCH}"
   --patch-size "${PATCH_SIZE}"
   --feature-blocks "${FEATURE_BLOCKS}"
+  --max-iter "${MAX_ITER}"
   --modality "${MODALITY}"
   --batch-size "${BATCH_SIZE}"
   --device "${DEVICE}"
@@ -62,6 +65,7 @@ for task in ${TASKS}; do
   python equi-agent/scripts/tune_thresholds.py \
     --validation "${val_file}" \
     --test "${test_file}" \
+    --metric "${THRESHOLD_METRIC}" \
     --thresholds-out "${thresholds_file}" \
     --test-out "${thresholded_file}"
 
