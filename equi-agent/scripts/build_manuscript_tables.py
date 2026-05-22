@@ -45,6 +45,26 @@ METHODS = {
         "disagreement": "No",
         "metadata": "No",
     },
+    "exp2_visionfm_slo": {
+        "method": "VisionFM SLO",
+        "type": "Foundation model",
+        "table3_model": "VisionFM SLO",
+        "table6": False,
+        "confidence": "No",
+        "subgroup_priors": "No",
+        "disagreement": "No",
+        "metadata": "No",
+    },
+    "exp2_visionfm_oct": {
+        "method": "VisionFM OCT",
+        "type": "Foundation model",
+        "table3_model": "VisionFM OCT",
+        "table6": False,
+        "confidence": "No",
+        "subgroup_priors": "No",
+        "disagreement": "No",
+        "metadata": "No",
+    },
     "exp1_static_fusion_mean_thresholded": {
         "method": "Mean probability ensemble",
         "type": "Static ensemble",
@@ -249,6 +269,8 @@ def build_table3(df, pd):
                 "exp1_standalone_slo_thresholded",
                 "exp2_flair_slo",
                 "exp2_ret_clip_slo",
+                "exp2_visionfm_slo",
+                "exp2_visionfm_oct",
             ]
         )
     ]
@@ -332,6 +354,8 @@ def build_table4(df, pd):
         "exp1_standalone_slo_thresholded",
         "exp2_flair_slo",
         "exp2_ret_clip_slo",
+        "exp2_visionfm_slo",
+        "exp2_visionfm_oct",
         "exp1_static_fusion_mean_thresholded",
         "exp1_static_fusion_confidence_weighted_thresholded",
         "exp1_dynamic_global_prior_auroc",
@@ -375,6 +399,10 @@ def build_table10(df, pd):
     table = macro_summary(df, pd)
     wanted = {
         "exp1_standalone_oct_thresholded": "Best standalone foundation model",
+        "exp2_flair_slo": "FLAIR SLO",
+        "exp2_ret_clip_slo": "RET-CLIP SLO",
+        "exp2_visionfm_slo": "VisionFM SLO",
+        "exp2_visionfm_oct": "VisionFM OCT",
         "exp1_static_fusion_mean_thresholded": "Mean probability ensemble",
         "exp1_static_fusion_confidence_weighted_thresholded": "Confidence-weighted ensemble",
         "exp1_dynamic_global_prior_auroc": "Dynamic global prior by AUROC",

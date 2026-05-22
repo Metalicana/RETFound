@@ -52,16 +52,22 @@ Existing entrypoints:
 - `evaluation/train_cls_multi_decoder.py`
 
 Adjustment needed:
-- Add a FairVision dataset wrapper that reads NPZ files from the manifest and
-  returns either `slo_fundus` or the center OCT B-scan as a PIL/RGB image.
-- Prefer linear-probe or classifier-head fine-tuning first, because it is easier
-  to keep comparable with RETFound/MIRAGE.
+- Use `scripts/train_fairvision_visionfm.py` to read FairVision NPZ files from
+  the manifest and return either `slo_fundus` or the center OCT B-scan as a
+  PIL/RGB image.
+- Extract frozen VisionFM CLS-token features from the last transformer blocks
+  and train a task-specific balanced logistic linear probe, matching the
+  FLAIR/RET-CLIP evaluation contract.
 - Requires downloaded pretrained weights:
   `VFM_Fundus_weights.pth` and/or `VFM_OCT_weights.pth`.
 
 Initial model names:
-- `visionfm_fundus`
+- `visionfm_slo`
 - `visionfm_oct`
+
+Run notes:
+- Full run wrapper: `scripts/run_fairvision_visionfm.sh`.
+- Command reference: `docs/visionfm_fairvision_commands.md`.
 
 ## UrFound
 

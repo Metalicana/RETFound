@@ -17,6 +17,8 @@
 \usepackage{algorithmicx}%
 \usepackage{algpseudocode}%
 \usepackage{listings}%
+\usepackage{tikz}%
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit}%
 
 \newcommand{\tbd}{\textsc{TBD}}
 
@@ -46,38 +48,144 @@
 \affil[2]{\orgdiv{Department}, \orgname{Organization}, \orgaddress{\street{Street}, \city{City}, \postcode{10587}, \state{State}, \country{Country}}}
 \affil[3]{\orgdiv{Department}, \orgname{Organization}, \orgaddress{\street{Street}, \city{City}, \postcode{610101}, \state{State}, \country{Country}}}
 
-\abstract{While medical vision foundation models achieve high aggregate accuracy in ophthalmic diagnostics, their clinical deployment is severely bottlenecked by demographic biases inherited from skewed training distributions. Current mitigation strategies fail to address patient-specific nuances, particularly when baseline morphological norms such as optic nerve cup-to-disc ratios naturally vary across age, race, and gender. To address this, we introduce Equi-Agent, a multi-agent framework that shifts the paradigm from static model ensembling to dynamic trust calibration. Operating as an autonomous clinical board, our architecture synthesizes outputs from diverse foundation models by critically cross-examining their localized visual findings against demographic error priors and patient metadata. Extensive evaluations on the Harvard FairVision and Harvard-GDP datasets demonstrate that our framework exceeds the diagnostic F1-score of standalone foundation models and significantly narrows the disparity in false positive and false negative rates across marginalized subgroups. Furthermore, the system achieves state-of-the-art accuracy in longitudinal glaucoma progression prediction, demonstrating its robust adaptability to complex temporal clinical reasoning. Our findings establish LLM-driven contextual arbitration as a robust, interpretable pathway for integrating biased foundation models into equitable clinical workflows.}
+\abstract{Retinal foundation models can achieve strong average performance while remaining unreliable for specific diseases, imaging modalities, or patient subgroups. This mismatch between aggregate accuracy and patient-level reliability is a central barrier to equitable clinical deployment. We introduce Equi-Agent, a multi-agent framework that performs dynamic trust calibration for retinal disease assessment. Rather than averaging model outputs or applying a fixed post-hoc threshold, Equi-Agent arbitrates among modality-specific foundation models using patient metadata, validation-derived subgroup reliability priors, visual morphology review, functional visual-field evidence, and a final safety audit. We evaluate this approach on Harvard-FairVision for cross-sectional diagnosis of age-related macular degeneration, diabetic retinopathy, and glaucoma, and extend the experimental framework to Harvard-GDP for longitudinal glaucoma progression forecasting. Across controlled transfer experiments, standalone retinal foundation models show substantial subgroup-specific false-positive, false-negative, and calibration gaps despite reasonable aggregate performance. These findings motivate contextual arbitration as a distinct layer between foundation-model inference and clinical decision support. Equi-Agent provides an interpretable mechanism for converting model disagreement and subgroup reliability evidence into calibrated predictions, uncertainty estimates, and escalation decisions, offering a reproducible framework for studying equitable deployment of ophthalmic foundation models.}
 
 \keywords{ophthalmic foundation models, fairness, calibration, multi-agent systems, retina imaging}
 
 \maketitle
 
 \section{Introduction}
-Diagnosing eye diseases require dissecting subtle visual patterns in fundus/Optical Coherence Tomography (OCT) images. Early detection can prevent irreversible vision loss. The demand for accurate diagnosis is outpacing the available human experts in this field \cite{TODO}. The proliferation of Artificial Intelligence based diagnosis models are a promising way to empower clinical professionals to meet this mounting demand.
+Retinal diseases such as age-related macular degeneration (AMD), diabetic retinopathy (DR), and glaucoma remain major causes of preventable visual impairment. Their diagnosis depends on subtle structural and functional evidence distributed across fundus photography, scanning laser ophthalmoscopy (SLO), optical coherence tomography (OCT), and visual-field testing. Automated systems are therefore attractive for scalable eye care, particularly in settings where specialist access is limited \cite{TODO}.
+
+The recent emergence of ophthalmic foundation models has changed the technical landscape. Large pretrained retinal encoders can be adapted to multiple downstream tasks and often outperform smaller task-specific models. Yet average accuracy is an incomplete measure of clinical readiness. A model may perform well overall while being poorly calibrated for a subgroup, overcalling disease in one demographic stratum, or missing early pathology in another. This failure mode is especially consequential in ophthalmology, where anatomical baselines and disease appearance vary across age, ancestry, image modality, acquisition protocol, and disease stage.
+
+Current mitigation strategies only partially address this problem. Static ensembles assume that model reliability can be averaged. Calibration methods rescale probabilities without deciding which evidence source should be trusted. Fairness-aware post-processing adjusts thresholds at the group level, but often treats subgroup membership as a fixed correction rather than as one component of a broader clinical context. In practice, the relevant question is more granular: given this patient, this image, this disease task, and this pattern of model disagreement, which output should influence the final decision, and with what degree of confidence?
+
+Here we introduce Equi-Agent, a multi-agent framework for contextual arbitration among retinal foundation models. Equi-Agent treats model trust as dynamic rather than intrinsic. It integrates foundation-model predictions with patient metadata, validation-derived subgroup reliability priors, morphology-grounded visual review, visual-field interpretation, guideline context, and a final safety audit. The framework is designed to produce not only a diagnostic label, but also a calibrated confidence estimate, a transparent account of model trust, and an escalation recommendation when evidence is discordant or insufficient.
+
+We make three contributions. First, we establish a controlled benchmark for comparing retinal foundation models under identical FairVision train, validation, and test splits with standardized subgroup and calibration metrics. Second, we formulate dynamic trust calibration as an explicit arbitration problem, separating visual evidence, subgroup reliability, model disagreement, functional context, and safety review into distinct agents. Third, we show that existing foundation models and non-agentic fusion baselines leave substantial subgroup reliability gaps, motivating an agentic layer between foundation-model inference and clinical decision support.
 
 \section{Related Work}
 \subsection{Foundation Models in Ophthalmic Imaging}
+\label{subsec:related_foundation}
+Foundation models for ophthalmic imaging learn reusable representations from large-scale OCT, fundus, SLO, or multimodal image-text corpora. RETFound represents OCT-oriented self-supervised pretraining, whereas MIRAGE, FLAIR, RET-CLIP, VisionFM, UrFound, and RetiZero reflect a broader family of retinal encoders intended for transfer across downstream tasks \cite{TODO}. These systems differ substantially in modality support, pretraining objective, image resolution, and downstream adaptation recipe, making uncontrolled comparison difficult.
+
+We therefore evaluate foundation models under a shared transfer protocol wherever possible. OCT-oriented models are evaluated on OCT inputs, fundus/SLO-oriented models on SLO/fundus inputs, and all downstream thresholds are selected using validation data only. This protocol compares transferability under a common evaluation contract. It is not intended to be a claim that every foundation model has been tuned to its model-specific optimum.
+
 \subsection{Bias and Fairness in Medical Vision Models}
+Medical AI systems can reproduce or amplify disparities when training data, acquisition protocols, disease prevalence, or label quality differ across patient groups \cite{TODO}. In ophthalmology, these concerns include unequal sensitivity, unequal false-positive burden, and subgroup-specific calibration error. Such failures are not merely statistical; they can alter referral patterns, delay treatment, or increase unnecessary follow-up for already underserved populations.
+
+Equi-Agent addresses fairness as a problem of reliability-aware inference. Rather than using demographic metadata as disease evidence, the framework uses validation-set behavior to estimate when a model's output is less trustworthy for a given subgroup and task. This distinction is central: demographic context informs trust in the model, not the biological likelihood of disease.
+
 \subsection{Multi-Agent and LLM-Based Clinical Reasoning Systems}
+Large language models have been used to summarize clinical records, retrieve guidelines, explain model outputs, and support multi-step medical reasoning \cite{TODO}. Multi-agent systems extend this idea by assigning specialized roles to separate reasoning modules. This can improve interpretability, but it also creates risks: hallucinated findings, prompt sensitivity, and poorly controlled decision logic.
+
+Equi-Agent constrains language-model reasoning to evidence-grounded arbitration. Agents reason over supplied model probabilities, patient metadata, validation priors, image-derived findings, visual-field measurements, and guideline summaries. They are not used to infer hidden clinical measurements or replace the image models. The empirical question is whether this structured arbitration improves reliability beyond deterministic routing, static fusion, and post-hoc calibration.
 
 \section{Methods}
 \subsection{Problem Formulation}
+\label{subsec:problem_formulation}
+Let $x_i^{(m)}$ denote the imaging input for patient-eye case $i$ and modality $m$, and let $a_i$ denote available patient metadata, including age group, race, ethnicity, and sex/gender. For each disease task $t \in \{\mathrm{AMD}, \mathrm{DR}, \mathrm{glaucoma}\}$, a set of base models $\mathcal{M}$ produces probabilities $p_{ij}^{(t)} = f_j(x_i^{(m_j)})$ for model $j$. The objective is to estimate a final prediction $\hat{y}_i^{(t)}$ and confidence score that preserve aggregate diagnostic performance while reducing subgroup-specific reliability gaps.
+
+Equi-Agent frames this as contextual arbitration. For a case $i$, the system estimates the trust assigned to model $j$ as a function of disease task, modality, patient metadata, subgroup-specific validation reliability, model confidence, and cross-model disagreement:
+\begin{equation}
+w_{ij}^{(t)} = g\left(t, m_j, a_i, p_{ij}^{(t)}, \mathcal{R}_{j,t,a_i}, \Delta_i^{(t)}\right),
+\end{equation}
+where $\mathcal{R}_{j,t,a_i}$ denotes validation-derived reliability priors for the relevant subgroup context and $\Delta_i^{(t)}$ denotes disagreement among available model outputs. The final prediction is produced by an arbitration procedure that combines weighted model evidence with independent visual, functional, and safety assessments. This formulation separates two quantities that are often conflated: the probability of disease and the reliability of the model producing that probability.
+
 \subsection{Datasets and Prediction Tasks}
+\label{subsec:methods_datasets}
+Harvard-FairVision is used for cross-sectional diagnosis of AMD, DR, and glaucoma. Each task is represented with fixed train, validation, and test splits, and each prediction row is linked to demographic metadata used for subgroup evaluation. Harvard-GDP is used for glaucoma detection and progression forecasting, including OCT B-scan, retinal nerve fiber layer thickness (RNFLT), visual-field, and clinical metadata fields where available. FairVision supports the primary cross-sectional fairness analysis, whereas Harvard-GDP tests whether arbitration can be extended to temporal disease progression.
+
 \subsection{Base Vision Foundation Models}
+\label{subsec:base_models_methods}
+We evaluate modality-specific foundation-model outputs using a standardized prediction schema. RETFound is evaluated as an OCT model and MIRAGE as an SLO/fundus model. FLAIR and RET-CLIP are evaluated as SLO/fundus image encoders with task-specific linear probes. VisionFM is evaluated with both its Fundus/SLO and OCT encoders. For FLAIR, RET-CLIP, and VisionFM, image embeddings are extracted from the frozen pretrained model and a balanced logistic regression head is trained for each FairVision disease task. Thresholds are selected on the validation split to maximize F1-score, and final metrics are computed only on the held-out test split.
+
+This design separates representation evaluation from model-specific fine-tuning optimization. It allows controlled comparison under the same downstream split, label, threshold, and metric contract, while acknowledging that some foundation models may perform differently under native full fine-tuning or prompt-based protocols.
+
 \subsection{Equi-Agent Architecture}
+\label{subsec:architecture_methods}
+Equi-Agent is organized as a structured arbitration system (Fig.~\ref{fig:equi_agent_architecture}). The BioProfiler converts structured metadata into a concise clinical narrative. The Vision Specialist processes OCT and SLO/fundus inputs, reports foundation-model probability distributions, and performs a morphology-grounded visual audit. The Functional Specialist interprets visual-field information, especially mean deviation (MD), to provide glaucoma-relevant functional context. The Equity Auditor compares the current patient context with validation-derived subgroup error priors and recommends whether sensitivity- or precision-oriented trust adjustment is warranted. The Guidelines Agent retrieves and summarizes external clinical guidance when available. The Orchestrator integrates these findings into final disease labels. The Safety Agent performs a final uncertainty and discordance audit and can recommend acceptance, override, escalation to human review, or insufficient-data status.
+
+\begin{figure*}[t]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    font=\small,
+    node distance=8mm and 10mm,
+    box/.style={draw, rounded corners=2pt, align=center, minimum width=27mm, minimum height=10mm, fill=gray!5},
+    agent/.style={draw, rounded corners=2pt, align=center, minimum width=31mm, minimum height=11mm, fill=blue!5},
+    data/.style={draw, align=center, minimum width=27mm, minimum height=9mm, fill=green!5},
+    outputbox/.style={draw, rounded corners=2pt, align=center, minimum width=35mm, minimum height=11mm, fill=orange!8},
+    arrow/.style={-{Latex[length=2mm]}, thick}
+]
+\node[data] (image) {OCT / SLO\\images};
+\node[data, below=of image] (metadata) {Patient metadata\\and visual field};
+\node[agent, right=14mm of image] (vision) {Vision\\Specialist};
+\node[agent, right=14mm of metadata] (bio) {BioProfiler};
+\node[agent, below=of bio] (functional) {Functional\\Specialist};
+\node[box, above=of vision] (models) {Foundation models\\RETFound, MIRAGE,\\FLAIR, RET-CLIP, VisionFM};
+\node[box, below=of functional] (priors) {Validation-derived\\subgroup priors};
+\node[agent, right=17mm of bio] (equity) {Equity\\Auditor};
+\node[agent, above=of equity] (guidelines) {Guidelines\\Agent};
+\node[agent, right=17mm of equity] (orchestrator) {Final\\Orchestrator};
+\node[agent, below=of orchestrator] (safety) {Safety\\Agent};
+\node[outputbox, right=16mm of orchestrator] (output) {Disease labels,\\confidence, rationale,\\escalation flag};
+
+\draw[arrow] (image) -- (vision);
+\draw[arrow] (models) -- (vision);
+\draw[arrow] (metadata) -- (bio);
+\draw[arrow] (metadata) |- (functional);
+\draw[arrow] (vision) -- (equity);
+\draw[arrow] (bio) -- (equity);
+\draw[arrow] (priors) -| (equity);
+\draw[arrow] (bio) |- (guidelines);
+\draw[arrow] (vision) -- (orchestrator);
+\draw[arrow] (functional) -| (orchestrator);
+\draw[arrow] (equity) -- (orchestrator);
+\draw[arrow] (guidelines) -- (orchestrator);
+\draw[arrow] (orchestrator) -- (safety);
+\draw[arrow] (safety) -- (output);
+\draw[arrow] (orchestrator) -- (output);
+\end{tikzpicture}
+}
+\caption{Equi-Agent architecture. The system separates image-derived evidence, clinical metadata, subgroup reliability priors, functional visual-field interpretation, guideline context, final arbitration, and safety review into explicit agents.}
+\label{fig:equi_agent_architecture}
+\end{figure*}
+
 \subsection{Dynamic Trust Calibration}
+\label{subsec:dynamic_trust_methods}
+Dynamic trust calibration uses validation-set behavior to estimate when each model is more or less reliable. For each base model, disease task, and subgroup attribute, we compute validation AUROC, F1-score, false-positive rate, false-negative rate, expected calibration error, and sample counts. Subgroup priors are marked unstable when positive or negative counts are too small. At inference time, the arbitration layer first checks stable intersectional priors, then single-attribute priors, then global model priors.
+
+The Equity Auditor converts these priors into trust recommendations. A high subgroup false-negative rate motivates a sensitivity shift, lowering the effective diagnostic threshold or increasing uncertainty when model confidence is borderline. A high false-positive rate motivates a precision shift, raising the threshold or down-weighting overconfident positive predictions. These adjustments act on model trust and confidence; demographic metadata is not used as direct disease evidence.
+
 \subsection{Contextual Arbitration Procedure}
+\label{subsec:arbitration_methods}
+The arbitration procedure receives structured inputs: model probabilities, validation thresholds, subgroup priors, patient metadata, visual morphology summaries, functional summaries, and guideline context. The Orchestrator applies disease-specific rules and agent summaries to produce final labels. For glaucoma, functional evidence can constrain image-only predictions when the visual field is normal; in the current implementation, a mean deviation greater than $-2$ dB is treated as evidence against glaucoma unless image evidence is compelling. For AMD, the system uses a pathology-signal representation derived from cumulative stage probabilities and inspects whether disease probability mass is concentrated in early, intermediate, or advanced stages. For DR, arbitration emphasizes vascular lesion evidence and cross-model confidence.
+
+The Safety Agent then audits the decision for discordant structural and functional evidence, missing modalities, poor image quality, or unusually high uncertainty. This final stage is designed to prevent inappropriate reassurance and to identify cases that should be escalated rather than forced into a binary output.
+
 \subsection{Longitudinal Progression Reasoning}
+\label{subsec:longitudinal_methods}
+For Harvard-GDP, longitudinal extension treats each visit sequence as a temporal evidence stream. The temporal agent compares current and prior OCT/RNFL evidence, visual-field change, and model confidence trajectories. A progression decision should be supported by clinically plausible temporal change rather than by a single noisy scan. GDP baselines use RNFLT, OCT B-scan features, clinical metadata, and their combinations, and provide the non-agentic reference point for longitudinal arbitration.
+
 \subsection{Evaluation Metrics}
+\label{subsec:metrics_methods}
+Evaluation is implemented with a standardized prediction schema containing patient identifiers, task, model name, split, ground-truth label, predicted probability, thresholded prediction, and demographic metadata. We report AUROC, area under the precision-recall curve, F1-score, balanced accuracy, sensitivity, specificity, Brier score, negative log-likelihood, and expected calibration error. Subgroup evaluation includes per-subgroup performance, worst-group F1, false-positive rate gap, false-negative rate gap, equal opportunity difference, equalized odds difference, subgroup ECE, and intersectional subgroup metrics.
+
 \subsection{Statistical Analysis}
+\label{subsec:statistical_methods}
+Unless otherwise stated, metrics are computed on the held-out test split after thresholds are selected on validation data. Confidence intervals will be estimated by nonparametric patient-level bootstrapping in the final analysis. Paired comparisons will be made on shared test cases, with multiple subgroup comparisons controlled using the Benjamini--Hochberg procedure.
 
 \section{Experimental Design and Evaluation}\label{sec:experiments}
 
-We designed the experimental evaluation to test whether dynamic trust calibration can improve the reliability of ophthalmic vision foundation models without sacrificing aggregate diagnostic performance. The central hypothesis is that the reliability of a foundation model is not fixed globally, but varies as a function of disease task, imaging modality, patient metadata, subgroup-specific error patterns, model disagreement, and longitudinal context. Accordingly, Equi-Agent is evaluated not only against standalone foundation models, but also against static ensembles, post-hoc calibration methods, and fairness-aware training baselines.
+The experimental evaluation tests whether dynamic trust calibration improves the reliability of ophthalmic foundation models without sacrificing aggregate diagnostic performance. The central hypothesis is that model reliability is not fixed globally, but varies as a function of disease task, imaging modality, patient metadata, subgroup-specific error patterns, model disagreement, and longitudinal context. Equi-Agent is therefore evaluated against standalone foundation models, static ensembles, post-hoc calibration methods, rule-based arbitration, and fairness-aware baselines.
 
-All experiments are structured around four evaluation questions. First, we test whether standalone ophthalmic foundation models exhibit subgroup-specific reliability gaps despite strong aggregate performance. Second, we test whether Equi-Agent improves diagnostic performance and worst-group reliability compared with standalone models and conventional ensembles. Third, we test whether the proposed agentic arbitration mechanism is necessary by comparing Equi-Agent against non-agentic fusion, single-agent arbitration, and component ablations. Fourth, we test whether the same arbitration framework extends to longitudinal glaucoma progression prediction.
+The experiments address four questions. First, do standalone ophthalmic foundation models exhibit subgroup-specific reliability gaps despite strong aggregate performance? Second, does Equi-Agent improve diagnostic performance and worst-group reliability compared with standalone models and conventional ensembles? Third, is agentic arbitration necessary, or can deterministic routing and static fusion provide the same benefit? Fourth, does the same arbitration framework extend to longitudinal glaucoma progression prediction?
 
-Demographic metadata is used only as contextual information for estimating model reliability under subgroup-specific failure modes. It is not used as a direct proxy for disease status. To evaluate this design choice, we include metadata-only, metadata-shuffled, and no-demographic ablations.
+Demographic metadata is used only as contextual information for estimating model reliability under subgroup-specific failure modes. It is not used as a direct proxy for disease status. Metadata-only, metadata-shuffled, and no-demographic ablations are included to evaluate this design choice.
+
+To ensure controlled comparison among foundation models, all models are evaluated using the same FairVision train, validation, and test splits, validation-only threshold selection, and held-out test metrics. Each model is evaluated on the imaging modality most consistent with its intended use. The protocol compares transferability under a common downstream setting rather than exhaustively optimizing each model-specific recipe.
 
 \subsection{Datasets and Prediction Tasks}\label{subsec:datasets}
 
@@ -102,7 +210,7 @@ External validation cohort, if available & \tbd & Cross-dataset generalization &
 
 \subsection{Base Models and Baselines}\label{subsec:baselines}
 
-Equi-Agent is compared against three categories of baselines. The first category includes standalone ophthalmic and general-purpose vision foundation models, such as RETFound, MIRAGE, FLAIR, RET-CLIP, DINOv2, CLIP-style retinal vision-language models, and task-specific supervised CNN or Transformer models. The second category includes static model fusion approaches, including majority vote, mean probability ensembling, confidence-weighted ensembling, and logistic stacking. The third category includes fairness and calibration baselines, including group reweighting, group distributionally robust optimization, subgroup temperature scaling, group-specific thresholding, and equalized-odds post-processing.
+Equi-Agent is compared against three baseline families. The first includes standalone ophthalmic and general-purpose vision foundation models, such as RETFound, MIRAGE, FLAIR, RET-CLIP, VisionFM, DINOv2, CLIP-style retinal vision-language models, and task-specific supervised CNN or Transformer models. The second includes static fusion methods, including majority vote, mean probability ensembling, confidence-weighted ensembling, and logistic stacking. The third includes fairness and calibration baselines, including group reweighting, group distributionally robust optimization, subgroup temperature scaling, group-specific thresholding, and equalized-odds post-processing.
 
 Where code and training details are available, we also compare against ophthalmology-specific fairness methods, including Fair Identity Scaling, FairerOPTH-style implicit fairness learning, and longitudinal glaucoma fairness baselines such as FairDist or EqEffNet-style models. If a baseline cannot be reproduced exactly, we report the closest implementable variant and describe the difference explicitly.
 
@@ -119,6 +227,8 @@ Foundation models & RETFound OCT & No & No & Standalone OCT foundation-model bas
 Foundation models & MIRAGE SLO & No & No & Standalone fundus/SLO foundation-model baseline for FairVision diagnosis \\
 Foundation models & FLAIR SLO & No & No & Standalone fundus/SLO vision-language foundation-model baseline using FairVision linear probing \\
 Foundation models & RET-CLIP SLO & No & No & Standalone fundus/SLO vision-language foundation-model baseline using FairVision linear probing \\
+Foundation models & VisionFM SLO & No & No & Standalone VisionFM fundus/SLO encoder baseline using FairVision linear probing \\
+Foundation models & VisionFM OCT & No & No & Standalone VisionFM OCT encoder baseline using FairVision linear probing \\
 Static ensembles & Mean probability ensemble & No & Weak / implicit & Test whether simple averaging of RETFound OCT and MIRAGE SLO is sufficient \\
 Static ensembles & Confidence-weighted ensemble & No & Weak / implicit & Test whether confidence-weighted model fusion improves calibration and diagnostic reliability \\
 Calibration / thresholding & Validation-selected task thresholds & No & No & Correct task-specific probability scale mismatch using validation-only threshold tuning \\
@@ -136,13 +246,13 @@ Equi-Agent & Multi-agent contextual arbitration with subgroup priors & Yes & Yes
 
 \subsection{Equi-Agent Arbitration Framework}\label{subsec:equi_agent_framework}
 
-Equi-Agent receives as input patient imaging data, patient metadata, predictions from multiple base models, model confidence scores, localized visual evidence, and validation-derived subgroup error priors. The system is structured as a multi-agent arbitration framework. A disease evidence agent evaluates whether the visual findings support the candidate diagnosis. A demographic context agent assesses whether patient metadata changes the reliability of specific visual cues or model outputs. A bias auditor agent compares the current prediction context against subgroup-specific false-positive and false-negative patterns estimated from the validation set. A model disagreement agent identifies conflicts among base models and determines whether disagreement reflects uncertainty, modality-specific weakness, or subgroup-specific unreliability. For longitudinal tasks, a temporal reasoning agent evaluates whether changes across visits are clinically plausible. A final arbitration agent integrates these outputs into a calibrated prediction, confidence score, and explanation.
+Equi-Agent receives patient imaging data, patient metadata, predictions from multiple base models, model confidence scores, localized visual evidence, and validation-derived subgroup error priors. The system is structured as a multi-agent arbitration framework. A disease evidence agent evaluates whether the visual findings support the candidate diagnosis. A demographic context agent assesses whether patient metadata changes the reliability of specific visual cues or model outputs. A bias auditor compares the current prediction context against subgroup-specific false-positive and false-negative patterns estimated from the validation set. A model disagreement agent identifies conflicts among base models and determines whether disagreement reflects uncertainty, modality-specific weakness, or subgroup-specific unreliability. For longitudinal tasks, a temporal reasoning agent evaluates whether changes across visits are clinically plausible. A final arbitration agent integrates these outputs into a calibrated prediction, confidence score, and explanation.
 
 To reduce stochasticity and improve reproducibility, agent outputs are constrained to a structured schema. Each agent must return a fixed set of fields, including the evidence considered, the reliability concern identified, the recommended trust adjustment, and a confidence estimate. The arbitration agent is instructed to use only the provided model outputs, metadata, subgroup priors, and image-derived findings.
 
 \subsection{Evaluation Metrics}\label{subsec:metrics}
 
-We report both aggregate diagnostic performance and subgroup-specific reliability. Aggregate performance is measured using area under the receiver operating characteristic curve (AUROC), F1-score, balanced accuracy, sensitivity, specificity, and area under the precision-recall curve where appropriate. Fairness and subgroup reliability are measured using worst-group F1, worst-group AUROC, false-positive rate gap, false-negative rate gap, equal opportunity difference, equalized odds difference, subgroup expected calibration error, and subgroup Brier score.
+We report aggregate diagnostic performance and subgroup-specific reliability. Aggregate performance is measured using area under the receiver operating characteristic curve (AUROC), F1-score, balanced accuracy, sensitivity, specificity, and area under the precision-recall curve where appropriate. Fairness and subgroup reliability are measured using worst-group F1, worst-group AUROC, false-positive rate gap, false-negative rate gap, equal opportunity difference, equalized odds difference, subgroup expected calibration error, and subgroup Brier score.
 
 For a demographic attribute $A$ with subgroups $g \in \mathcal{G}$, the false-positive rate gap is defined as
 \begin{equation}
@@ -166,7 +276,7 @@ For calibration, we report expected calibration error both globally and within e
 
 \subsection{Experiment 1: Reliability Gaps in Standalone Foundation Models}\label{subsec:exp1}
 
-The first experiment establishes the failure mode motivating Equi-Agent. We evaluate each standalone base model on each disease task and report aggregate diagnostic performance alongside subgroup-specific error disparities. This experiment tests whether strong average performance masks clinically meaningful reliability gaps across demographic groups.
+The first experiment establishes the failure mode motivating Equi-Agent. Each standalone base model is evaluated on each disease task, with aggregate diagnostic performance reported alongside subgroup-specific error disparities. This experiment tests whether strong average performance masks clinically meaningful reliability gaps across demographic groups.
 
 \begin{table*}[t]
 \centering
@@ -181,16 +291,22 @@ RETFound OCT & Harvard-FairVision & AMD & 0.494 & 0.525 & 1.000 & 0.000 & 0.131 
 MIRAGE SLO & Harvard-FairVision & AMD & 0.505 & 0.525 & 0.999 & 0.002 & 0.132 & 0.009 & 0.002 & 0.636 \\
 FLAIR SLO & Harvard-FairVision & AMD & 0.507 & 0.525 & 0.995 & 0.004 & 0.132 & 0.013 & 0.007 & 0.430 \\
 RET-CLIP SLO & Harvard-FairVision & AMD & 0.503 & 0.525 & 0.997 & 0.001 & 0.131 & 0.003 & 0.009 & 0.430 \\
+VisionFM SLO & Harvard-FairVision & AMD & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+VisionFM OCT & Harvard-FairVision & AMD & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 \midrule
 RETFound OCT & Harvard-FairVision & DR & 0.537 & 0.168 & 0.621 & 0.449 & 0.110 & 0.108 & 0.259 & 0.164 \\
 MIRAGE SLO & Harvard-FairVision & DR & 0.515 & 0.136 & 0.257 & 0.760 & 0.067 & 0.060 & 0.145 & 0.145 \\
 FLAIR SLO & Harvard-FairVision & DR & 0.527 & 0.160 & 1.000 & 0.001 & 0.117 & 0.009 & 0.000 & 0.434 \\
 RET-CLIP SLO & Harvard-FairVision & DR & 0.518 & 0.162 & 0.931 & 0.086 & 0.123 & 0.039 & 0.133 & 0.433 \\
+VisionFM SLO & Harvard-FairVision & DR & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+VisionFM OCT & Harvard-FairVision & DR & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 \midrule
 RETFound OCT & Harvard-FairVision & Glaucoma & 0.840 & 0.756 & 0.794 & 0.708 & 0.511 & 0.490 & 0.498 & 0.168 \\
 MIRAGE SLO & Harvard-FairVision & Glaucoma & 0.428 & 0.656 & 0.998 & 0.000 & 0.455 & 0.000 & 0.007 & 0.381 \\
 FLAIR SLO & Harvard-FairVision & Glaucoma & 0.695 & 0.674 & 0.915 & 0.236 & 0.500 & 0.276 & 0.160 & 0.148 \\
 RET-CLIP SLO & Harvard-FairVision & Glaucoma & 0.730 & 0.684 & 0.923 & 0.258 & 0.516 & 0.346 & 0.221 & 0.150 \\
+VisionFM SLO & Harvard-FairVision & Glaucoma & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+VisionFM OCT & Harvard-FairVision & Glaucoma & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 \botrule
 \end{tabular}%
 }
@@ -198,7 +314,7 @@ RET-CLIP SLO & Harvard-FairVision & Glaucoma & 0.730 & 0.684 & 0.923 & 0.258 & 0
 
 \subsection{Experiment 2: Main Diagnostic Comparison}\label{subsec:exp2}
 
-The second experiment evaluates whether Equi-Agent improves diagnostic performance and subgroup reliability compared with standalone models, static ensembles, calibration methods, and fairness-aware baselines. The primary comparison is conducted on the held-out test set. Hyperparameters, calibration parameters, stacking weights, subgroup priors, and arbitration rules are selected using only the validation set.
+The second experiment evaluates whether Equi-Agent improves diagnostic performance and subgroup reliability compared with standalone models, static ensembles, calibration methods, and fairness-aware baselines. The primary comparison is conducted on the held-out test set. Hyperparameters, calibration parameters, stacking weights, subgroup priors, and arbitration rules are selected using validation data only.
 
 \begin{table*}[t]
 \centering
@@ -213,6 +329,8 @@ RETFound OCT & Foundation model & 0.624 & 0.483 & 0.595 & 0.805 & 0.386 & 0.110 
 MIRAGE SLO & Foundation model & 0.483 & 0.439 & 0.503 & 0.751 & 0.254 & 0.067 & 0.060 & 0.145 \\
 FLAIR SLO & Foundation model & 0.576 & 0.453 & 0.525 & 0.970 & 0.080 & 0.117 & 0.276 & 0.160 \\
 RET-CLIP SLO & Foundation model & 0.584 & 0.457 & 0.533 & 0.950 & 0.115 & 0.123 & 0.346 & 0.221 \\
+VisionFM SLO & Foundation model & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+VisionFM OCT & Foundation model & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 Mean probability ensemble & Static ensemble & 0.615 & 0.469 & 0.577 & 0.730 & 0.425 & 0.058 & 0.509 & 0.484 \\
 Confidence-weighted ensemble & Static ensemble & 0.616 & 0.476 & 0.584 & 0.829 & 0.339 & 0.108 & 0.509 & 0.484 \\
 Dynamic global prior by AUROC & Rule-based arbitration & 0.620 & 0.473 & 0.587 & 0.683 & 0.490 & 0.067 & 0.490 & 0.498 \\
@@ -363,6 +481,8 @@ Method & AUROC $\uparrow$ & F1 $\uparrow$ & Global ECE $\downarrow$ & Subgroup E
 Best standalone foundation model & 0.624 & 0.483 & 0.156 & 0.598 & \tbd & \tbd & \tbd & \tbd \\
 FLAIR SLO & 0.576 & 0.453 & 0.202 & 0.434 & \tbd & \tbd & \tbd & \tbd \\
 RET-CLIP SLO & 0.584 & 0.457 & 0.201 & 0.433 & \tbd & \tbd & \tbd & \tbd \\
+VisionFM SLO & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+VisionFM OCT & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 Mean probability ensemble & 0.615 & 0.469 & 0.081 & 0.311 & \tbd & \tbd & \tbd & \tbd \\
 Confidence-weighted ensemble & 0.616 & 0.476 & 0.077 & 0.369 & \tbd & \tbd & \tbd & \tbd \\
 Dynamic global prior by AUROC & 0.620 & 0.473 & 0.184 & 0.636 & \tbd & \tbd & \tbd & \tbd \\
@@ -467,11 +587,84 @@ We define success as an improvement in worst-group reliability without unaccepta
 
 \section{Results}
 \subsection{Diagnostic Performance Across Disease Tasks}
+\label{subsec:results_diagnostic}
+Standalone foundation-model performance varied substantially by disease task and modality. RETFound OCT performed strongest for glaucoma, with an AUROC of 0.840 and F1-score of 0.756, but was near chance for AMD under the thresholded evaluation. MIRAGE SLO produced similar AMD F1-score but weaker glaucoma discrimination. FLAIR and RET-CLIP SLO provided moderate glaucoma discrimination, with AUROC values of 0.695 and 0.730, respectively, but remained weak on AMD and DR.
+
+Macro-averaged across AMD, DR, and glaucoma, RETFound OCT remained the strongest standalone model by F1-score, while confidence-weighted ensembling provided the strongest static ensemble F1-score among the non-agentic baselines. However, no standalone or static method simultaneously achieved strong aggregate performance and stable worst-group reliability, motivating dynamic trust calibration.
+
 \subsection{Subgroup Fairness and Error Disparity Reduction}
+\label{subsec:results_fairness}
+Standalone results revealed clinically meaningful subgroup reliability gaps. For glaucoma, RETFound OCT achieved strong aggregate performance but showed large false-positive and false-negative rate gaps across subgroups. FLAIR and RET-CLIP improved glaucoma worst-group F1 relative to some SLO baselines, but still exhibited large subgroup gaps, particularly in intersectional age and race analyses. For AMD and DR, several models achieved apparently reasonable F1-scores by operating at very high sensitivity and extremely low specificity, producing poor clinical utility and unstable calibration.
+
+These findings support the premise that average performance is insufficient for model selection. A model can be preferable for one disease and subgroup but unreliable for another. Equi-Agent directly targets this failure mode by using subgroup priors and case-specific disagreement to adjust model trust.
+
 \subsection{Calibration and Trust Reliability}
+\label{subsec:results_calibration}
+Calibration results showed that lower aggregate error did not necessarily correspond to better subgroup calibration. Confidence-weighted ensembling had the lowest global ECE among static baselines, while dynamic global routing by ECE further reduced global ECE. However, subgroup ECE remained high for several methods, especially when performance was dominated by a disease task with highly imbalanced threshold behavior.
+
+FLAIR and RET-CLIP had global ECE values near 0.20 in the macro-averaged FairVision summary, with subgroup ECE around 0.43. These calibration patterns indicate that output probabilities should not be interpreted as uniformly reliable across demographic groups. Equi-Agent uses these calibration failures as inputs to trust adjustment rather than hiding them behind a single aggregate score.
+
 \subsection{Longitudinal Glaucoma Progression Prediction}
+\label{subsec:results_longitudinal}
+Harvard-GDP logistic baselines using RNFLT, B-scan, clinical metadata, and combined feature sets produced modest AUROC values and weak F1-scores for progression forecasting, with worst-group F1 frequently equal to zero. This indicates that longitudinal progression prediction is substantially more difficult than cross-sectional FairVision diagnosis under the current feature representation.
+
+The longitudinal extension evaluates whether OCT foundation-model features and temporal arbitration improve progression sensitivity and subgroup reliability over these logistic baselines. This comparison is important because a clinically useful glaucoma progression system must detect worsening disease without amplifying subgroup-specific under-detection.
+
 \subsection{Ablation Studies}
+\label{subsec:results_ablation}
+The ablation study isolates the contribution of each Equi-Agent component. The key comparisons remove demographic context, subgroup priors, model-disagreement reasoning, visual evidence, calibration, and multi-agent decomposition. A randomized-prior control tests whether any fairness improvement depends on meaningful validation-derived reliability estimates rather than the mere presence of demographic fields.
+
+The most important comparison is between full Equi-Agent and deterministic subgroup-prior routing. If the full agent improves only marginally over deterministic routing, the simpler rule-based mechanism may be preferable. If the full agent improves calibration, worst-group F1, or safety escalation behavior, this supports the value of structured agentic reasoning.
+
 \subsection{Qualitative Case Studies}
+\label{subsec:results_qualitative}
+Qualitative case studies focus on clinically interpretable failure modes: large physiologic cup causing false-positive glaucoma predictions, borderline RNFL thinning with overconfident model outputs, subtle early progression, poor-quality scans, and cross-model disagreement. For each case, we report the base-model probabilities, subgroup reliability prior, agent trust adjustment, final decision, and safety recommendation. These examples demonstrate mechanism and complement the quantitative evaluation.
+
+\section{Discussion}
+\label{sec:discussion}
+This study develops Equi-Agent as a framework for dynamic trust calibration in retinal foundation-model deployment. The central observation is that foundation-model reliability is not fixed. It varies by disease task, modality, subgroup, and thresholding behavior. Static fusion and global calibration can improve some aggregate metrics, but they do not directly answer which model should be trusted for a particular patient context.
+
+The multi-agent design makes this trust decision explicit. The Vision Specialist grounds probability outputs in retinal morphology, the Functional Specialist provides glaucoma-relevant visual-field interpretation, the Equity Auditor translates validation-derived subgroup priors into trust adjustments, and the Safety Agent audits uncertainty and discordance. This decomposition is useful scientifically because it makes each source of evidence inspectable. It is also useful clinically because unsafe cases can be escalated rather than forced into a confident prediction.
+
+The FairVision foundation-model comparison demonstrates why arbitration is needed: high aggregate performance and reliable subgroup behavior do not necessarily coincide. The critical test for Equi-Agent is therefore not only whether it improves mean AUROC or F1-score, but whether it improves the reliability of the worst-served patients while preserving diagnostic utility.
+
+\subsection{Fairness of Foundation-Model Comparison}
+\label{subsec:discussion_fairness_protocol}
+The evaluation is fair in the sense of controlled downstream comparison. All foundation models use the same FairVision splits, train only on the training split, select thresholds only on the validation split, and report metrics only on the held-out test split. They are evaluated using the modality they are designed to process, and all prediction outputs are converted to the same schema before metric computation.
+
+This does not mean every model has been optimized to its maximum possible performance. Some models may benefit from model-specific preprocessing, full fine-tuning, prompt engineering, higher input resolution, or multimodal usage. The reported results should therefore be interpreted as controlled transfer comparisons, not as definitive leaderboards of the foundation models themselves.
+
+\subsection{Clinical and Methodological Implications}
+\label{subsec:discussion_implications}
+Equi-Agent supports a deployment pattern in which foundation models are treated as evidence sources rather than autonomous diagnostic authorities. A high-confidence model output should be trusted only when it is consistent with morphology, functional context, and validation reliability for the relevant subgroup. Conversely, a borderline or discordant model output can trigger threshold adjustment, uncertainty inflation, or human review.
+
+This approach may be especially valuable in ophthalmology because multimodal evidence is naturally complementary. OCT can reveal retinal layer pathology, SLO/fundus imaging can reveal vascular and optic-disc patterns, and visual fields can reveal functional loss. An arbitration framework can exploit this complementarity while explicitly monitoring when a modality or model is unreliable.
+
+\subsection{Limitations}
+\label{subsec:limitations}
+Several limitations remain. First, subgroup estimates can be unstable when positive or negative counts are small, especially for intersectional groups. Second, demographic metadata can improve reliability calibration but also introduces ethical and methodological risk if used as a disease shortcut. Metadata-only, shuffled-metadata, randomized-prior, and counterfactual tests are therefore essential. Third, LLM-based arbitration can be sensitive to prompt wording and model version, requiring repeated-run, prompt-paraphrase, and alternative-backbone analyses. Finally, longitudinal glaucoma progression requires stronger temporal modeling than the current logistic baselines provide.
+
+\section{Conclusion}
+\label{sec:conclusion}
+Equi-Agent reframes retinal foundation-model deployment as a problem of dynamic trust calibration. FairVision experiments show that standalone foundation models and simple ensembles can have substantial subgroup reliability gaps, motivating contextual arbitration. The proposed multi-agent system provides an interpretable structure for combining image evidence, patient metadata, subgroup priors, functional testing, guideline context, and safety review. This framework offers a practical route toward ophthalmic AI systems that are not only accurate on average, but more reliable for the patients most vulnerable to model failure.
+
+\section*{Data Availability}
+The experiments use Harvard-FairVision and Harvard-GDP data. Dataset access, licensing conditions, and any restrictions on redistribution will be described here before submission. Derived prediction files, subgroup metrics, and manuscript tables are produced under the project outputs directory and can be shared subject to dataset-use agreements.
+
+\section*{Code Availability}
+The Equi-Agent codebase contains scripts for manifest construction, foundation-model prediction extraction, threshold tuning, subgroup-prior construction, dynamic routing, metric computation, and manuscript table generation. A reproducible release with environment files, command-line entry points, and trained lightweight probes will be prepared before submission, subject to the licensing terms of the external foundation-model repositories.
+
+\section*{Acknowledgements}
+\tbd{}
+
+\section*{Author Contributions}
+A.M.A.R. designed the study, implemented the Equi-Agent framework, ran experiments, and drafted the manuscript. Y.A., N.B., and Y.T. contributed to experimental design, analysis, interpretation, and manuscript revision. Final author roles will be updated before submission.
+
+\section*{Competing Interests}
+The authors declare no competing interests. This statement will be updated before submission if needed.
+
+\section*{Ethics and Reporting}
+All analyses use retrospective ophthalmic datasets. The final manuscript will report dataset approvals, de-identification status, and relevant data-use agreements according to the requirements of the source datasets and target journal.
 
 \begin{appendices}
 \section{Supplementary Material}\label{secA1}
