@@ -83,7 +83,30 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-cases-per-task", type=int, default=3, help="Use <=0 to process all common cases.")
     parser.add_argument("--seed-offset", type=int, default=0, help="Offset into each task's shared case list.")
     parser.add_argument("--sample-random", action="store_true", help="Randomly sample common cases per task instead of taking sorted cases.")
+    parser.add_argument(
+        "--sample-stratified",
+        action="store_true",
+        help="Randomly sample common cases per task with a controlled y_true class mix.",
+    )
     parser.add_argument("--random-seed", type=int, default=2026, help="Seed used with --sample-random.")
+    parser.add_argument(
+        "--target-positive-frac",
+        type=float,
+        default=0.50,
+        help="Target positive fraction for --sample-stratified.",
+    )
+    parser.add_argument(
+        "--min-positive-frac",
+        type=float,
+        default=0.15,
+        help="Minimum allowed positive fraction for --sample-stratified.",
+    )
+    parser.add_argument(
+        "--max-positive-frac",
+        type=float,
+        default=0.85,
+        help="Maximum allowed positive fraction for --sample-stratified.",
+    )
     parser.add_argument("--deployment", default=os.getenv("AZURE_OPENAI_DEPLOYMENT") or os.getenv("OPENAI_MODEL") or "gpt-5.1")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-output-tokens", type=int, default=700)
@@ -232,13 +255,78 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
     ]
 
 
-def select_case_keys(task_predictions: dict[str, dict[tuple, dict]], limit: int, offset: int, sample_random: bool, seed: int, task: str) -> list[tuple]:
+def select_case_keys(
+    task_predictions: dict[str, dict[tuple, dict]],
+    limit: int,
+    offset: int,
+    sample_random: bool,
+    sample_stratified: bool,
+    seed: int,
+    task: str,
+    target_positive_frac: float,
+    min_positive_frac: float,
+    max_positive_frac: float,
+) -> list[tuple]:
+    if sample_random and sample_stratified:
+        raise ValueError("Use either --sample-random or --sample-stratified, not both.")
     if not sample_random:
+        if sample_stratified:
+            return select_stratified_cases(
+                task_predictions,
+                limit,
+                offset,
+                seed,
+                task,
+                target_positive_frac,
+                min_positive_frac,
+                max_positive_frac,
+            )
         return select_cases(task_predictions, limit, offset)
     all_keys = select_cases(task_predictions, 10**12, 0)
     rng = random.Random(f"{seed}:{task}")
     rng.shuffle(all_keys)
     return all_keys[offset : offset + limit]
+
+
+def select_stratified_cases(
+    task_predictions: dict[str, dict[tuple, dict]],
+    limit: int,
+    offset: int,
+    seed: int,
+    task: str,
+    target_positive_frac: float,
+    min_positive_frac: float,
+    max_positive_frac: float,
+) -> list[tuple]:
+    if not 0.0 <= min_positive_frac <= target_positive_frac <= max_positive_frac <= 1.0:
+        raise ValueError("Require 0 <= min_positive_frac <= target_positive_frac <= max_positive_frac <= 1.")
+    all_keys = select_cases(task_predictions, 10**12, 0)
+    if limit >= len(all_keys):
+        return all_keys[offset : offset + limit]
+
+    reference_rows = next(iter(task_predictions.values()))
+    positives = [key for key in all_keys if int(fnum(reference_rows[key].get("y_true"), 0.0)) == 1]
+    negatives = [key for key in all_keys if int(fnum(reference_rows[key].get("y_true"), 0.0)) == 0]
+
+    desired_pos = round(limit * target_positive_frac)
+    desired_pos = min(desired_pos, len(positives), limit)
+    desired_pos = max(desired_pos, limit - len(negatives), 0)
+    desired_neg = limit - desired_pos
+
+    positive_frac = desired_pos / limit if limit else 0.0
+    if positive_frac < min_positive_frac or positive_frac > max_positive_frac:
+        raise ValueError(
+            f"Cannot satisfy positive fraction bounds for {task}: requested {limit} cases, "
+            f"available positives={len(positives)}, negatives={len(negatives)}, "
+            f"resulting positive fraction={positive_frac:.3f}."
+        )
+
+    rng = random.Random(f"{seed}:{task}:stratified")
+    rng.shuffle(positives)
+    rng.shuffle(negatives)
+    selected = positives[offset : offset + desired_pos] + negatives[offset : offset + desired_neg]
+    rng.shuffle(selected)
+    return selected
 
 
 def json_from_text(text: str) -> dict[str, Any]:
@@ -403,7 +491,18 @@ def main() -> None:
         limit = args.max_cases_per_task
         if limit <= 0:
             limit = 10**12
-        keys = select_case_keys(by_task[task], limit, args.seed_offset, args.sample_random, args.random_seed, task)
+        keys = select_case_keys(
+            by_task[task],
+            limit,
+            args.seed_offset,
+            args.sample_random,
+            args.sample_stratified,
+            args.random_seed,
+            task,
+            args.target_positive_frac,
+            args.min_positive_frac,
+            args.max_positive_frac,
+        )
         for key in keys:
             rows_by_model = {
                 model: rows_by_key[key]
@@ -545,6 +644,9 @@ def main() -> None:
         "errors": len(error_rows),
         "tasks": args.tasks,
         "models_requested": args.models,
+        "sample_random": args.sample_random,
+        "sample_stratified": args.sample_stratified,
+        "target_positive_frac": args.target_positive_frac if args.sample_stratified else None,
         "loaded_files": len(loaded_files),
         "missing_files": missing_files,
         "model_prior_rows": len(model_prior_rows),
