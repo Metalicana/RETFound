@@ -1,0 +1,940 @@
+{
+  "counts": {
+    "amd": {
+      "GLOBAL": {
+        "GLOBAL": {
+          "n": 1000,
+          "n_negative": 640,
+          "n_positive": 360,
+          "unstable": false
+        }
+      },
+      "age_group": {
+        "middle-aged": {
+          "n": 339,
+          "n_negative": 282,
+          "n_positive": 57,
+          "unstable": false
+        },
+        "older": {
+          "n": 504,
+          "n_negative": 201,
+          "n_positive": 303,
+          "unstable": false
+        },
+        "younger": {
+          "n": 157,
+          "n_negative": 157,
+          "n_positive": 0,
+          "unstable": true
+        }
+      },
+      "ethnicity": {
+        "hispanic": {
+          "n": 27,
+          "n_negative": 24,
+          "n_positive": 3,
+          "unstable": true
+        },
+        "non-hispanic": {
+          "n": 973,
+          "n_negative": 616,
+          "n_positive": 357,
+          "unstable": false
+        }
+      },
+      "race": {
+        "asian": {
+          "n": 59,
+          "n_negative": 48,
+          "n_positive": 11,
+          "unstable": true
+        },
+        "black": {
+          "n": 102,
+          "n_negative": 95,
+          "n_positive": 7,
+          "unstable": true
+        },
+        "white": {
+          "n": 839,
+          "n_negative": 497,
+          "n_positive": 342,
+          "unstable": false
+        }
+      },
+      "race_x_age_group": {
+        "asian x middle-aged": {
+          "n": 18,
+          "n_negative": 18,
+          "n_positive": 0,
+          "unstable": true
+        },
+        "asian x older": {
+          "n": 24,
+          "n_negative": 13,
+          "n_positive": 11,
+          "unstable": true
+        },
+        "asian x younger": {
+          "n": 17,
+          "n_negative": 17,
+          "n_positive": 0,
+          "unstable": true
+        },
+        "black x middle-aged": {
+          "n": 56,
+          "n_negative": 52,
+          "n_positive": 4,
+          "unstable": true
+        },
+        "black x older": {
+          "n": 29,
+          "n_negative": 26,
+          "n_positive": 3,
+          "unstable": true
+        },
+        "black x younger": {
+          "n": 17,
+          "n_negative": 17,
+          "n_positive": 0,
+          "unstable": true
+        },
+        "white x middle-aged": {
+          "n": 265,
+          "n_negative": 212,
+          "n_positive": 53,
+          "unstable": false
+        },
+        "white x older": {
+          "n": 451,
+          "n_negative": 162,
+          "n_positive": 289,
+          "unstable": false
+        },
+        "white x younger": {
+          "n": 123,
+          "n_negative": 123,
+          "n_positive": 0,
+          "unstable": true
+        }
+      },
+      "race_x_sex_gender": {
+        "asian x female": {
+          "n": 30,
+          "n_negative": 26,
+          "n_positive": 4,
+          "unstable": true
+        },
+        "asian x male": {
+          "n": 29,
+          "n_negative": 22,
+          "n_positive": 7,
+          "unstable": true
+        },
+        "black x female": {
+          "n": 60,
+          "n_negative": 56,
+          "n_positive": 4,
+          "unstable": true
+        },
+        "black x male": {
+          "n": 42,
+          "n_negative": 39,
+          "n_positive": 3,
+          "unstable": true
+        },
+        "white x female": {
+          "n": 508,
+          "n_negative": 290,
+          "n_positive": 218,
+          "unstable": false
+        },
+        "white x male": {
+          "n": 331,
+          "n_negative": 207,
+          "n_positive": 124,
+          "unstable": false
+        }
+      },
+      "sex_gender": {
+        "female": {
+          "n": 598,
+          "n_negative": 372,
+          "n_positive": 226,
+          "unstable": false
+        },
+        "male": {
+          "n": 402,
+          "n_negative": 268,
+          "n_positive": 134,
+          "unstable": false
+        }
+      },
+      "sex_gender_x_age_group": {
+        "female x middle-aged": {
+          "n": 196,
+          "n_negative": 158,
+          "n_positive": 38,
+          "unstable": false
+        },
+        "female x older": {
+          "n": 299,
+          "n_negative": 111,
+          "n_positive": 188,
+          "unstable": false
+        },
+        "female x younger": {
+          "n": 103,
+          "n_negative": 103,
+          "n_positive": 0,
+          "unstable": true
+        },
+        "male x middle-aged": {
+          "n": 143,
+          "n_negative": 124,
+          "n_positive": 19,
+          "unstable": true
+        },
+        "male x older": {
+          "n": 205,
+          "n_negative": 90,
+          "n_positive": 115,
+          "unstable": false
+        },
+        "male x younger": {
+          "n": 54,
+          "n_negative": 54,
+          "n_positive": 0,
+          "unstable": true
+        }
+      }
+    },
+    "dr": {
+      "GLOBAL": {
+        "GLOBAL": {
+          "n": 1000,
+          "n_negative": 917,
+          "n_positive": 83,
+          "unstable": false
+        }
+      },
+      "age_group": {
+        "middle-aged": {
+          "n": 412,
+          "n_negative": 364,
+          "n_positive": 48,
+          "unstable": false
+        },
+        "older": {
+          "n": 410,
+          "n_negative": 388,
+          "n_positive": 22,
+          "unstable": false
+        },
+        "younger": {
+          "n": 178,
+          "n_negative": 165,
+          "n_positive": 13,
+          "unstable": true
+        }
+      },
+      "ethnicity": {
+        "hispanic": {
+          "n": 50,
+          "n_negative": 46,
+          "n_positive": 4,
+          "unstable": true
+        },
+        "non-hispanic": {
+          "n": 950,
+          "n_negative": 871,
+          "n_positive": 79,
+          "unstable": false
+        }
+      },
+      "race": {
+        "asian": {
+          "n": 79,
+          "n_negative": 77,
+          "n_positive": 2,
+          "unstable": true
+        },
+        "black": {
+          "n": 159,
+          "n_negative": 138,
+          "n_positive": 21,
+          "unstable": false
+        },
+        "white": {
+          "n": 762,
+          "n_negative": 702,
+          "n_positive": 60,
+          "unstable": false
+        }
+      },
+      "race_x_age_group": {
+        "asian x middle-aged": {
+          "n": 36,
+          "n_negative": 35,
+          "n_positive": 1,
+          "unstable": true
+        },
+        "asian x older": {
+          "n": 21,
+          "n_negative": 20,
+          "n_positive": 1,
+          "unstable": true
+        },
+        "asian x younger": {
+          "n": 22,
+          "n_negative": 22,
+          "n_positive": 0,
+          "unstable": true
+        },
+        "black x middle-aged": {
+          "n": 85,
+          "n_negative": 69,
+          "n_positive": 16,
+          "unstable": true
+        },
+        "black x older": {
+          "n": 45,
+          "n_negative": 43,
+          "n_positive": 2,
+          "unstable": true
+        },
+        "black x younger": {
+          "n": 29,
+          "n_negative": 26,
+          "n_positive": 3,
+          "unstable": true
+        },
+        "white x middle-aged": {
+          "n": 291,
+          "n_negative": 260,
+          "n_positive": 31,
+          "unstable": false
+        },
+        "white x older": {
+          "n": 344,
+          "n_negative": 325,
+          "n_positive": 19,
+          "unstable": true
+        },
+        "white x younger": {
+          "n": 127,
+          "n_negative": 117,
+          "n_positive": 10,
+          "unstable": true
+        }
+      },
+      "race_x_sex_gender": {
+        "asian x female": {
+          "n": 41,
+          "n_negative": 39,
+          "n_positive": 2,
+          "unstable": true
+        },
+        "asian x male": {
+          "n": 38,
+          "n_negative": 38,
+          "n_positive": 0,
+          "unstable": true
+        },
+        "black x female": {
+          "n": 90,
+          "n_negative": 78,
+          "n_positive": 12,
+          "unstable": true
+        },
+        "black x male": {
+          "n": 69,
+          "n_negative": 60,
+          "n_positive": 9,
+          "unstable": true
+        },
+        "white x female": {
+          "n": 429,
+          "n_negative": 401,
+          "n_positive": 28,
+          "unstable": false
+        },
+        "white x male": {
+          "n": 333,
+          "n_negative": 301,
+          "n_positive": 32,
+          "unstable": false
+        }
+      },
+      "sex_gender": {
+        "female": {
+          "n": 560,
+          "n_negative": 518,
+          "n_positive": 42,
+          "unstable": false
+        },
+        "male": {
+          "n": 440,
+          "n_negative": 399,
+          "n_positive": 41,
+          "unstable": false
+        }
+      },
+      "sex_gender_x_age_group": {
+        "female x middle-aged": {
+          "n": 231,
+          "n_negative": 208,
+          "n_positive": 23,
+          "unstable": false
+        },
+        "female x older": {
+          "n": 232,
+          "n_negative": 220,
+          "n_positive": 12,
+          "unstable": true
+        },
+        "female x younger": {
+          "n": 97,
+          "n_negative": 90,
+          "n_positive": 7,
+          "unstable": true
+        },
+        "male x middle-aged": {
+          "n": 181,
+          "n_negative": 156,
+          "n_positive": 25,
+          "unstable": false
+        },
+        "male x older": {
+          "n": 178,
+          "n_negative": 168,
+          "n_positive": 10,
+          "unstable": true
+        },
+        "male x younger": {
+          "n": 81,
+          "n_negative": 75,
+          "n_positive": 6,
+          "unstable": true
+        }
+      }
+    },
+    "glaucoma": {
+      "GLOBAL": {
+        "GLOBAL": {
+          "n": 1000,
+          "n_negative": 511,
+          "n_positive": 489,
+          "unstable": false
+        }
+      },
+      "age_group": {
+        "middle-aged": {
+          "n": 435,
+          "n_negative": 246,
+          "n_positive": 189,
+          "unstable": false
+        },
+        "older": {
+          "n": 328,
+          "n_negative": 123,
+          "n_positive": 205,
+          "unstable": false
+        },
+        "younger": {
+          "n": 237,
+          "n_negative": 142,
+          "n_positive": 95,
+          "unstable": false
+        }
+      },
+      "ethnicity": {
+        "hispanic": {
+          "n": 49,
+          "n_negative": 24,
+          "n_positive": 25,
+          "unstable": false
+        },
+        "non-hispanic": {
+          "n": 951,
+          "n_negative": 487,
+          "n_positive": 464,
+          "unstable": false
+        }
+      },
+      "race": {
+        "asian": {
+          "n": 74,
+          "n_negative": 39,
+          "n_positive": 35,
+          "unstable": false
+        },
+        "black": {
+          "n": 150,
+          "n_negative": 45,
+          "n_positive": 105,
+          "unstable": false
+        },
+        "white": {
+          "n": 776,
+          "n_negative": 427,
+          "n_positive": 349,
+          "unstable": false
+        }
+      },
+      "race_x_age_group": {
+        "asian x middle-aged": {
+          "n": 31,
+          "n_negative": 17,
+          "n_positive": 14,
+          "unstable": true
+        },
+        "asian x older": {
+          "n": 15,
+          "n_negative": 2,
+          "n_positive": 13,
+          "unstable": true
+        },
+        "asian x younger": {
+          "n": 28,
+          "n_negative": 20,
+          "n_positive": 8,
+          "unstable": true
+        },
+        "black x middle-aged": {
+          "n": 69,
+          "n_negative": 21,
+          "n_positive": 48,
+          "unstable": false
+        },
+        "black x older": {
+          "n": 42,
+          "n_negative": 7,
+          "n_positive": 35,
+          "unstable": true
+        },
+        "black x younger": {
+          "n": 39,
+          "n_negative": 17,
+          "n_positive": 22,
+          "unstable": true
+        },
+        "white x middle-aged": {
+          "n": 335,
+          "n_negative": 208,
+          "n_positive": 127,
+          "unstable": false
+        },
+        "white x older": {
+          "n": 271,
+          "n_negative": 114,
+          "n_positive": 157,
+          "unstable": false
+        },
+        "white x younger": {
+          "n": 170,
+          "n_negative": 105,
+          "n_positive": 65,
+          "unstable": false
+        }
+      },
+      "race_x_sex_gender": {
+        "asian x female": {
+          "n": 47,
+          "n_negative": 29,
+          "n_positive": 18,
+          "unstable": true
+        },
+        "asian x male": {
+          "n": 27,
+          "n_negative": 10,
+          "n_positive": 17,
+          "unstable": true
+        },
+        "black x female": {
+          "n": 71,
+          "n_negative": 24,
+          "n_positive": 47,
+          "unstable": false
+        },
+        "black x male": {
+          "n": 79,
+          "n_negative": 21,
+          "n_positive": 58,
+          "unstable": false
+        },
+        "white x female": {
+          "n": 477,
+          "n_negative": 265,
+          "n_positive": 212,
+          "unstable": false
+        },
+        "white x male": {
+          "n": 299,
+          "n_negative": 162,
+          "n_positive": 137,
+          "unstable": false
+        }
+      },
+      "sex_gender": {
+        "female": {
+          "n": 595,
+          "n_negative": 318,
+          "n_positive": 277,
+          "unstable": false
+        },
+        "male": {
+          "n": 405,
+          "n_negative": 193,
+          "n_positive": 212,
+          "unstable": false
+        }
+      },
+      "sex_gender_x_age_group": {
+        "female x middle-aged": {
+          "n": 266,
+          "n_negative": 161,
+          "n_positive": 105,
+          "unstable": false
+        },
+        "female x older": {
+          "n": 190,
+          "n_negative": 70,
+          "n_positive": 120,
+          "unstable": false
+        },
+        "female x younger": {
+          "n": 139,
+          "n_negative": 87,
+          "n_positive": 52,
+          "unstable": false
+        },
+        "male x middle-aged": {
+          "n": 169,
+          "n_negative": 85,
+          "n_positive": 84,
+          "unstable": false
+        },
+        "male x older": {
+          "n": 138,
+          "n_negative": 53,
+          "n_positive": 85,
+          "unstable": false
+        },
+        "male x younger": {
+          "n": 98,
+          "n_negative": 55,
+          "n_positive": 43,
+          "unstable": false
+        }
+      }
+    }
+  },
+  "false_negative": {
+    "amd": {
+      "GLOBAL": {
+        "GLOBAL": 0.4
+      },
+      "age_group": {
+        "middle-aged": 0.42105263157894735,
+        "older": 0.39603960396039606,
+        "younger": null
+      },
+      "ethnicity": {
+        "hispanic": 1.0,
+        "non-hispanic": 0.3949579831932773
+      },
+      "race": {
+        "asian": 0.45454545454545453,
+        "black": 0.7142857142857143,
+        "white": 0.391812865497076
+      },
+      "race_x_age_group": {
+        "asian x middle-aged": null,
+        "asian x older": 0.45454545454545453,
+        "asian x younger": null,
+        "black x middle-aged": 0.75,
+        "black x older": 0.6666666666666666,
+        "black x younger": null,
+        "white x middle-aged": 0.39622641509433965,
+        "white x older": 0.39100346020761245,
+        "white x younger": null
+      },
+      "race_x_sex_gender": {
+        "asian x female": 0.75,
+        "asian x male": 0.2857142857142857,
+        "black x female": 0.5,
+        "black x male": 1.0,
+        "white x female": 0.39908256880733944,
+        "white x male": 0.3790322580645161
+      },
+      "sex_gender": {
+        "female": 0.40707964601769914,
+        "male": 0.3880597014925373
+      },
+      "sex_gender_x_age_group": {
+        "female x middle-aged": 0.4473684210526316,
+        "female x older": 0.39893617021276595,
+        "female x younger": null,
+        "male x middle-aged": 0.3684210526315789,
+        "male x older": 0.391304347826087,
+        "male x younger": null
+      }
+    },
+    "dr": {
+      "GLOBAL": {
+        "GLOBAL": 0.6867469879518072
+      },
+      "age_group": {
+        "middle-aged": 0.7291666666666666,
+        "older": 0.6818181818181818,
+        "younger": 0.5384615384615384
+      },
+      "ethnicity": {
+        "hispanic": 0.75,
+        "non-hispanic": 0.6835443037974683
+      },
+      "race": {
+        "asian": 0.5,
+        "black": 0.6190476190476191,
+        "white": 0.7166666666666667
+      },
+      "race_x_age_group": {
+        "asian x middle-aged": 1.0,
+        "asian x older": 0.0,
+        "asian x younger": null,
+        "black x middle-aged": 0.6875,
+        "black x older": 0.5,
+        "black x younger": 0.3333333333333333,
+        "white x middle-aged": 0.7419354838709677,
+        "white x older": 0.7368421052631579,
+        "white x younger": 0.6
+      },
+      "race_x_sex_gender": {
+        "asian x female": 0.5,
+        "asian x male": null,
+        "black x female": 0.6666666666666666,
+        "black x male": 0.5555555555555556,
+        "white x female": 0.7142857142857143,
+        "white x male": 0.71875
+      },
+      "sex_gender": {
+        "female": 0.6904761904761905,
+        "male": 0.6829268292682927
+      },
+      "sex_gender_x_age_group": {
+        "female x middle-aged": 0.7391304347826086,
+        "female x older": 0.5833333333333334,
+        "female x younger": 0.7142857142857143,
+        "male x middle-aged": 0.72,
+        "male x older": 0.8,
+        "male x younger": 0.3333333333333333
+      }
+    },
+    "glaucoma": {
+      "GLOBAL": {
+        "GLOBAL": 0.29243353783231085
+      },
+      "age_group": {
+        "middle-aged": 0.328042328042328,
+        "older": 0.17560975609756097,
+        "younger": 0.47368421052631576
+      },
+      "ethnicity": {
+        "hispanic": 0.44,
+        "non-hispanic": 0.28448275862068967
+      },
+      "race": {
+        "asian": 0.34285714285714286,
+        "black": 0.2857142857142857,
+        "white": 0.28939828080229224
+      },
+      "race_x_age_group": {
+        "asian x middle-aged": 0.35714285714285715,
+        "asian x older": 0.23076923076923078,
+        "asian x younger": 0.5,
+        "black x middle-aged": 0.3541666666666667,
+        "black x older": 0.14285714285714285,
+        "black x younger": 0.36363636363636365,
+        "white x middle-aged": 0.31496062992125984,
+        "white x older": 0.17834394904458598,
+        "white x younger": 0.5076923076923077
+      },
+      "race_x_sex_gender": {
+        "asian x female": 0.2777777777777778,
+        "asian x male": 0.4117647058823529,
+        "black x female": 0.3191489361702128,
+        "black x male": 0.25862068965517243,
+        "white x female": 0.30660377358490565,
+        "white x male": 0.26277372262773724
+      },
+      "sex_gender": {
+        "female": 0.30685920577617326,
+        "male": 0.27358490566037735
+      },
+      "sex_gender_x_age_group": {
+        "female x middle-aged": 0.37142857142857144,
+        "female x older": 0.15,
+        "female x younger": 0.5384615384615384,
+        "male x middle-aged": 0.27380952380952384,
+        "male x older": 0.21176470588235294,
+        "male x younger": 0.3953488372093023
+      }
+    }
+  },
+  "false_positive": {
+    "amd": {
+      "GLOBAL": {
+        "GLOBAL": 0.55
+      },
+      "age_group": {
+        "middle-aged": 0.5212765957446809,
+        "older": 0.5870646766169154,
+        "younger": 0.554140127388535
+      },
+      "ethnicity": {
+        "hispanic": 0.4583333333333333,
+        "non-hispanic": 0.5535714285714286
+      },
+      "race": {
+        "asian": 0.6875,
+        "black": 0.5578947368421052,
+        "white": 0.5352112676056338
+      },
+      "race_x_age_group": {
+        "asian x middle-aged": 0.6666666666666666,
+        "asian x older": 0.8461538461538461,
+        "asian x younger": 0.5882352941176471,
+        "black x middle-aged": 0.5192307692307693,
+        "black x older": 0.6153846153846154,
+        "black x younger": 0.5882352941176471,
+        "white x middle-aged": 0.5094339622641509,
+        "white x older": 0.5617283950617284,
+        "white x younger": 0.5447154471544715
+      },
+      "race_x_sex_gender": {
+        "asian x female": 0.6153846153846154,
+        "asian x male": 0.7727272727272727,
+        "black x female": 0.5535714285714286,
+        "black x male": 0.5641025641025641,
+        "white x female": 0.5620689655172414,
+        "white x male": 0.4975845410628019
+      },
+      "sex_gender": {
+        "female": 0.5645161290322581,
+        "male": 0.5298507462686567
+      },
+      "sex_gender_x_age_group": {
+        "female x middle-aged": 0.5632911392405063,
+        "female x older": 0.5675675675675675,
+        "female x younger": 0.5631067961165048,
+        "male x middle-aged": 0.46774193548387094,
+        "male x older": 0.6111111111111112,
+        "male x younger": 0.5370370370370371
+      }
+    },
+    "dr": {
+      "GLOBAL": {
+        "GLOBAL": 0.20719738276990185
+      },
+      "age_group": {
+        "middle-aged": 0.21428571428571427,
+        "older": 0.2190721649484536,
+        "younger": 0.16363636363636364
+      },
+      "ethnicity": {
+        "hispanic": 0.30434782608695654,
+        "non-hispanic": 0.2020665901262916
+      },
+      "race": {
+        "asian": 0.24675324675324675,
+        "black": 0.2391304347826087,
+        "white": 0.19658119658119658
+      },
+      "race_x_age_group": {
+        "asian x middle-aged": 0.37142857142857144,
+        "asian x older": 0.25,
+        "asian x younger": 0.045454545454545456,
+        "black x middle-aged": 0.2463768115942029,
+        "black x older": 0.18604651162790697,
+        "black x younger": 0.3076923076923077,
+        "white x middle-aged": 0.18461538461538463,
+        "white x older": 0.22153846153846155,
+        "white x younger": 0.15384615384615385
+      },
+      "race_x_sex_gender": {
+        "asian x female": 0.3076923076923077,
+        "asian x male": 0.18421052631578946,
+        "black x female": 0.19230769230769232,
+        "black x male": 0.3,
+        "white x female": 0.18952618453865336,
+        "white x male": 0.2059800664451827
+      },
+      "sex_gender": {
+        "female": 0.19884169884169883,
+        "male": 0.21804511278195488
+      },
+      "sex_gender_x_age_group": {
+        "female x middle-aged": 0.21634615384615385,
+        "female x older": 0.2,
+        "female x younger": 0.15555555555555556,
+        "male x middle-aged": 0.21153846153846154,
+        "male x older": 0.24404761904761904,
+        "male x younger": 0.17333333333333334
+      }
+    },
+    "glaucoma": {
+      "GLOBAL": {
+        "GLOBAL": 0.2309197651663405
+      },
+      "age_group": {
+        "middle-aged": 0.1991869918699187,
+        "older": 0.37398373983739835,
+        "younger": 0.1619718309859155
+      },
+      "ethnicity": {
+        "hispanic": 0.16666666666666666,
+        "non-hispanic": 0.23408624229979466
+      },
+      "race": {
+        "asian": 0.23076923076923078,
+        "black": 0.4222222222222222,
+        "white": 0.2107728337236534
+      },
+      "race_x_age_group": {
+        "asian x middle-aged": 0.17647058823529413,
+        "asian x older": 0.0,
+        "asian x younger": 0.3,
+        "black x middle-aged": 0.5714285714285714,
+        "black x older": 0.5714285714285714,
+        "black x younger": 0.17647058823529413,
+        "white x middle-aged": 0.16346153846153846,
+        "white x older": 0.3684210526315789,
+        "white x younger": 0.13333333333333333
+      },
+      "race_x_sex_gender": {
+        "asian x female": 0.2413793103448276,
+        "asian x male": 0.2,
+        "black x female": 0.3333333333333333,
+        "black x male": 0.5238095238095238,
+        "white x female": 0.2,
+        "white x male": 0.22839506172839505
+      },
+      "sex_gender": {
+        "female": 0.2138364779874214,
+        "male": 0.25906735751295334
+      },
+      "sex_gender_x_age_group": {
+        "female x middle-aged": 0.17391304347826086,
+        "female x older": 0.32857142857142857,
+        "female x younger": 0.19540229885057472,
+        "male x middle-aged": 0.24705882352941178,
+        "male x older": 0.4339622641509434,
+        "male x younger": 0.10909090909090909
+      }
+    }
+  },
+  "model_name": "visionfm_oct",
+  "source": "validation_subgroup_priors"
+}

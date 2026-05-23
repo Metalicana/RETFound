@@ -18,13 +18,18 @@ class Orchestrator:
           api_version="2024-12-01-preview"
           )
 
-    def analyze(self, state, retfound_scores, mirage_scores):
+    def analyze(self, state, retfound_scores=None, mirage_scores=None, foundation_model_outputs=None):
         
         narrative = state['clinical_narrative']
         vision_summary = state['vision_opinion']['summary']
         functional_summary = state['functional_opinion']['summary']
         equity_output = state['equity_opinion']
         guidelines = state['guidelines']
+        if foundation_model_outputs is None:
+            foundation_model_outputs = {
+                "retfound_oct": retfound_scores,
+                "mirage_slo": mirage_scores,
+            }
     
         messages = [
             {
@@ -41,18 +46,18 @@ class Orchestrator:
                        - To determine the stage: Look at the distribution mass. If the mass is concentrated in Stage 2, and the Vision Specialist confirms                       "lumpy" or "textured" RPE, you must assign Stage 2.
                     
                     3. **THE AMD "CONSENSUS RULE"**
-                       - To prevent "Stage 0" calls for subtle Stage 2 cases:
-                       - If BOTH RetFound and MIRAGE show a Total Pathology Signal > 60%, do NOT output Stage 0, even if the Vision Specialist reports a                         clear image.
-                       - In this case, defer to the specific stage (1, 2, or 3) that has the highest relative probability among the disease stages.
+                       - To prevent "Stage 0" calls for subtle Stage 2 cases, compare all available foundation-model outputs.
+                       - If two or more calibrated models show a Total Pathology Signal > 60%, do NOT output Stage 0, even if the Vision Specialist reports a clear image.
+                       - In this case, defer to the disease stage (1, 2, or 3) supported by the strongest calibrated model evidence.
                     
                     4. **DYNAMIC THRESHOLDING & WEIGHTING**
                        - Apply the RECOMMENDED_THRESHOLD from the Equity Audit to all AMD and DR probabilities.
                        - Prioritize the PRIMARY_MODEL identified by the Equity Agent during conflicts.
                     
                     5. THE "PROXY" EVALUATION (Reducing -1 Outputs):
-                    - If the Vision Specialist says "Macula not in view," check the AI Models.       
-                    - If RETFound (OCT) and MIRAGE (SLO) both agree on a stage (e.g., both say Stage 2), accept the AI's diagnosis. 
-                    - Only output -1 if the Vision Specialist says "Image Unreadable" AND both AI models have confidence < 40%. """
+                    - If the Vision Specialist says "Macula not in view," check all available AI model outputs.       
+                    - If multiple calibrated models agree on a stage (e.g., Stage 2), accept the AI-supported diagnosis unless the Safety Agent flags unreadable input. 
+                    - Only output -1 if the Vision Specialist says "Image Unreadable" AND every relevant AI model has confidence < 40%. """
 
                 )
             },
@@ -61,8 +66,7 @@ class Orchestrator:
                 "content": f"""
                 ### MULTI-AGENT CASE INPUTS
                 - **Clinical Narrative**: {narrative}
-                - **RetFound (OCT) Distribution**: {retfound_scores}
-                - **MIRAGE (SLO) Distribution**: {mirage_scores}
+                - **Foundation Model Outputs**: {foundation_model_outputs}
                 - **Vision Specialist Findings**: {vision_summary}
                 - **Functional Specialist Findings**: {functional_summary}
                 - **Equity Agent Audit**: {equity_output}

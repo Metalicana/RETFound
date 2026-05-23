@@ -132,6 +132,7 @@ def load_priors(metrics_root: Path) -> tuple[dict[tuple, dict], dict[tuple, dict
         for row in read_csv(subgroup_path):
             subgroup[
                 (
+                    row.get("dataset", ""),
                     row.get("task", ""),
                     row.get("model_name", ""),
                     row.get("attribute", ""),
@@ -140,7 +141,7 @@ def load_priors(metrics_root: Path) -> tuple[dict[tuple, dict], dict[tuple, dict
             ] = row
     if global_path.exists():
         for row in read_csv(global_path):
-            global_prior[(row.get("task", ""), row.get("model_name", ""))] = row
+            global_prior[(row.get("dataset", ""), row.get("task", ""), row.get("model_name", ""))] = row
     return subgroup, global_prior
 
 
@@ -198,16 +199,17 @@ def prior_for_case(
     subgroup_priors: dict[tuple, dict],
     global_priors: dict[tuple, dict],
 ) -> dict | None:
+    dataset = meta.get("dataset", "")
     for attr in ["race_x_age_group", "race_x_sex_gender", "sex_gender_x_age_group", "race", "age_group", "sex_gender", "ethnicity"]:
         if "_x_" in attr:
             parts = attr.split("_x_")
             subgroup = " x ".join(normalize(meta.get(part, "")) for part in parts)
         else:
             subgroup = normalize(meta.get(attr, ""))
-        row = subgroup_priors.get((task, model, attr, subgroup))
+        row = subgroup_priors.get((dataset, task, model, attr, subgroup))
         if row and normalize(row.get("unstable")) not in {"true", "1"}:
             return row
-    return global_priors.get((task, model))
+    return global_priors.get((dataset, task, model))
 
 
 def model_weight(task: str, model: str, prior: dict | None) -> float:
@@ -237,9 +239,12 @@ def mock_arbitrate(task: str, rows_by_model: dict[str, dict], meta: dict, subgro
                 "prob": prob,
                 "pred": pred,
                 "weight": weight,
+                "prior_attribute": prior.get("attribute", "NONE") if prior else "NONE",
+                "prior_subgroup": prior.get("subgroup", "NONE") if prior else "NONE",
                 "prior_balanced_accuracy": fnum(prior.get("balanced_accuracy") if prior else None, 0.5),
                 "prior_fpr": fnum(prior.get("fpr") if prior else None, 0.0),
                 "prior_fnr": fnum(prior.get("fnr") if prior else None, 0.0),
+                "prior_unstable": prior.get("unstable", "") if prior else "",
             }
         )
     final_prob = weighted_sum / weight_total if weight_total else 0.0
@@ -262,6 +267,7 @@ def mock_arbitrate(task: str, rows_by_model: dict[str, dict], meta: dict, subgro
 def build_prompts(meta: dict, arbitration: dict) -> dict[str, str]:
     model_lines = "\n".join(
         f"- {row['model']}: prob={row['prob']:.3f}, pred={row['pred']}, trust_weight={row['weight']:.3f}, "
+        f"prior={row['prior_attribute']}:{row['prior_subgroup']}, "
         f"prior_bal_acc={row['prior_balanced_accuracy']:.3f}, prior_fpr={row['prior_fpr']:.3f}, prior_fnr={row['prior_fnr']:.3f}"
         for row in arbitration["model_rows"]
     )
@@ -430,12 +436,21 @@ def main() -> None:
     total_in = sum(int(row["estimated_input_tokens"]) for row in cost_rows)
     total_out = sum(int(row["estimated_output_tokens"]) for row in cost_rows)
     total_cost = sum(float(row["estimated_cost_usd"]) for row in cost_rows)
+    model_prior_rows = [
+        model_row
+        for case_row in case_rows
+        for model_row in case_row.get("model_rows", [])
+    ]
+    model_prior_hits = sum(1 for row in model_prior_rows if row.get("prior_attribute") != "NONE")
     summary = {
         "cases": len(prediction_rows),
         "tasks": args.tasks,
         "models_requested": args.models,
         "loaded_files": len(loaded_files),
         "missing_files": missing_files,
+        "model_prior_rows": len(model_prior_rows),
+        "model_prior_hits": model_prior_hits,
+        "model_prior_coverage": model_prior_hits / len(model_prior_rows) if model_prior_rows else 0.0,
         "estimated_input_tokens": total_in,
         "estimated_output_tokens": total_out,
         "estimated_total_tokens": total_in + total_out,

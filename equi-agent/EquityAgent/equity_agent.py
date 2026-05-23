@@ -44,16 +44,29 @@ class EquityAgent:
         )
 
         base_dir = os.path.dirname(os.path.dirname(__file__))
-        self.calibration_summary = self._load_calibration_jsons(
-            {
-                "mirage": os.path.join(base_dir, "EquityAgent/JSONs", "equity_mirage_calibration.json"),
-                "retfound": os.path.join(base_dir, "EquityAgent/JSONs", "equity_retfound_calibration.json"),
-            }
-        )
+        calibration_dir = os.path.join(base_dir, "EquityAgent/JSONs")
+        self.calibration_summary = self._load_calibration_jsons(calibration_dir)
 
-    def _load_calibration_jsons(self, json_paths: dict[str, str]) -> dict[str, Any]:
+    def _load_calibration_jsons(self, calibration_dir: str) -> dict[str, Any]:
         summary: dict[str, Any] = {"models": {}}
-        for model_name, path in json_paths.items():
+        combined_path = os.path.join(calibration_dir, "equity_all_models_calibration.json")
+        if os.path.exists(combined_path):
+            with open(combined_path, encoding="utf-8") as file_handle:
+                combined = json.load(file_handle)
+            if isinstance(combined, dict) and isinstance(combined.get("models"), dict):
+                return combined
+
+        if not os.path.isdir(calibration_dir):
+            logger.warning(f"Calibration JSON directory not found: {calibration_dir}")
+            return summary
+
+        for filename in sorted(os.listdir(calibration_dir)):
+            if not filename.startswith("equity_") or not filename.endswith("_calibration.json"):
+                continue
+            if filename == "equity_all_models_calibration.json":
+                continue
+            path = os.path.join(calibration_dir, filename)
+            model_name = filename.removeprefix("equity_").removesuffix("_calibration.json")
             if not os.path.exists(path):
                 logger.warning(f"Calibration JSON not found: {path}")
                 continue
@@ -180,14 +193,16 @@ class EquityAgent:
             "   - Trigger this if FP rate > 0.15 and FN rate is low (< 0.10).\n\n"
             
             "3) **PRIMARY_MODEL SELECTION**: \n"
-            "   - Compare RETFOUND and MIRAGE decimal error rates. Favor the model with the lowest cumulative error "
-            "for this specific patient's race/age/gender.\n\n"
+            "   - Compare all available foundation models in CALIBRATION_DATA. Favor the model with the lowest "
+            "relevant cumulative error for this patient's task, race, ethnicity, sex/gender, age group, and "
+            "intersectional subgroup when stable subgroup evidence is available. If subgroup estimates are unstable, "
+            "fall back to global model reliability.\n\n"
             
             "### REQUIRED OUTPUT FORMAT\n"
             "[BIAS_AUDIT_REPORT]\n"
             "- RISK_TYPE: [FN Risk / FP Risk / Minimal Risk]\n"
             "- RECOMMENDED_THRESHOLD: [35%, 50%, or 65%]\n"
-            "- PRIMARY_MODEL: [MIRAGE or RETFOUND]\n"
+            "- PRIMARY_MODEL: [best calibrated available foundation model]\n"
             "- ORCHESTRATOR_ADVICE: [Justify the threshold shift by citing the specific FN/FP rates and the "
             "Total Pathology Signal found in the distribution.]\n"
             "[/BIAS_AUDIT_REPORT]"
