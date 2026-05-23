@@ -272,25 +272,32 @@ def build_prompts(meta: dict, arbitration: dict) -> dict[str, str]:
         for row in arbitration["model_rows"]
     )
     bio = (
-        "You are BioProfiler. Convert patient metadata into a concise clinical context.\n"
+        "You are BioProfiler. Convert patient metadata into concise reliability context only. "
+        "Do not infer disease risk from race, ethnicity, sex/gender, or age; these fields only select validation priors.\n"
         f"Patient: race={meta['race']}, ethnicity={meta['ethnicity']}, sex/gender={meta['sex_gender']}, "
         f"age={meta['age']}, age_group={meta['age_group']}, task={meta['task']}."
     )
     vision = (
-        "You are Vision Specialist. Review model probabilities and summarize structural evidence reliability.\n"
+        "You are Vision Specialist. Review current-task model probabilities, validation-threshold binary predictions, "
+        "modality patterns, and vote disagreement. Note that pred may use a validation-selected threshold, not 0.5.\n"
         f"Model outputs:\n{model_lines}"
     )
     equity = (
-        "You are Equity Auditor. Translate validation-derived subgroup priors into sensitivity or precision advice.\n"
+        "You are Equity Auditor. Translate validation-derived subgroup priors into sensitivity, precision, neutral, "
+        "or escalation advice. High FNR supports sensitivity; high FPR with low FNR supports precision/down-weighting. "
+        "prior_unstable means statistical instability; low balanced accuracy means weak reliability, not instability.\n"
         f"Patient context: {json.dumps(meta, sort_keys=True)}\nModel/prior summary:\n{model_lines}"
     )
     orchestrator = (
-        "You are Final Orchestrator. Produce a binary disease decision from model evidence, equity priors, and disagreement.\n"
+        "You are Final Orchestrator. Produce a forced binary disease decision for benchmark scoring. "
+        "Anchor probability on the weighted probability and adjust only modestly when priors justify it. "
+        "Do not abstain and do not use safety escalation as the diagnosis.\n"
         f"Task={meta['task']}. Mock weighted probability={arbitration['final_prob']:.3f}. "
         f"Positive votes={arbitration['positive_votes']}/{arbitration['num_models']}."
     )
     safety = (
-        "You are Safety Agent. Audit uncertainty, model disagreement, and subgroup reliability before clinical use.\n"
+        "You are Safety Agent. Audit uncertainty, model disagreement, close calls, weak reliability, and unstable priors. "
+        "Return a safety/referral flag only; never replace the forced diagnostic label used for F1 scoring.\n"
         f"Decision={arbitration['final_pred']}, probability={arbitration['final_prob']:.3f}, "
         f"disagreement={arbitration['disagreement']}, close_call={arbitration['close_call']}."
     )

@@ -54,9 +54,11 @@ class Orchestrator:
                        - Apply the RECOMMENDED_THRESHOLD from the Equity Audit to all AMD and DR probabilities.
                        - Prioritize the PRIMARY_MODEL identified by the Equity Agent during conflicts.
                     
-                    5. THE "PROXY" EVALUATION (Reducing -1 Outputs):
+                    5. THE "PROXY" EVALUATION AND BENCHMARK LABELING:
                     - If the Vision Specialist says "Macula not in view," check all available AI model outputs.       
                     - If multiple calibrated models agree on a stage (e.g., Stage 2), accept the AI-supported diagnosis unless the Safety Agent flags unreadable input. 
+                    - For benchmark scoring, always provide forced diagnostic labels whenever any model evidence is available.
+                    - Human escalation/safety concern belongs in FINAL_IMPRESSION, not as an abstention label.
                     - Only output -1 if the Vision Specialist says "Image Unreadable" AND every relevant AI model has confidence < 40%. """
 
                 )
@@ -88,7 +90,7 @@ class Orchestrator:
                 GLAUCOMA_DETECTED: [-1, 0 or 1]
                 [/LABELS]
                 
-                FINAL_IMPRESSION: [One-sentence clinical summary of the final decision logic.]
+                FINAL_IMPRESSION: [One-sentence clinical summary of the final decision logic. If human review is recommended, state it here while preserving the forced labels above.]
         
                 """
             }

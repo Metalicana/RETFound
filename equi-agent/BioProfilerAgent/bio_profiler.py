@@ -41,8 +41,9 @@ class BioProfiler:
         Below is raw metadata for a patient. Transform this data into a 
         concise, 3-sentence clinical narrative. 
         
-        Highlight demographic risks or specific clinical values (like MD) 
-        that a consultant should be aware of.
+        Highlight specific clinical values (like MD) that a consultant should be aware of.
+        Demographic fields may be described only as metadata for downstream reliability
+        calibration; do not present race, ethnicity, sex/gender, or age as direct disease evidence.
 
         PATIENT METADATA:
         {data_string}

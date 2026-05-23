@@ -155,8 +155,10 @@ class EquityAgent:
             "- Calibration Input: Decimals (e.g., 0.15 = 15% error rate).\n"
             "- Orchestrator Output: Percentages (e.g., 35%, 50%, or 65% threshold).\n\n"
             
-            "CORE MISSION: You prevent demographic-based False Negatives by lowering the diagnostic bar (35% threshold) "
-            "when a patient belongs to a subgroup where the AI models are prone to missing disease."
+            "CORE MISSION: You prevent model-reliability failures. Use subgroup membership only to identify "
+            "which validation-derived error priors apply; never treat demographics as direct disease evidence. "
+            "Recommend sensitivity shifts when reliable priors show high false-negative risk, and precision shifts "
+            "or down-weighting when reliable priors show high false-positive risk with low false-negative risk."
         )
 
         # BASE CONTENT: Incorporating the new Distribution and Pathology Signal data
@@ -174,7 +176,8 @@ class EquityAgent:
             base_content += (
                 "2) CALIBRATION_DATA (Rates in Decimals):\n"
                 f"{calibration_blob}\n\n"
-                "INSTRUCTION: If any FN rate for the patient's subgroup is > 0.15, you MUST prioritize SENSITIVITY.\n\n"
+                "INSTRUCTION: If any reliable FN rate for the patient's subgroup is > 0.15, prioritize SENSITIVITY. "
+                "If FP is high and FN is low, prioritize PRECISION instead. If estimates are unstable, fall back to global reliability.\n\n"
             )
         else:
             base_content += (

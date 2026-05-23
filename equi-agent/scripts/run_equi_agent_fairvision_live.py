@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import os
+import random
 import re
 import time
 from pathlib import Path
@@ -80,9 +81,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--models", nargs="+", default=DEFAULT_MODELS)
     parser.add_argument("--max-cases-per-task", type=int, default=3, help="Use <=0 to process all common cases.")
     parser.add_argument("--seed-offset", type=int, default=0, help="Offset into each task's shared case list.")
+    parser.add_argument("--sample-random", action="store_true", help="Randomly sample common cases per task instead of taking sorted cases.")
+    parser.add_argument("--random-seed", type=int, default=2026, help="Seed used with --sample-random.")
     parser.add_argument("--deployment", default=os.getenv("AZURE_OPENAI_DEPLOYMENT") or os.getenv("OPENAI_MODEL") or "gpt-5.1")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-output-tokens", type=int, default=700)
+    parser.add_argument(
+        "--max-probability-adjustment",
+        type=float,
+        default=0.10,
+        help="Clamp LLM final_probability to deterministic weighted_probability +/- this margin. Use <0 to disable.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Build evidence packets and mock outputs without API calls.")
     parser.add_argument("--provider", choices=["auto", "azure", "openai"], default="auto")
     parser.add_argument("--api-version", default=os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"))
@@ -149,18 +158,51 @@ def build_evidence_packet(meta: dict[str, Any], arbitration: dict[str, Any]) -> 
 
 def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]:
     system = (
-        "You are Equi-Agent, an ophthalmic foundation-model arbitration layer. "
-        "Use retinal model outputs as disease evidence. Use demographic metadata only "
-        "to interpret validation-derived model reliability priors, never as direct disease evidence. "
-        "Prefer sensitivity when a model has high subgroup false-negative risk. Prefer precision "
-        "or down-weighting when a model has high subgroup false-positive risk and low false-negative risk. "
-        "Escalate when models disagree, priors are unstable, or the final probability is close to threshold. "
-        "Return only valid JSON."
+        "You are Equi-Agent, an ophthalmic foundation-model arbitration layer. Your job is benchmark arbitration, "
+        "not open-ended clinical consultation. Use only the current task's retinal model outputs as disease evidence. "
+        "Use demographic metadata only to select and interpret validation-derived model reliability priors; never use "
+        "demographics as direct disease evidence. The field binary_prediction was computed using that model's "
+        "validation-selected threshold, so it may differ from probability >= 0.5. Treat prior_unstable=true as "
+        "statistical instability; treat low balanced accuracy as weak reliability, not instability. Prefer sensitivity "
+        "when a reliable model/subgroup prior shows high false-negative risk. Prefer precision or down-weighting when "
+        "a reliable model/subgroup prior shows high false-positive risk and low false-negative risk. Always provide a "
+        "forced binary diagnostic prediction and probability for benchmark scoring. Escalation is only an auxiliary "
+        "safety/referral flag; it must never replace or abstain from the diagnostic prediction. Return only valid JSON."
     )
     user = {
         "instructions": {
-            "task": "Return one binary decision for the requested disease task.",
+            "internal_agent_protocol": {
+                "bio_profiler": (
+                    "Summarize metadata only as reliability context for priors. Do not infer disease risk from race, "
+                    "ethnicity, sex/gender, or age."
+                ),
+                "vision_specialist": (
+                    "Compare raw probabilities, validation-threshold binary predictions, modality patterns, and vote "
+                    "disagreement for the current task only."
+                ),
+                "equity_auditor": (
+                    "Translate false-negative and false-positive priors into sensitivity, precision, neutral, or "
+                    "escalation advice. If prior_unstable is false but balanced accuracy is low, call it weak reliability."
+                ),
+                "orchestrator": (
+                    "Anchor final_probability on deterministic_reference.weighted_probability. Adjust by at most 0.10 "
+                    "only when the priors strongly justify a sensitivity or precision shift. final_prediction must be "
+                    "1 when final_probability >= 0.5 and 0 otherwise."
+                ),
+                "safety_agent": (
+                    "Set escalate_to_human=true for major disagreement, close calls, unstable priors, or weak reliability, "
+                    "but still keep the forced diagnostic prediction for F1 scoring."
+                ),
+            },
+            "task": (
+                "Return one forced binary disease decision for the requested task. "
+                "Even when escalation is warranted, final_prediction must be 0 or 1 and will be used for F1/AUROC-style evaluation."
+            ),
             "threshold": 0.5,
+            "benchmark_rule": (
+                "Do not abstain. Do not output -1. Do not use escalate_to_human as the diagnosis. "
+                "Use it only as a separate safety flag."
+            ),
             "required_json_schema": {
                 "final_probability": "float from 0 to 1",
                 "final_prediction": "0 or 1",
@@ -179,6 +221,15 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
     ]
 
 
+def select_case_keys(task_predictions: dict[str, dict[tuple, dict]], limit: int, offset: int, sample_random: bool, seed: int, task: str) -> list[tuple]:
+    if not sample_random:
+        return select_cases(task_predictions, limit, offset)
+    all_keys = select_cases(task_predictions, 10**12, 0)
+    rng = random.Random(f"{seed}:{task}")
+    rng.shuffle(all_keys)
+    return all_keys[offset : offset + limit]
+
+
 def json_from_text(text: str) -> dict[str, Any]:
     stripped = text.strip()
     try:
@@ -190,8 +241,12 @@ def json_from_text(text: str) -> dict[str, Any]:
         return json.loads(match.group(0))
 
 
-def clamp_probability(value: Any, fallback: float) -> float:
+def clamp_probability(value: Any, fallback: float, max_adjustment: float | None = None) -> float:
     prob = fnum(value, fallback)
+    if max_adjustment is not None and max_adjustment >= 0:
+        lower = fallback - max_adjustment
+        upper = fallback + max_adjustment
+        prob = min(upper, max(lower, prob))
     return min(1.0, max(0.0, prob))
 
 
@@ -307,7 +362,7 @@ def main() -> None:
         limit = args.max_cases_per_task
         if limit <= 0:
             limit = 10**12
-        keys = select_cases(by_task[task], limit, args.seed_offset)
+        keys = select_case_keys(by_task[task], limit, args.seed_offset, args.sample_random, args.random_seed, task)
         for key in keys:
             rows_by_model = {
                 model: rows_by_key[key]
@@ -333,7 +388,11 @@ def main() -> None:
                     if args.request_sleep_sec > 0:
                         time.sleep(args.request_sleep_sec)
 
-                final_prob = clamp_probability(parsed.get("final_probability"), arbitration["final_prob"])
+                final_prob = clamp_probability(
+                    parsed.get("final_probability"),
+                    arbitration["final_prob"],
+                    args.max_probability_adjustment,
+                )
                 final_pred = normalize_prediction(parsed.get("final_prediction"), final_prob)
                 prediction_rows.append(
                     {

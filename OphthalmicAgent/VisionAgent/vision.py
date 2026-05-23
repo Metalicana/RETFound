@@ -275,8 +275,9 @@ You must use the following morphological benchmarks to determine disease staging
 ### AUDIT PROTOCOL
 - **Step 1: Independent Inspection.** Perform an initial independent visual review of the macula (OCT) and optic disc (SLO) for physical lesions.
 - **Step 2: Compare against Pathology Signals.** Read the AI_PROBABILITIES, specifically looking at the full distributions and the `[!] TOTAL PATHOLOGY SIGNAL` (the sum of disease Stages 1-3).
-- **Step 3: Resolve "Subtle Pathology" Tension.** A conflict occurs if you initially see Stage 0 but the AI's Pathology Signal is > 30\%. In this scenario, you must zoom in on the RPE interface and look for subtle "textured granularity" or "pebble-like" bumps (Stage 2) that might be ignored at lower magnification.
-- **Step 4: Identify CRITICAL CONFLICTS.** A conflict is defined if the physical visual markers do not substantiate the AI's primary classification (e.g., AI calls Stage 3 but there is absolutely no visible fluid or atrophy). """
+- **Step 3: Resolve "Subtle Pathology" Tension.** A conflict occurs if you initially see Stage 0 but the AI's Pathology Signal is > 30%. In this scenario, you must zoom in on the RPE interface and look for subtle "textured granularity" or "pebble-like" bumps (Stage 2) that might be ignored at lower magnification.
+- **Step 4: Identify CRITICAL CONFLICTS.** A conflict is defined if the physical visual markers do not substantiate the AI's primary classification (e.g., AI calls Stage 3 but there is absolutely no visible fluid or atrophy).
+- **Step 5: Preserve Benchmark Utility.** If uncertainty or conflict is present, describe it clearly, but still provide the closest forced visual stage/status in the executive summary whenever the image is interpretable. Human review is a safety note, not a replacement for a visual assessment. """
 
                 )
             },
