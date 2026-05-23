@@ -112,7 +112,6 @@ def build_evidence_packet(meta: dict[str, Any], arbitration: dict[str, Any]) -> 
             "case_id": case_id(meta),
             "dataset": meta.get("dataset", ""),
             "task": meta.get("task", ""),
-            "y_true_hidden_for_evaluation": meta.get("y_true", ""),
         },
         "patient_metadata_for_reliability_only": {
             "race": meta.get("race", ""),
