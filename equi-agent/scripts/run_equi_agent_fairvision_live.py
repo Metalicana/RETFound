@@ -43,6 +43,7 @@ OUTPUT_FIELDS = [
     "y_true",
     "y_prob",
     "y_pred",
+    "applied_threshold",
     "split",
     "race",
     "ethnicity",
@@ -186,14 +187,14 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
                 ),
                 "orchestrator": (
                     "Anchor final_probability on deterministic_reference.weighted_probability. Adjust by at most 0.10 "
-                    "only when the priors strongly justify a sensitivity or precision shift. final_prediction must equal "
-                    "1 when final_probability >= 0.5 and must equal 0 when final_probability < 0.5. If a sensitivity "
-                    "shift still leaves final_probability below 0.5, the forced benchmark diagnosis remains 0."
+                    "only when the priors strongly justify a sensitivity or precision shift. Choose calibration_action first, "
+                    "then apply its threshold: sensitivity_shift uses 0.35, neutral/escalate uses 0.50, and precision_shift "
+                    "uses 0.65. final_prediction must be based on final_probability >= the applied threshold."
                 ),
                 "safety_agent": (
-                    "Set escalate_to_human=true for major disagreement, close calls, statistically unstable priors, or "
-                    "severe weak reliability. If deterministic_reference.safety_decision is ACCEPT, there is no disagreement, "
-                    "and the case is not a close call, set escalate_to_human=false unless there is an explicit data-quality problem. "
+                    "Set escalate_to_human=true for close calls around the applied threshold, severe split votes, statistically "
+                    "unstable priors, or severe weak reliability. Do not escalate merely because one or two of nine models disagree. "
+                    "If the final probability is far from the applied threshold and votes are not severely split, set escalate_to_human=false. "
                     "Always keep the forced diagnostic prediction for F1 scoring."
                 ),
             },
@@ -202,9 +203,16 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
                 "Even when escalation is warranted, final_prediction must be 0 or 1 and will be used for F1/AUROC-style evaluation."
             ),
             "threshold": 0.5,
+            "dynamic_thresholds": {
+                "sensitivity_shift": 0.35,
+                "neutral": 0.5,
+                "escalate": 0.5,
+                "precision_shift": 0.65,
+            },
             "benchmark_rule": (
                 "Do not abstain. Do not output -1. Do not use escalate_to_human as the diagnosis. "
-                "Use it only as a separate safety flag. final_prediction must be threshold-consistent with final_probability at 0.5."
+                "Use it only as a separate safety flag. final_prediction must be threshold-consistent with final_probability "
+                "at the applied dynamic threshold."
             ),
             "required_json_schema": {
                 "final_probability": "float from 0 to 1",
@@ -253,8 +261,43 @@ def clamp_probability(value: Any, fallback: float, max_adjustment: float | None 
     return min(1.0, max(0.0, prob))
 
 
-def normalize_prediction(value: Any, probability: float) -> int:
-    return int(probability >= 0.5)
+def normalize_action(value: Any) -> str:
+    action = str(value or "").strip().lower()
+    if "sensitivity" in action:
+        return "sensitivity_shift"
+    if "precision" in action:
+        return "precision_shift"
+    if "escalate" in action:
+        return "escalate"
+    return "neutral"
+
+
+def threshold_for_action(action: str) -> float:
+    if action == "sensitivity_shift":
+        return 0.35
+    if action == "precision_shift":
+        return 0.65
+    return 0.50
+
+
+def normalize_prediction(probability: float, applied_threshold: float) -> int:
+    return int(probability >= applied_threshold)
+
+
+def safety_flag_for_case(arbitration: dict[str, Any], probability: float, applied_threshold: float) -> tuple[bool, str]:
+    model_rows = arbitration.get("model_rows", [])
+    positive_votes = int(arbitration.get("positive_votes", 0))
+    num_models = int(arbitration.get("num_models", len(model_rows)))
+    negative_votes = max(0, num_models - positive_votes)
+    close_to_threshold = abs(probability - applied_threshold) < 0.075
+    severe_split_vote = min(positive_votes, negative_votes) >= 3
+    unstable_prior = any(str(row.get("prior_unstable", "")).strip().lower() in {"true", "1"} for row in model_rows)
+    weak_reliability = False
+    if model_rows:
+        mean_balanced_accuracy = mean(float(row.get("prior_balanced_accuracy", 0.5)) for row in model_rows)
+        weak_reliability = mean_balanced_accuracy < 0.53 and (close_to_threshold or severe_split_vote)
+    escalate = close_to_threshold or severe_split_vote or unstable_prior or weak_reliability
+    return escalate, "ESCALATE_TO_HUMAN" if escalate else "ACCEPT"
 
 
 def dry_run_response(arbitration: dict[str, Any]) -> tuple[dict[str, Any], dict[str, int], str]:
@@ -275,6 +318,7 @@ def dry_run_response(arbitration: dict[str, Any]) -> tuple[dict[str, Any], dict[
         "confidence": "low" if arbitration["safety_decision"] != "ACCEPT" else "medium",
         "primary_model": primary,
         "calibration_action": action,
+        "applied_threshold": threshold_for_action(action),
         "escalate_to_human": arbitration["safety_decision"] != "ACCEPT",
         "reasoning": "Dry-run deterministic weighted arbitration using validation priors.",
     }
@@ -390,23 +434,27 @@ def main() -> None:
                     arbitration["final_prob"],
                     args.max_probability_adjustment,
                 )
-                final_pred = normalize_prediction(parsed.get("final_prediction"), final_prob)
+                calibration_action = normalize_action(parsed.get("calibration_action"))
+                applied_threshold = threshold_for_action(calibration_action)
+                final_pred = normalize_prediction(final_prob, applied_threshold)
+                escalate_to_human, safety_decision = safety_flag_for_case(arbitration, final_prob, applied_threshold)
                 prediction_rows.append(
                     {
                         **meta,
                         "model_name": "equi_agent_live" if not args.dry_run else "equi_agent_live_dry_run",
                         "y_prob": f"{final_prob:.6f}",
                         "y_pred": final_pred,
+                        "applied_threshold": f"{applied_threshold:.2f}",
                         "split": "test",
                         "positive_votes": arbitration["positive_votes"],
                         "num_models": arbitration["num_models"],
                         "disagreement": arbitration["disagreement"],
                         "close_call": arbitration["close_call"],
-                        "safety_decision": arbitration["safety_decision"],
+                        "safety_decision": safety_decision,
                         "primary_model": parsed.get("primary_model", ""),
                         "confidence": parsed.get("confidence", ""),
-                        "calibration_action": parsed.get("calibration_action", ""),
-                        "escalate_to_human": parsed.get("escalate_to_human", ""),
+                        "calibration_action": calibration_action,
+                        "escalate_to_human": escalate_to_human,
                         "llm_provider": provider,
                         "llm_deployment": args.deployment,
                         **usage,
@@ -428,6 +476,14 @@ def main() -> None:
                         "messages": messages,
                         "evidence_packet": evidence_packet,
                         "parsed_response": parsed,
+                        "normalized_response": {
+                            "final_probability": final_prob,
+                            "final_prediction": final_pred,
+                            "applied_threshold": applied_threshold,
+                            "calibration_action": calibration_action,
+                            "escalate_to_human": escalate_to_human,
+                            "safety_decision": safety_decision,
+                        },
                         "raw_response": raw_text,
                     }
                 )
