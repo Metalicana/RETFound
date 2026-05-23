@@ -186,12 +186,15 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
                 ),
                 "orchestrator": (
                     "Anchor final_probability on deterministic_reference.weighted_probability. Adjust by at most 0.10 "
-                    "only when the priors strongly justify a sensitivity or precision shift. final_prediction must be "
-                    "1 when final_probability >= 0.5 and 0 otherwise."
+                    "only when the priors strongly justify a sensitivity or precision shift. final_prediction must equal "
+                    "1 when final_probability >= 0.5 and must equal 0 when final_probability < 0.5. If a sensitivity "
+                    "shift still leaves final_probability below 0.5, the forced benchmark diagnosis remains 0."
                 ),
                 "safety_agent": (
-                    "Set escalate_to_human=true for major disagreement, close calls, unstable priors, or weak reliability, "
-                    "but still keep the forced diagnostic prediction for F1 scoring."
+                    "Set escalate_to_human=true for major disagreement, close calls, statistically unstable priors, or "
+                    "severe weak reliability. If deterministic_reference.safety_decision is ACCEPT, there is no disagreement, "
+                    "and the case is not a close call, set escalate_to_human=false unless there is an explicit data-quality problem. "
+                    "Always keep the forced diagnostic prediction for F1 scoring."
                 ),
             },
             "task": (
@@ -201,7 +204,7 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
             "threshold": 0.5,
             "benchmark_rule": (
                 "Do not abstain. Do not output -1. Do not use escalate_to_human as the diagnosis. "
-                "Use it only as a separate safety flag."
+                "Use it only as a separate safety flag. final_prediction must be threshold-consistent with final_probability at 0.5."
             ),
             "required_json_schema": {
                 "final_probability": "float from 0 to 1",
@@ -251,13 +254,7 @@ def clamp_probability(value: Any, fallback: float, max_adjustment: float | None 
 
 
 def normalize_prediction(value: Any, probability: float) -> int:
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"1", "true", "positive", "yes"}:
-            return 1
-        if lowered in {"0", "false", "negative", "no"}:
-            return 0
-    return int(fnum(value, 1 if probability >= 0.5 else 0) >= 0.5)
+    return int(probability >= 0.5)
 
 
 def dry_run_response(arbitration: dict[str, Any]) -> tuple[dict[str, Any], dict[str, int], str]:
