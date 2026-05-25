@@ -375,6 +375,28 @@ Macro-average & 1500 & 750 / 750 & 0.648 & 0.558 & 0.603 & 0.603 & 0.612 & 0.523
 }
 \end{table*}
 
+\begin{table*}[t]
+\centering
+\caption{Exact-subset comparison for the interim stratified 1,500-case live run. All rows are evaluated on the same 500 AMD, 500 DR, and 500 glaucoma cases used by the live Equi-Agent run. Some standalone models achieve high macro F1 by operating at very high sensitivity and very low specificity for AMD or DR; balanced accuracy, specificity, and calibration are therefore reported alongside F1.}
+\label{tab:equi_agent_stratified1500_comparison}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}llllllllllll@{}}
+\toprule
+Method & Type & AUROC $\uparrow$ & F1 $\uparrow$ & Balanced Acc. $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & ECE $\downarrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ & Interpretation \\
+\midrule
+RETFound OCT & Single model & 0.636 & 0.674 & 0.607 & 0.805 & 0.408 & 0.326 & 0.298 & 0.294 & 0.365 & High sensitivity; weak specificity \\
+RET-CLIP SLO & Single model & 0.602 & 0.672 & 0.532 & 0.955 & 0.109 & 0.042 & 0.416 & 0.220 & 0.142 & Near-all-positive AMD/DR behavior \\
+FLAIR SLO & Single model & 0.580 & 0.669 & 0.521 & 0.968 & 0.075 & 0.045 & 0.401 & 0.141 & 0.105 & Near-all-positive AMD/DR behavior \\
+Dynamic global AUROC source & Deterministic routing & 0.631 & 0.597 & 0.595 & 0.683 & 0.508 & 0.133 & 0.158 & 0.295 & 0.382 & More balanced than high-recall baselines \\
+\textbf{Equi-Agent live} & \textbf{LLM arbitration} & \textbf{0.648} & \textbf{0.558} & \textbf{0.603} & \textbf{0.523} & \textbf{0.683} & \textbf{0.115} & \textbf{0.209} & \textbf{0.345} & \textbf{0.466} & Best AUROC; conservative on AMD/DR \\
+Mean probability ensemble & Static fusion & 0.626 & 0.373 & 0.599 & 0.337 & 0.861 & 0.135 & 0.095 & 0.270 & 0.397 & High specificity; misses positives \\
+Confidence-weighted ensemble & Static fusion & 0.625 & 0.342 & 0.594 & 0.309 & 0.879 & 0.172 & 0.095 & 0.262 & 0.364 & High specificity; low sensitivity \\
+Validation AUROC-weighted ensemble & Static fusion & 0.627 & 0.377 & 0.601 & 0.337 & 0.865 & 0.134 & 0.095 & 0.271 & 0.397 & Similar to mean fusion \\
+\botrule
+\end{tabular}%
+}
+\end{table*}
+
 \subsection{Experiment 3: Fairness Across Demographic and Intersectional Subgroups}\label{subsec:exp3}
 
 The third experiment evaluates whether Equi-Agent reduces error disparities across demographic attributes and intersectional subgroups. We report subgroup performance for race, ethnicity, sex/gender, age, and clinically relevant intersections such as race-by-sex and race-by-age. Intersectional results are reported only when subgroup sample sizes are sufficient for reliable estimation.
