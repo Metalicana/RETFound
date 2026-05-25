@@ -357,6 +357,24 @@ Dynamic subgroup prior by AUROC & Subgroup rule-based arbitration & 0.601 & 0.47
 }
 \end{table*}
 
+\begin{table*}[t]
+\centering
+\caption{Interim live Equi-Agent arbitration results on a stratified Harvard-FairVision subset. This placeholder table reports the completed 1,500-case live Azure run, with 500 cases per task and 250 positives / 250 negatives per task. Results are shown to document the current operating point before full-test inference and should be replaced or relabeled after the final 9,000 task-case run.}
+\label{tab:equi_agent_stratified1500_placeholder}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}llllllllllllll@{}}
+\toprule
+Task & $n$ & Pos./Neg. & AUROC $\uparrow$ & F1 $\uparrow$ & Acc. $\uparrow$ & Balanced Acc. $\uparrow$ & Precision $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & FPR $\downarrow$ & FNR $\downarrow$ & Escalation rate & Threshold mix \\
+\midrule
+AMD & 500 & 250 / 250 & 0.558 & 0.486 & 0.496 & 0.496 & 0.496 & 0.476 & 0.516 & 0.484 & 0.524 & 0.584 & 0.35: 135; 0.50: 251; 0.65: 114 \\
+DR & 500 & 250 / 250 & 0.543 & 0.404 & 0.522 & 0.522 & 0.536 & 0.324 & 0.720 & 0.280 & 0.676 & 0.912 & 0.35: 174; 0.50: 302; 0.65: 24 \\
+Glaucoma & 500 & 250 / 250 & 0.842 & 0.785 & 0.790 & 0.790 & 0.803 & 0.768 & 0.812 & 0.188 & 0.232 & 0.578 & 0.35: 11; 0.50: 243; 0.65: 246 \\
+Macro-average & 1500 & 750 / 750 & 0.648 & 0.558 & 0.603 & 0.603 & 0.612 & 0.523 & 0.683 & 0.317 & 0.477 & 0.691 & -- \\
+\botrule
+\end{tabular}%
+}
+\end{table*}
+
 \subsection{Experiment 3: Fairness Across Demographic and Intersectional Subgroups}\label{subsec:exp3}
 
 The third experiment evaluates whether Equi-Agent reduces error disparities across demographic attributes and intersectional subgroups. We report subgroup performance for race, ethnicity, sex/gender, age, and clinically relevant intersections such as race-by-sex and race-by-age. Intersectional results are reported only when subgroup sample sizes are sufficient for reliable estimation.
@@ -520,7 +538,24 @@ We compare Equi-Agent against single-visit models, temporal models, static ensem
 
 \begin{table*}[t]
 \centering
-\caption{Longitudinal glaucoma progression prediction on Harvard-GDP. Logistic baselines use the official progression forecasting split with 300 training and 200 test examples. Temporal context tests whether dynamic arbitration generalizes beyond single-image diagnosis.}
+\caption{Harvard-GDP glaucoma detection using OCT-compatible foundation-model encoders. RETFound OCT, VisionFM OCT, and UrFound OCT are evaluated only because their pretrained encoders can consume OCT B-scan evidence. SLO/fundus-only models are excluded from Harvard-GDP unless matching SLO/fundus inputs are available. Each row trains a GDP-specific linear probe on the official training split and reports held-out test performance.}
+\label{tab:gdp_glaucoma_detection_foundation}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}lllllllllll@{}}
+\toprule
+Method & Input & Train/Test split & AUROC $\uparrow$ & F1 $\uparrow$ & Balanced Acc. $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & ECE $\downarrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR / $\Delta$FNR $\downarrow$ \\
+\midrule
+RETFound OCT linear probe & OCT B-scan & 600 / 400 & 0.779 & 0.667 & 0.701 & 0.659 & 0.742 & 0.162 & 0.529 & 0.355 / 0.291 \\
+VisionFM OCT linear probe & OCT B-scan & 600 / 400 & 0.796 & 0.695 & 0.701 & 0.782 & 0.620 & 0.206 & 0.515 & 0.133 / 0.362 \\
+UrFound OCT linear probe & OCT B-scan & 600 / 400 & 0.687 & 0.630 & 0.650 & 0.670 & 0.629 & 0.193 & 0.500 & 0.260 / 0.355 \\
+\botrule
+\end{tabular}%
+}
+\end{table*}
+
+\begin{table*}[t]
+\centering
+\caption{Longitudinal glaucoma progression prediction on Harvard-GDP. Logistic baselines and OCT-compatible foundation-model probes use the official progression forecasting split with 300 training and 200 test examples. Temporal context tests whether dynamic arbitration generalizes beyond single-image diagnosis.}
 \label{tab:longitudinal_glaucoma}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{@{}lllllllllll@{}}
@@ -533,6 +568,9 @@ Clinical tabular logistic baseline & Metadata + visual field & No & No & 0.604 &
 RNFLT + clinical logistic baseline & RNFLT + metadata + visual field & No & No & 0.562 & 0.195 & 0.222 & 0.896 & 0.000 & 0.360 & 1.000 \\
 B-scan + clinical logistic baseline & OCT B-scan + metadata + visual field & No & No & 0.620 & 0.256 & 0.278 & 0.912 & 0.000 & 0.400 & 1.000 \\
 OCT + RNFLT + clinical logistic baseline & OCT + RNFLT + metadata + visual field & No & No & 0.563 & 0.213 & 0.278 & 0.868 & 0.000 & 0.363 & 1.000 \\
+RETFound OCT linear probe & OCT B-scan & No & No & 0.558 & 0.103 & 0.111 & 0.896 & 0.000 & 1.000 & 1.000 \\
+VisionFM OCT linear probe & OCT B-scan & No & No & 0.649 & 0.167 & 0.278 & 0.797 & 0.000 & 1.000 & 1.000 \\
+UrFound OCT linear probe & OCT B-scan & No & No & 0.570 & 0.095 & 0.111 & 0.879 & 0.000 & 1.000 & 1.000 \\
 Single-visit 3D CNN & OCT & No & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 Single-visit 3D ViT / Swin & OCT & No & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 Temporal LSTM & Visit sequence & Yes & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
@@ -610,6 +648,8 @@ Standalone foundation-model performance varied substantially by disease task and
 
 Macro-averaged across AMD, DR, and glaucoma, RETFound OCT remained the strongest standalone model by F1-score, while confidence-weighted ensembling provided the strongest static ensemble F1-score among the non-agentic baselines. However, no standalone or static method simultaneously achieved strong aggregate performance and stable worst-group reliability, motivating dynamic trust calibration.
 
+An interim live Equi-Agent run on a stratified 1,500-case FairVision subset is included as a placeholder to show the current arbitration output format. This run used 500 task-cases per disease with balanced labels and completed without API errors. Performance was strongest for glaucoma (AUROC 0.842, F1 0.785), weaker for AMD (AUROC 0.558, F1 0.486), and weakest for DR (AUROC 0.543, F1 0.404). Because this subset is deliberately balanced and smaller than the full FairVision test set, these results are not used for final claims, but they provide an initial live-system operating point for manuscript development.
+
 \subsection{Subgroup Fairness and Error Disparity Reduction}
 \label{subsec:results_fairness}
 Standalone results revealed clinically meaningful subgroup reliability gaps. For glaucoma, RETFound OCT achieved strong aggregate performance but showed large false-positive and false-negative rate gaps across subgroups. FLAIR and RET-CLIP improved glaucoma worst-group F1 relative to some SLO baselines, but still exhibited large subgroup gaps, particularly in intersectional age and race analyses. For AMD and DR, several models achieved apparently reasonable F1-scores by operating at very high sensitivity and extremely low specificity, producing poor clinical utility and unstable calibration.
@@ -626,7 +666,11 @@ FLAIR, RET-CLIP, VisionFM, RetiZero, and UrFound had global ECE values near 0.18
 \label{subsec:results_longitudinal}
 Harvard-GDP logistic baselines using RNFLT, B-scan, clinical metadata, and combined feature sets produced modest AUROC values and weak F1-scores for progression forecasting, with worst-group F1 frequently equal to zero. This indicates that longitudinal progression prediction is substantially more difficult than cross-sectional FairVision diagnosis under the current feature representation.
 
-The longitudinal extension evaluates whether OCT foundation-model features and temporal arbitration improve progression sensitivity and subgroup reliability over these logistic baselines. This comparison is important because a clinically useful glaucoma progression system must detect worsening disease without amplifying subgroup-specific under-detection.
+OCT-compatible foundation-model encoders were then evaluated on Harvard-GDP using GDP-specific linear probes. For glaucoma detection, VisionFM OCT achieved the strongest AUROC among the three OCT encoders tested (AUROC 0.796, F1 0.695), followed by RETFound OCT (AUROC 0.779, F1 0.667) and UrFound OCT (AUROC 0.687, F1 0.630). These results suggest that OCT foundation-model representations carry useful cross-sectional glaucoma signal on GDP, although subgroup error gaps remain nontrivial.
+
+Progression forecasting remained substantially harder. VisionFM OCT showed the strongest ranking performance among the OCT foundation-model probes (AUROC 0.649), but thresholded F1 remained low (0.167) with high false-negative rate. RETFound OCT and UrFound OCT were weaker for progression under the current single-center-B-scan probe setup. These findings motivate temporal modeling and arbitration over longitudinal evidence rather than relying on a single visit or single B-scan representation.
+
+The longitudinal extension evaluates whether OCT foundation-model features and temporal arbitration improve progression sensitivity and subgroup reliability over these logistic and single-visit foundation-model baselines. This comparison is important because a clinically useful glaucoma progression system must detect worsening disease without amplifying subgroup-specific under-detection.
 
 \subsection{Ablation Studies}
 \label{subsec:results_ablation}
