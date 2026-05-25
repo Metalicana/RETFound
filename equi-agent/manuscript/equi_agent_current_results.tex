@@ -171,7 +171,7 @@ For Harvard-GDP, longitudinal extension treats each visit sequence as a temporal
 
 \subsection{Evaluation Metrics}
 \label{subsec:metrics_methods}
-Evaluation is implemented with a standardized prediction schema containing patient identifiers, task, model name, split, ground-truth label, predicted probability, thresholded prediction, and demographic metadata. We report AUROC, area under the precision-recall curve, F1-score, balanced accuracy, sensitivity, specificity, Brier score, negative log-likelihood, and expected calibration error. Subgroup evaluation includes per-subgroup performance, worst-group F1, false-positive rate gap, false-negative rate gap, equal opportunity difference, equalized odds difference, subgroup ECE, and intersectional subgroup metrics.
+Evaluation is implemented with a standardized prediction schema containing patient identifiers, task, model name, split, ground-truth label, predicted probability, thresholded prediction, and demographic metadata. For final agentic comparisons, we emphasize thresholded diagnostic metrics, including F1-score, balanced accuracy, sensitivity, specificity, Brier score, negative log-likelihood, and expected calibration error. Ranking metrics such as AUROC are retained only for standalone non-agentic model diagnostics where probability ranking is directly interpretable. Subgroup evaluation includes per-subgroup performance, worst-group F1, false-positive rate gap, false-negative rate gap, equal opportunity difference, equalized odds difference, subgroup ECE, and intersectional subgroup metrics.
 
 \subsection{Statistical Analysis}
 \label{subsec:statistical_methods}
@@ -236,7 +236,7 @@ Static ensembles & Mean probability ensemble & No & Weak / implicit & Test wheth
 Static ensembles & Confidence-weighted ensemble & No & Weak / implicit & Test whether confidence-weighted model fusion improves calibration and diagnostic reliability \\
 Calibration / thresholding & Validation-selected task thresholds & No & No & Correct task-specific probability scale mismatch using validation-only threshold tuning \\
 Subgroup reliability priors & Validation-derived subgroup priors & Yes & No & Estimate subgroup-specific model reliability, false-positive patterns, false-negative patterns, and calibration risk \\
-Rule-based arbitration & Dynamic global prior routing by AUROC & No & Yes & Select the globally most reliable model per disease task using validation AUROC \\
+Rule-based arbitration & Dynamic global prior routing by validation ranking & No & Yes & Select the globally most reliable model per disease task using validation performance \\
 Rule-based arbitration & Dynamic global prior routing by ECE & No & Yes & Select the most calibrated model or ensemble per disease task using validation ECE \\
 Rule-based arbitration & Dynamic subgroup prior routing & Yes & Yes & Test whether subgroup-specific validation priors can improve per-patient model selection \\
 Agent baselines & Single-agent LLM arbitration & Optional & Yes & Test whether a single reasoning agent can improve over deterministic routing \\
@@ -255,7 +255,7 @@ To reduce stochasticity and improve reproducibility, agent outputs are constrain
 
 \subsection{Evaluation Metrics}\label{subsec:metrics}
 
-We report aggregate diagnostic performance and subgroup-specific reliability. Aggregate performance is measured using area under the receiver operating characteristic curve (AUROC), F1-score, balanced accuracy, sensitivity, specificity, and area under the precision-recall curve where appropriate. Fairness and subgroup reliability are measured using worst-group F1, worst-group AUROC, false-positive rate gap, false-negative rate gap, equal opportunity difference, equalized odds difference, subgroup expected calibration error, and subgroup Brier score.
+We report aggregate diagnostic performance and subgroup-specific reliability. Aggregate performance is measured using F1-score, balanced accuracy, sensitivity, specificity, and calibration metrics. Ranking metrics are used only for standalone model diagnostics where appropriate. Fairness and subgroup reliability are measured using worst-group F1, false-positive rate gap, false-negative rate gap, equal opportunity difference, equalized odds difference, subgroup expected calibration error, and subgroup Brier score.
 
 For a demographic attribute $A$ with subgroups $g \in \mathcal{G}$, the false-positive rate gap is defined as
 \begin{equation}
@@ -286,39 +286,39 @@ The first experiment establishes the failure mode motivating Equi-Agent. Each st
 \caption{Standalone ophthalmic models can exhibit subgroup-specific reliability gaps despite strong aggregate performance. $\Delta$FPR and $\Delta$FNR denote max-min subgroup disparity for false-positive and false-negative rates. Metrics are reported on the Harvard-FairVision held-out test split after validation-selected task thresholds.}
 \label{tab:standalone_failure_modes}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}lllllllllll@{}}
+\begin{tabular}{@{}llllllllll@{}}
 \toprule
-Model & Dataset & Disease & AUROC $\uparrow$ & F1 $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ & Subgroup ECE $\downarrow$ \\
+Model & Dataset & Disease & F1 $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ & Subgroup ECE $\downarrow$ \\
 \midrule
-RETFound OCT & Harvard-FairVision & AMD & 0.494 & 0.525 & 1.000 & 0.000 & 0.131 & 0.000 & 0.000 & 0.598 \\
-MIRAGE SLO & Harvard-FairVision & AMD & 0.505 & 0.525 & 0.999 & 0.002 & 0.132 & 0.009 & 0.002 & 0.636 \\
-FLAIR SLO & Harvard-FairVision & AMD & 0.507 & 0.525 & 0.995 & 0.004 & 0.132 & 0.013 & 0.007 & 0.430 \\
-RET-CLIP SLO & Harvard-FairVision & AMD & 0.503 & 0.525 & 0.997 & 0.001 & 0.131 & 0.003 & 0.009 & 0.430 \\
-VisionFM SLO & Harvard-FairVision & AMD & 0.481 & 0.382 & 0.430 & 0.545 & 0.118 & 0.150 & 0.103 & 0.419 \\
-VisionFM OCT & Harvard-FairVision & AMD & 0.488 & 0.423 & 0.536 & 0.448 & 0.121 & 0.046 & 0.199 & 0.402 \\
-RetiZero SLO & Harvard-FairVision & AMD & 0.500 & 0.462 & 0.664 & 0.331 & 0.088 & 0.139 & 0.240 & 0.403 \\
-UrFound SLO & Harvard-FairVision & AMD & 0.487 & 0.524 & 0.995 & 0.002 & 0.131 & 0.005 & 0.045 & 0.420 \\
-UrFound OCT & Harvard-FairVision & AMD & 0.519 & 0.496 & 0.792 & 0.223 & 0.109 & 0.164 & 0.207 & 0.411 \\
+RETFound OCT & Harvard-FairVision & AMD & 0.525 & 1.000 & 0.000 & 0.131 & 0.000 & 0.000 & 0.598 \\
+MIRAGE SLO & Harvard-FairVision & AMD & 0.525 & 0.999 & 0.002 & 0.132 & 0.009 & 0.002 & 0.636 \\
+FLAIR SLO & Harvard-FairVision & AMD & 0.525 & 0.995 & 0.004 & 0.132 & 0.013 & 0.007 & 0.430 \\
+RET-CLIP SLO & Harvard-FairVision & AMD & 0.525 & 0.997 & 0.001 & 0.131 & 0.003 & 0.009 & 0.430 \\
+VisionFM SLO & Harvard-FairVision & AMD & 0.382 & 0.430 & 0.545 & 0.118 & 0.150 & 0.103 & 0.419 \\
+VisionFM OCT & Harvard-FairVision & AMD & 0.423 & 0.536 & 0.448 & 0.121 & 0.046 & 0.199 & 0.402 \\
+RetiZero SLO & Harvard-FairVision & AMD & 0.462 & 0.664 & 0.331 & 0.088 & 0.139 & 0.240 & 0.403 \\
+UrFound SLO & Harvard-FairVision & AMD & 0.524 & 0.995 & 0.002 & 0.131 & 0.005 & 0.045 & 0.420 \\
+UrFound OCT & Harvard-FairVision & AMD & 0.496 & 0.792 & 0.223 & 0.109 & 0.164 & 0.207 & 0.411 \\
 \midrule
-RETFound OCT & Harvard-FairVision & DR & 0.537 & 0.168 & 0.621 & 0.449 & 0.110 & 0.108 & 0.259 & 0.164 \\
-MIRAGE SLO & Harvard-FairVision & DR & 0.515 & 0.136 & 0.257 & 0.760 & 0.067 & 0.060 & 0.145 & 0.145 \\
-FLAIR SLO & Harvard-FairVision & DR & 0.527 & 0.160 & 1.000 & 0.001 & 0.117 & 0.009 & 0.000 & 0.434 \\
-RET-CLIP SLO & Harvard-FairVision & DR & 0.518 & 0.162 & 0.931 & 0.086 & 0.123 & 0.039 & 0.133 & 0.433 \\
-VisionFM SLO & Harvard-FairVision & DR & 0.547 & 0.166 & 0.670 & 0.391 & 0.131 & 0.056 & 0.258 & 0.273 \\
-VisionFM OCT & Harvard-FairVision & DR & 0.454 & 0.096 & 0.161 & 0.791 & 0.050 & 0.067 & 0.097 & 0.289 \\
-RetiZero SLO & Harvard-FairVision & DR & 0.512 & 0.157 & 0.927 & 0.061 & 0.112 & 0.028 & 0.081 & 0.312 \\
-UrFound SLO & Harvard-FairVision & DR & 0.520 & 0.155 & 0.732 & 0.268 & 0.110 & 0.068 & 0.110 & 0.321 \\
-UrFound OCT & Harvard-FairVision & DR & 0.486 & 0.086 & 0.126 & 0.828 & 0.049 & 0.047 & 0.126 & 0.307 \\
+RETFound OCT & Harvard-FairVision & DR & 0.168 & 0.621 & 0.449 & 0.110 & 0.108 & 0.259 & 0.164 \\
+MIRAGE SLO & Harvard-FairVision & DR & 0.136 & 0.257 & 0.760 & 0.067 & 0.060 & 0.145 & 0.145 \\
+FLAIR SLO & Harvard-FairVision & DR & 0.160 & 1.000 & 0.001 & 0.117 & 0.009 & 0.000 & 0.434 \\
+RET-CLIP SLO & Harvard-FairVision & DR & 0.162 & 0.931 & 0.086 & 0.123 & 0.039 & 0.133 & 0.433 \\
+VisionFM SLO & Harvard-FairVision & DR & 0.166 & 0.670 & 0.391 & 0.131 & 0.056 & 0.258 & 0.273 \\
+VisionFM OCT & Harvard-FairVision & DR & 0.096 & 0.161 & 0.791 & 0.050 & 0.067 & 0.097 & 0.289 \\
+RetiZero SLO & Harvard-FairVision & DR & 0.157 & 0.927 & 0.061 & 0.112 & 0.028 & 0.081 & 0.312 \\
+UrFound SLO & Harvard-FairVision & DR & 0.155 & 0.732 & 0.268 & 0.110 & 0.068 & 0.110 & 0.321 \\
+UrFound OCT & Harvard-FairVision & DR & 0.086 & 0.126 & 0.828 & 0.049 & 0.047 & 0.126 & 0.307 \\
 \midrule
-RETFound OCT & Harvard-FairVision & Glaucoma & 0.840 & 0.756 & 0.794 & 0.708 & 0.511 & 0.490 & 0.498 & 0.168 \\
-MIRAGE SLO & Harvard-FairVision & Glaucoma & 0.428 & 0.656 & 0.998 & 0.000 & 0.455 & 0.000 & 0.007 & 0.381 \\
-FLAIR SLO & Harvard-FairVision & Glaucoma & 0.695 & 0.674 & 0.915 & 0.236 & 0.500 & 0.276 & 0.160 & 0.148 \\
-RET-CLIP SLO & Harvard-FairVision & Glaucoma & 0.730 & 0.684 & 0.923 & 0.258 & 0.516 & 0.346 & 0.221 & 0.150 \\
-VisionFM SLO & Harvard-FairVision & Glaucoma & 0.722 & 0.634 & 0.587 & 0.747 & 0.400 & 0.276 & 0.373 & 0.297 \\
-VisionFM OCT & Harvard-FairVision & Glaucoma & 0.779 & 0.698 & 0.689 & 0.727 & 0.441 & 0.266 & 0.299 & 0.248 \\
-RetiZero SLO & Harvard-FairVision & Glaucoma & 0.758 & 0.662 & 0.611 & 0.776 & 0.386 & 0.247 & 0.329 & 0.203 \\
-UrFound SLO & Harvard-FairVision & Glaucoma & 0.746 & 0.617 & 0.527 & 0.827 & 0.383 & 0.258 & 0.387 & 0.229 \\
-UrFound OCT & Harvard-FairVision & Glaucoma & 0.800 & 0.684 & 0.610 & 0.834 & 0.468 & 0.224 & 0.314 & 0.157 \\
+RETFound OCT & Harvard-FairVision & Glaucoma & 0.756 & 0.794 & 0.708 & 0.511 & 0.490 & 0.498 & 0.168 \\
+MIRAGE SLO & Harvard-FairVision & Glaucoma & 0.656 & 0.998 & 0.000 & 0.455 & 0.000 & 0.007 & 0.381 \\
+FLAIR SLO & Harvard-FairVision & Glaucoma & 0.674 & 0.915 & 0.236 & 0.500 & 0.276 & 0.160 & 0.148 \\
+RET-CLIP SLO & Harvard-FairVision & Glaucoma & 0.684 & 0.923 & 0.258 & 0.516 & 0.346 & 0.221 & 0.150 \\
+VisionFM SLO & Harvard-FairVision & Glaucoma & 0.634 & 0.587 & 0.747 & 0.400 & 0.276 & 0.373 & 0.297 \\
+VisionFM OCT & Harvard-FairVision & Glaucoma & 0.698 & 0.689 & 0.727 & 0.441 & 0.266 & 0.299 & 0.248 \\
+RetiZero SLO & Harvard-FairVision & Glaucoma & 0.662 & 0.611 & 0.776 & 0.386 & 0.247 & 0.329 & 0.203 \\
+UrFound SLO & Harvard-FairVision & Glaucoma & 0.617 & 0.527 & 0.827 & 0.383 & 0.258 & 0.387 & 0.229 \\
+UrFound OCT & Harvard-FairVision & Glaucoma & 0.684 & 0.610 & 0.834 & 0.468 & 0.224 & 0.314 & 0.157 \\
 \botrule
 \end{tabular}%
 }
@@ -333,25 +333,25 @@ The second experiment evaluates whether Equi-Agent improves diagnostic performan
 \caption{Main diagnostic comparison against standalone foundation models, static ensembles, calibration methods, and rule-based dynamic trust calibration. Metrics are macro-averaged across AMD, DR, and glaucoma on the Harvard-FairVision held-out test split.}
 \label{tab:main_diagnostic_comparison}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}llllllllllll@{}}
+\begin{tabular}{@{}lllllllllll@{}}
 \toprule
-Method & Type & AUROC $\uparrow$ & F1 $\uparrow$ & Balanced Acc. $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ & ECE $\downarrow$ & Subgroup ECE $\downarrow$ \\
+Method & Type & F1 $\uparrow$ & Balanced Acc. $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ & ECE $\downarrow$ & Subgroup ECE $\downarrow$ \\
 \midrule
-RETFound OCT & Foundation model & 0.624 & 0.483 & 0.595 & 0.805 & 0.386 & 0.110 & 0.490 & 0.498 & 0.156 & 0.598 \\
-MIRAGE SLO & Foundation model & 0.483 & 0.439 & 0.503 & 0.751 & 0.254 & 0.067 & 0.060 & 0.145 & 0.235 & 0.636 \\
-FLAIR SLO & Foundation model & 0.576 & 0.453 & 0.525 & 0.970 & 0.080 & 0.117 & 0.276 & 0.160 & 0.202 & 0.434 \\
-RET-CLIP SLO & Foundation model & 0.584 & 0.457 & 0.533 & 0.950 & 0.115 & 0.123 & 0.346 & 0.221 & 0.201 & 0.433 \\
-VisionFM SLO & Foundation model & 0.583 & 0.394 & 0.562 & 0.562 & 0.561 & 0.118 & 0.276 & 0.373 & 0.222 & 0.419 \\
-VisionFM OCT & Foundation model & 0.574 & 0.406 & 0.559 & 0.462 & 0.655 & 0.050 & 0.266 & 0.299 & 0.225 & 0.402 \\
-RetiZero SLO & Foundation model & 0.590 & 0.427 & 0.562 & 0.734 & 0.389 & 0.088 & 0.247 & 0.329 & 0.178 & 0.403 \\
-UrFound SLO & Foundation model & 0.584 & 0.432 & 0.559 & 0.751 & 0.366 & 0.110 & 0.258 & 0.387 & 0.185 & 0.420 \\
-UrFound OCT & Foundation model & 0.601 & 0.422 & 0.569 & 0.510 & 0.628 & 0.049 & 0.224 & 0.314 & 0.175 & 0.411 \\
-Mean probability ensemble & Static ensemble & 0.615 & 0.469 & 0.577 & 0.730 & 0.425 & 0.058 & 0.509 & 0.484 & 0.081 & 0.311 \\
-Confidence-weighted ensemble & Static ensemble & 0.616 & 0.476 & 0.584 & 0.829 & 0.339 & 0.108 & 0.509 & 0.484 & 0.077 & 0.369 \\
-Dynamic global prior by AUROC & Rule-based arbitration & 0.620 & 0.473 & 0.587 & 0.683 & 0.490 & 0.067 & 0.490 & 0.498 & 0.184 & 0.636 \\
-Dynamic global prior by ECE & Rule-based calibration & 0.616 & 0.476 & 0.585 & 0.829 & 0.340 & 0.108 & 0.509 & 0.484 & 0.060 & 0.311 \\
-Dynamic subgroup prior by AUROC & Subgroup rule-based arbitration & 0.601 & 0.474 & 0.585 & 0.713 & 0.457 & 0.084 & 0.490 & 0.498 & 0.182 & 0.608 \\
-\textbf{Equi-Agent} & \textbf{Dynamic arbitration} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} \\
+RETFound OCT & Foundation model & 0.483 & 0.595 & 0.805 & 0.386 & 0.110 & 0.490 & 0.498 & 0.156 & 0.598 \\
+MIRAGE SLO & Foundation model & 0.439 & 0.503 & 0.751 & 0.254 & 0.067 & 0.060 & 0.145 & 0.235 & 0.636 \\
+FLAIR SLO & Foundation model & 0.453 & 0.525 & 0.970 & 0.080 & 0.117 & 0.276 & 0.160 & 0.202 & 0.434 \\
+RET-CLIP SLO & Foundation model & 0.457 & 0.533 & 0.950 & 0.115 & 0.123 & 0.346 & 0.221 & 0.201 & 0.433 \\
+VisionFM SLO & Foundation model & 0.394 & 0.562 & 0.562 & 0.561 & 0.118 & 0.276 & 0.373 & 0.222 & 0.419 \\
+VisionFM OCT & Foundation model & 0.406 & 0.559 & 0.462 & 0.655 & 0.050 & 0.266 & 0.299 & 0.225 & 0.402 \\
+RetiZero SLO & Foundation model & 0.427 & 0.562 & 0.734 & 0.389 & 0.088 & 0.247 & 0.329 & 0.178 & 0.403 \\
+UrFound SLO & Foundation model & 0.432 & 0.559 & 0.751 & 0.366 & 0.110 & 0.258 & 0.387 & 0.185 & 0.420 \\
+UrFound OCT & Foundation model & 0.422 & 0.569 & 0.510 & 0.628 & 0.049 & 0.224 & 0.314 & 0.175 & 0.411 \\
+Mean probability ensemble & Static ensemble & 0.469 & 0.577 & 0.730 & 0.425 & 0.058 & 0.509 & 0.484 & 0.081 & 0.311 \\
+Confidence-weighted ensemble & Static ensemble & 0.476 & 0.584 & 0.829 & 0.339 & 0.108 & 0.509 & 0.484 & 0.077 & 0.369 \\
+Dynamic global prior by validation ranking & Rule-based arbitration & 0.473 & 0.587 & 0.683 & 0.490 & 0.067 & 0.490 & 0.498 & 0.184 & 0.636 \\
+Dynamic global prior by ECE & Rule-based calibration & 0.476 & 0.585 & 0.829 & 0.340 & 0.108 & 0.509 & 0.484 & 0.060 & 0.311 \\
+Dynamic subgroup prior by validation ranking & Subgroup rule-based arbitration & 0.474 & 0.585 & 0.713 & 0.457 & 0.084 & 0.490 & 0.498 & 0.182 & 0.608 \\
+\textbf{Equi-Agent} & \textbf{Dynamic arbitration} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} \\
 \botrule
 \end{tabular}%
 }
@@ -362,14 +362,14 @@ Dynamic subgroup prior by AUROC & Subgroup rule-based arbitration & 0.601 & 0.47
 \caption{Interim live Equi-Agent arbitration results on a stratified Harvard-FairVision subset. This placeholder table reports the completed 1,500-case live Azure run, with 500 cases per task and 250 positives / 250 negatives per task. Results are shown to document the current operating point before full-test inference and should be replaced or relabeled after the final 9,000 task-case run.}
 \label{tab:equi_agent_stratified1500_placeholder}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}llllllllllllll@{}}
+\begin{tabular}{@{}lllllllllllll@{}}
 \toprule
-Task & $n$ & Pos./Neg. & AUROC $\uparrow$ & F1 $\uparrow$ & Acc. $\uparrow$ & Balanced Acc. $\uparrow$ & Precision $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & FPR $\downarrow$ & FNR $\downarrow$ & Escalation rate & Threshold mix \\
+Task & $n$ & Pos./Neg. & F1 $\uparrow$ & Acc. $\uparrow$ & Balanced Acc. $\uparrow$ & Precision $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & FPR $\downarrow$ & FNR $\downarrow$ & Escalation rate & Threshold mix \\
 \midrule
-AMD & 500 & 250 / 250 & 0.558 & 0.486 & 0.496 & 0.496 & 0.496 & 0.476 & 0.516 & 0.484 & 0.524 & 0.584 & 0.35: 135; 0.50: 251; 0.65: 114 \\
-DR & 500 & 250 / 250 & 0.543 & 0.404 & 0.522 & 0.522 & 0.536 & 0.324 & 0.720 & 0.280 & 0.676 & 0.912 & 0.35: 174; 0.50: 302; 0.65: 24 \\
-Glaucoma & 500 & 250 / 250 & 0.842 & 0.785 & 0.790 & 0.790 & 0.803 & 0.768 & 0.812 & 0.188 & 0.232 & 0.578 & 0.35: 11; 0.50: 243; 0.65: 246 \\
-Macro-average & 1500 & 750 / 750 & 0.648 & 0.558 & 0.603 & 0.603 & 0.612 & 0.523 & 0.683 & 0.317 & 0.477 & 0.691 & -- \\
+AMD & 500 & 250 / 250 & 0.486 & 0.496 & 0.496 & 0.496 & 0.476 & 0.516 & 0.484 & 0.524 & 0.584 & 0.35: 135; 0.50: 251; 0.65: 114 \\
+DR & 500 & 250 / 250 & 0.404 & 0.522 & 0.522 & 0.536 & 0.324 & 0.720 & 0.280 & 0.676 & 0.912 & 0.35: 174; 0.50: 302; 0.65: 24 \\
+Glaucoma & 500 & 250 / 250 & 0.785 & 0.790 & 0.790 & 0.803 & 0.768 & 0.812 & 0.188 & 0.232 & 0.578 & 0.35: 11; 0.50: 243; 0.65: 246 \\
+Macro-average & 1500 & 750 / 750 & 0.558 & 0.603 & 0.603 & 0.612 & 0.523 & 0.683 & 0.317 & 0.477 & 0.691 & -- \\
 \botrule
 \end{tabular}%
 }
@@ -380,18 +380,18 @@ Macro-average & 1500 & 750 / 750 & 0.648 & 0.558 & 0.603 & 0.603 & 0.612 & 0.523
 \caption{Exact-subset comparison for the interim stratified 1,500-case live run. All rows are evaluated on the same 500 AMD, 500 DR, and 500 glaucoma cases used by the live Equi-Agent run. Some standalone models achieve high macro F1 by operating at very high sensitivity and very low specificity for AMD or DR; balanced accuracy, specificity, and calibration are therefore reported alongside F1.}
 \label{tab:equi_agent_stratified1500_comparison}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}llllllllllll@{}}
+\begin{tabular}{@{}lllllllllll@{}}
 \toprule
-Method & Type & AUROC $\uparrow$ & F1 $\uparrow$ & Balanced Acc. $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & ECE $\downarrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ & Interpretation \\
+Method & Type & F1 $\uparrow$ & Balanced Acc. $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & ECE $\downarrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ & Interpretation \\
 \midrule
-RETFound OCT & Single model & 0.636 & 0.674 & 0.607 & 0.805 & 0.408 & 0.326 & 0.298 & 0.294 & 0.365 & High sensitivity; weak specificity \\
-RET-CLIP SLO & Single model & 0.602 & 0.672 & 0.532 & 0.955 & 0.109 & 0.042 & 0.416 & 0.220 & 0.142 & Near-all-positive AMD/DR behavior \\
-FLAIR SLO & Single model & 0.580 & 0.669 & 0.521 & 0.968 & 0.075 & 0.045 & 0.401 & 0.141 & 0.105 & Near-all-positive AMD/DR behavior \\
-Dynamic global AUROC source & Deterministic routing & 0.631 & 0.597 & 0.595 & 0.683 & 0.508 & 0.133 & 0.158 & 0.295 & 0.382 & More balanced than high-recall baselines \\
-\textbf{Equi-Agent live} & \textbf{LLM arbitration} & \textbf{0.648} & \textbf{0.558} & \textbf{0.603} & \textbf{0.523} & \textbf{0.683} & \textbf{0.115} & \textbf{0.209} & \textbf{0.345} & \textbf{0.466} & Best AUROC; conservative on AMD/DR \\
-Mean probability ensemble & Static fusion & 0.626 & 0.373 & 0.599 & 0.337 & 0.861 & 0.135 & 0.095 & 0.270 & 0.397 & High specificity; misses positives \\
-Confidence-weighted ensemble & Static fusion & 0.625 & 0.342 & 0.594 & 0.309 & 0.879 & 0.172 & 0.095 & 0.262 & 0.364 & High specificity; low sensitivity \\
-Validation AUROC-weighted ensemble & Static fusion & 0.627 & 0.377 & 0.601 & 0.337 & 0.865 & 0.134 & 0.095 & 0.271 & 0.397 & Similar to mean fusion \\
+RETFound OCT & Single model & 0.674 & 0.607 & 0.805 & 0.408 & 0.326 & 0.298 & 0.294 & 0.365 & High sensitivity; weak specificity \\
+RET-CLIP SLO & Single model & 0.672 & 0.532 & 0.955 & 0.109 & 0.042 & 0.416 & 0.220 & 0.142 & Near-all-positive AMD/DR behavior \\
+FLAIR SLO & Single model & 0.669 & 0.521 & 0.968 & 0.075 & 0.045 & 0.401 & 0.141 & 0.105 & Near-all-positive AMD/DR behavior \\
+Dynamic global validation-ranking source & Deterministic routing & 0.597 & 0.595 & 0.683 & 0.508 & 0.133 & 0.158 & 0.295 & 0.382 & More balanced than high-recall baselines \\
+\textbf{Equi-Agent live} & \textbf{LLM arbitration} & \textbf{0.558} & \textbf{0.603} & \textbf{0.523} & \textbf{0.683} & \textbf{0.115} & \textbf{0.209} & \textbf{0.345} & \textbf{0.466} & \textbf{Conservative on AMD/DR} \\
+Mean probability ensemble & Static fusion & 0.373 & 0.599 & 0.337 & 0.861 & 0.135 & 0.095 & 0.270 & 0.397 & High specificity; misses positives \\
+Confidence-weighted ensemble & Static fusion & 0.342 & 0.594 & 0.309 & 0.879 & 0.172 & 0.095 & 0.262 & 0.364 & High specificity; low sensitivity \\
+Validation ranking-weighted ensemble & Static fusion & 0.377 & 0.601 & 0.337 & 0.865 & 0.134 & 0.095 & 0.271 & 0.397 & Similar to mean fusion \\
 \botrule
 \end{tabular}%
 }
@@ -432,16 +432,16 @@ The fourth experiment tests whether dynamic trust calibration provides benefits 
 \caption{Dynamic trust calibration versus static model fusion on Harvard-FairVision. Aggregate metrics are macro-averaged across AMD, DR, and glaucoma.}
 \label{tab:dynamic_vs_static}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}lllllllllll@{}}
+\begin{tabular}{@{}llllllllll@{}}
 \toprule
-Method & Uses confidence? & Uses subgroup priors? & Uses disagreement? & Uses metadata? & AUROC $\uparrow$ & F1 $\uparrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ & ECE $\downarrow$ \\
+Method & Uses confidence? & Uses subgroup priors? & Uses disagreement? & Uses metadata? & F1 $\uparrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ & ECE $\downarrow$ \\
 \midrule
-Mean probability ensemble & Yes & No & No & No & 0.615 & 0.469 & 0.058 & 0.509 & 0.484 & 0.081 \\
-Confidence-weighted ensemble & Yes & No & Weak & No & 0.616 & 0.476 & 0.108 & 0.509 & 0.484 & 0.077 \\
-Rule-based arbitration, global AUROC prior & Yes & No & Yes & No & 0.620 & 0.473 & 0.067 & 0.490 & 0.498 & 0.184 \\
-Rule-based arbitration, global ECE prior & Yes & No & Yes & No & 0.616 & 0.476 & 0.108 & 0.509 & 0.484 & 0.060 \\
-Rule-based arbitration, subgroup AUROC prior & Yes & Yes & Yes & Yes & 0.601 & 0.474 & 0.084 & 0.490 & 0.498 & 0.182 \\
-\textbf{Equi-Agent} & \textbf{Yes} & \textbf{Yes} & \textbf{Yes} & \textbf{Yes} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} \\
+Mean probability ensemble & Yes & No & No & No & 0.469 & 0.058 & 0.509 & 0.484 & 0.081 \\
+Confidence-weighted ensemble & Yes & No & Weak & No & 0.476 & 0.108 & 0.509 & 0.484 & 0.077 \\
+Rule-based arbitration, global validation prior & Yes & No & Yes & No & 0.473 & 0.067 & 0.490 & 0.498 & 0.184 \\
+Rule-based arbitration, global ECE prior & Yes & No & Yes & No & 0.476 & 0.108 & 0.509 & 0.484 & 0.060 \\
+Rule-based arbitration, subgroup validation prior & Yes & Yes & Yes & Yes & 0.474 & 0.084 & 0.490 & 0.498 & 0.182 \\
+\textbf{Equi-Agent} & \textbf{Yes} & \textbf{Yes} & \textbf{Yes} & \textbf{Yes} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} \\
 \botrule
 \end{tabular}%
 }
@@ -456,19 +456,19 @@ The fifth experiment isolates the contribution of each Equi-Agent component. We 
 \caption{Ablation study of Equi-Agent components. Each row removes or modifies one component of the full framework.}
 \label{tab:ablation}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}llllllllll@{}}
+\begin{tabular}{@{}lllllllll@{}}
 \toprule
-Variant & Removed / modified component & AUROC $\uparrow$ & F1 $\uparrow$ & Balanced Acc. $\uparrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ & ECE $\downarrow$ & Brier $\downarrow$ \\
+Variant & Removed / modified component & F1 $\uparrow$ & Balanced Acc. $\uparrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ & ECE $\downarrow$ & Brier $\downarrow$ \\
 \midrule
-\textbf{Full Equi-Agent} & None & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} \\
-No demographic context agent & Patient metadata context removed & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-No bias auditor & Subgroup error priors removed & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-No model disagreement agent & Cross-model conflict reasoning removed & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-No visual evidence agent & Localized visual findings removed & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-No calibration agent & Confidence recalibration removed & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Single-agent arbitration & Multi-agent structure collapsed into one agent & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Rule-based arbitration & LLM arbitration replaced with deterministic rules & 0.620 & 0.473 & 0.587 & \tbd & \tbd & \tbd & 0.184 & \tbd \\
-Randomized priors & Subgroup error priors randomly permuted & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+\textbf{Full Equi-Agent} & None & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} \\
+No demographic context agent & Patient metadata context removed & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+No bias auditor & Subgroup error priors removed & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+No model disagreement agent & Cross-model conflict reasoning removed & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+No visual evidence agent & Localized visual findings removed & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+No calibration agent & Confidence recalibration removed & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+Single-agent arbitration & Multi-agent structure collapsed into one agent & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+Rule-based arbitration & LLM arbitration replaced with deterministic rules & 0.473 & 0.587 & \tbd & \tbd & \tbd & 0.184 & \tbd \\
+Randomized priors & Subgroup error priors randomly permuted & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 \botrule
 \end{tabular}%
 }
@@ -485,17 +485,17 @@ We also perform counterfactual metadata sensitivity tests. In these tests, image
 \caption{Metadata safety and counterfactual sensitivity analysis. Demographic metadata should improve trust calibration without acting as a direct proxy for disease status.}
 \label{tab:metadata_safety}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}lllllllll@{}}
+\begin{tabular}{@{}llllllll@{}}
 \toprule
-Variant / test & Image input & Metadata input & Subgroup priors & AUROC $\uparrow$ & F1 $\uparrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ \\
+Variant / test & Image input & Metadata input & Subgroup priors & F1 $\uparrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ \\
 \midrule
-Image-only classifier & Yes & No & No & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Metadata-only classifier & No & Yes & No & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Naive image + metadata classifier & Yes & Yes & No & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Equi-Agent without metadata & Yes & No & No / partial & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Equi-Agent with shuffled metadata & Yes & Shuffled & Yes & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Equi-Agent with randomized priors & Yes & Yes & Randomized & \tbd & \tbd & \tbd & \tbd & \tbd \\
-\textbf{Full Equi-Agent} & \textbf{Yes} & \textbf{Yes} & \textbf{Validation-derived} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} \\
+Image-only classifier & Yes & No & No & \tbd & \tbd & \tbd & \tbd \\
+Metadata-only classifier & No & Yes & No & \tbd & \tbd & \tbd & \tbd \\
+Naive image + metadata classifier & Yes & Yes & No & \tbd & \tbd & \tbd & \tbd \\
+Equi-Agent without metadata & Yes & No & No / partial & \tbd & \tbd & \tbd & \tbd \\
+Equi-Agent with shuffled metadata & Yes & Shuffled & Yes & \tbd & \tbd & \tbd & \tbd \\
+Equi-Agent with randomized priors & Yes & Yes & Randomized & \tbd & \tbd & \tbd & \tbd \\
+\textbf{Full Equi-Agent} & \textbf{Yes} & \textbf{Yes} & \textbf{Validation-derived} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} \\
 \botrule
 \end{tabular}%
 }
@@ -529,24 +529,24 @@ The seventh experiment evaluates whether Equi-Agent improves confidence reliabil
 \caption{Calibration and trust reliability. Subgroup ECE reports calibration error averaged across demographic subgroups or measured in the worst-calibrated subgroup. Current results use Harvard-FairVision test predictions.}
 \label{tab:calibration}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}lllllllll@{}}
+\begin{tabular}{@{}llllllll@{}}
 \toprule
-Method & AUROC $\uparrow$ & F1 $\uparrow$ & Global ECE $\downarrow$ & Subgroup ECE $\downarrow$ & Brier $\downarrow$ & NLL $\downarrow$ & Coverage at target risk $\uparrow$ & Worst-group coverage $\uparrow$ \\
+Method & F1 $\uparrow$ & Global ECE $\downarrow$ & Subgroup ECE $\downarrow$ & Brier $\downarrow$ & NLL $\downarrow$ & Coverage at target risk $\uparrow$ & Worst-group coverage $\uparrow$ \\
 \midrule
-Dynamic global prior by AUROC & 0.620 & 0.473 & 0.184 & 0.636 & \tbd & \tbd & \tbd & \tbd \\
-Dynamic global prior by ECE & 0.616 & 0.476 & 0.060 & 0.311 & \tbd & \tbd & \tbd & \tbd \\
-Best standalone foundation model & 0.624 & 0.483 & 0.156 & 0.598 & \tbd & \tbd & \tbd & \tbd \\
-Confidence-weighted ensemble & 0.616 & 0.476 & 0.077 & 0.369 & \tbd & \tbd & \tbd & \tbd \\
-Mean probability ensemble & 0.615 & 0.469 & 0.081 & 0.311 & \tbd & \tbd & \tbd & \tbd \\
-FLAIR SLO & 0.576 & 0.453 & 0.202 & 0.434 & \tbd & \tbd & \tbd & \tbd \\
-RET-CLIP SLO & 0.584 & 0.457 & 0.201 & 0.433 & \tbd & \tbd & \tbd & \tbd \\
-RetiZero SLO & 0.590 & 0.427 & 0.178 & 0.403 & \tbd & \tbd & \tbd & \tbd \\
-UrFound OCT & 0.601 & 0.422 & 0.175 & 0.411 & \tbd & \tbd & \tbd & \tbd \\
-UrFound SLO & 0.584 & 0.432 & 0.185 & 0.420 & \tbd & \tbd & \tbd & \tbd \\
-VisionFM OCT & 0.574 & 0.406 & 0.225 & 0.402 & \tbd & \tbd & \tbd & \tbd \\
-VisionFM SLO & 0.583 & 0.394 & 0.222 & 0.419 & \tbd & \tbd & \tbd & \tbd \\
-Conformal prediction / abstention & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-\textbf{Equi-Agent} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} \\
+Dynamic global prior by validation ranking & 0.473 & 0.184 & 0.636 & \tbd & \tbd & \tbd & \tbd \\
+Dynamic global prior by ECE & 0.476 & 0.060 & 0.311 & \tbd & \tbd & \tbd & \tbd \\
+Best standalone foundation model & 0.483 & 0.156 & 0.598 & \tbd & \tbd & \tbd & \tbd \\
+Confidence-weighted ensemble & 0.476 & 0.077 & 0.369 & \tbd & \tbd & \tbd & \tbd \\
+Mean probability ensemble & 0.469 & 0.081 & 0.311 & \tbd & \tbd & \tbd & \tbd \\
+FLAIR SLO & 0.453 & 0.202 & 0.434 & \tbd & \tbd & \tbd & \tbd \\
+RET-CLIP SLO & 0.457 & 0.201 & 0.433 & \tbd & \tbd & \tbd & \tbd \\
+RetiZero SLO & 0.427 & 0.178 & 0.403 & \tbd & \tbd & \tbd & \tbd \\
+UrFound OCT & 0.422 & 0.175 & 0.411 & \tbd & \tbd & \tbd & \tbd \\
+UrFound SLO & 0.432 & 0.185 & 0.420 & \tbd & \tbd & \tbd & \tbd \\
+VisionFM OCT & 0.406 & 0.225 & 0.402 & \tbd & \tbd & \tbd & \tbd \\
+VisionFM SLO & 0.394 & 0.222 & 0.419 & \tbd & \tbd & \tbd & \tbd \\
+Conformal prediction / abstention & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+\textbf{Equi-Agent} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} \\
 \botrule
 \end{tabular}%
 }
@@ -563,13 +563,13 @@ We compare Equi-Agent against single-visit models, temporal models, static ensem
 \caption{Harvard-GDP glaucoma detection using OCT-compatible foundation-model encoders. RETFound OCT, VisionFM OCT, and UrFound OCT are evaluated only because their pretrained encoders can consume OCT B-scan evidence. SLO/fundus-only models are excluded from Harvard-GDP unless matching SLO/fundus inputs are available. Each row trains a GDP-specific linear probe on the official training split and reports held-out test performance.}
 \label{tab:gdp_glaucoma_detection_foundation}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}lllllllllll@{}}
+\begin{tabular}{@{}llllllllll@{}}
 \toprule
-Method & Input & Train/Test split & AUROC $\uparrow$ & F1 $\uparrow$ & Balanced Acc. $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & ECE $\downarrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR / $\Delta$FNR $\downarrow$ \\
+Method & Input & Train/Test split & F1 $\uparrow$ & Balanced Acc. $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & ECE $\downarrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR / $\Delta$FNR $\downarrow$ \\
 \midrule
-RETFound OCT linear probe & OCT B-scan & 600 / 400 & 0.779 & 0.667 & 0.701 & 0.659 & 0.742 & 0.162 & 0.529 & 0.355 / 0.291 \\
-VisionFM OCT linear probe & OCT B-scan & 600 / 400 & 0.796 & 0.695 & 0.701 & 0.782 & 0.620 & 0.206 & 0.515 & 0.133 / 0.362 \\
-UrFound OCT linear probe & OCT B-scan & 600 / 400 & 0.687 & 0.630 & 0.650 & 0.670 & 0.629 & 0.193 & 0.500 & 0.260 / 0.355 \\
+RETFound OCT linear probe & OCT B-scan & 600 / 400 & 0.667 & 0.701 & 0.659 & 0.742 & 0.162 & 0.529 & 0.355 / 0.291 \\
+VisionFM OCT linear probe & OCT B-scan & 600 / 400 & 0.695 & 0.701 & 0.782 & 0.620 & 0.206 & 0.515 & 0.133 / 0.362 \\
+UrFound OCT linear probe & OCT B-scan & 600 / 400 & 0.630 & 0.650 & 0.670 & 0.629 & 0.193 & 0.500 & 0.260 / 0.355 \\
 \botrule
 \end{tabular}%
 }
@@ -580,26 +580,26 @@ UrFound OCT linear probe & OCT B-scan & 600 / 400 & 0.687 & 0.630 & 0.650 & 0.67
 \caption{Longitudinal glaucoma progression prediction on Harvard-GDP. Logistic baselines and OCT-compatible foundation-model probes use the official progression forecasting split with 300 training and 200 test examples. Temporal context tests whether dynamic arbitration generalizes beyond single-image diagnosis.}
 \label{tab:longitudinal_glaucoma}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}lllllllllll@{}}
+\begin{tabular}{@{}llllllllll@{}}
 \toprule
-Method & Input & Temporal modeling & Fairness component & AUROC $\uparrow$ & F1 $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ \\
+Method & Input & Temporal modeling & Fairness component & F1 $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ \\
 \midrule
-RNFLT logistic baseline & RNFLT & No & No & 0.625 & 0.206 & 0.556 & 0.621 & 0.000 & 1.000 & 1.000 \\
-B-scan logistic baseline & OCT B-scan & No & No & 0.632 & 0.241 & 0.389 & 0.819 & 0.000 & 0.500 & 1.000 \\
-Clinical tabular logistic baseline & Metadata + visual field & No & No & 0.604 & 0.211 & 0.222 & 0.912 & 0.000 & 0.667 & 1.000 \\
-RNFLT + clinical logistic baseline & RNFLT + metadata + visual field & No & No & 0.562 & 0.195 & 0.222 & 0.896 & 0.000 & 0.360 & 1.000 \\
-B-scan + clinical logistic baseline & OCT B-scan + metadata + visual field & No & No & 0.620 & 0.256 & 0.278 & 0.912 & 0.000 & 0.400 & 1.000 \\
-OCT + RNFLT + clinical logistic baseline & OCT + RNFLT + metadata + visual field & No & No & 0.563 & 0.213 & 0.278 & 0.868 & 0.000 & 0.363 & 1.000 \\
-RETFound OCT linear probe & OCT B-scan & No & No & 0.558 & 0.103 & 0.111 & 0.896 & 0.000 & 1.000 & 1.000 \\
-VisionFM OCT linear probe & OCT B-scan & No & No & 0.649 & 0.167 & 0.278 & 0.797 & 0.000 & 1.000 & 1.000 \\
-UrFound OCT linear probe & OCT B-scan & No & No & 0.570 & 0.095 & 0.111 & 0.879 & 0.000 & 1.000 & 1.000 \\
-Single-visit 3D CNN & OCT & No & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Single-visit 3D ViT / Swin & OCT & No & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Temporal LSTM & Visit sequence & Yes & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Temporal Transformer & Visit sequence & Yes & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-FairDist / EqEffNet-style baseline & OCT & Optional & Yes & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Static ensemble & OCT + model outputs & Weak & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-\textbf{Equi-Agent longitudinal} & \textbf{OCT + metadata + prior visits} & \textbf{Yes} & \textbf{Yes} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} \\
+RNFLT logistic baseline & RNFLT & No & No & 0.206 & 0.556 & 0.621 & 0.000 & 1.000 & 1.000 \\
+B-scan logistic baseline & OCT B-scan & No & No & 0.241 & 0.389 & 0.819 & 0.000 & 0.500 & 1.000 \\
+Clinical tabular logistic baseline & Metadata + visual field & No & No & 0.211 & 0.222 & 0.912 & 0.000 & 0.667 & 1.000 \\
+RNFLT + clinical logistic baseline & RNFLT + metadata + visual field & No & No & 0.195 & 0.222 & 0.896 & 0.000 & 0.360 & 1.000 \\
+B-scan + clinical logistic baseline & OCT B-scan + metadata + visual field & No & No & 0.256 & 0.278 & 0.912 & 0.000 & 0.400 & 1.000 \\
+OCT + RNFLT + clinical logistic baseline & OCT + RNFLT + metadata + visual field & No & No & 0.213 & 0.278 & 0.868 & 0.000 & 0.363 & 1.000 \\
+RETFound OCT linear probe & OCT B-scan & No & No & 0.103 & 0.111 & 0.896 & 0.000 & 1.000 & 1.000 \\
+VisionFM OCT linear probe & OCT B-scan & No & No & 0.167 & 0.278 & 0.797 & 0.000 & 1.000 & 1.000 \\
+UrFound OCT linear probe & OCT B-scan & No & No & 0.095 & 0.111 & 0.879 & 0.000 & 1.000 & 1.000 \\
+Single-visit 3D CNN & OCT & No & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+Single-visit 3D ViT / Swin & OCT & No & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+Temporal LSTM & Visit sequence & Yes & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+Temporal Transformer & Visit sequence & Yes & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+FairDist / EqEffNet-style baseline & OCT & Optional & Yes & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+Static ensemble & OCT + model outputs & Weak & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+\textbf{Equi-Agent longitudinal} & \textbf{OCT + metadata + prior visits} & \textbf{Yes} & \textbf{Yes} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} \\
 \botrule
 \end{tabular}%
 }
@@ -637,17 +637,17 @@ The final experiment evaluates the reproducibility and practicality of Equi-Agen
 \caption{Reproducibility, robustness, and cost analysis for Equi-Agent. Prediction agreement is measured across repeated runs or prompt variants.}
 \label{tab:reproducibility}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}lllllll@{}}
+\begin{tabular}{@{}llllll@{}}
 \toprule
-Stress test & Setting & Prediction agreement $\uparrow$ & AUROC change & F1 change & Fairness change & Cost / latency \\
+Stress test & Setting & Prediction agreement $\uparrow$ & F1 change & Fairness change & Cost / latency \\
 \midrule
-Repeated runs & Same prompt, temperature 0 & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Prompt paraphrase & Semantically equivalent prompts & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Alternative LLM backbone & Replace arbitration LLM & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Missing metadata & Remove one or more metadata fields & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Noisy subgroup priors & Add perturbation to validation-derived priors & \tbd & \tbd & \tbd & \tbd & \tbd \\
-External validation & Held-out external cohort & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Runtime analysis & Full Equi-Agent inference & N/A & N/A & N/A & N/A & \tbd \\
+Repeated runs & Same prompt, temperature 0 & \tbd & \tbd & \tbd & \tbd \\
+Prompt paraphrase & Semantically equivalent prompts & \tbd & \tbd & \tbd & \tbd \\
+Alternative LLM backbone & Replace arbitration LLM & \tbd & \tbd & \tbd & \tbd \\
+Missing metadata & Remove one or more metadata fields & \tbd & \tbd & \tbd & \tbd \\
+Noisy subgroup priors & Add perturbation to validation-derived priors & \tbd & \tbd & \tbd & \tbd \\
+External validation & Held-out external cohort & \tbd & \tbd & \tbd & \tbd \\
+Runtime analysis & Full Equi-Agent inference & N/A & N/A & N/A & \tbd \\
 \botrule
 \end{tabular}%
 }
@@ -661,7 +661,7 @@ Primary statistical comparisons are made between Equi-Agent and the strongest va
 
 \subsection{Planned Acceptance Criteria}\label{subsec:acceptance_criteria}
 
-We define success as an improvement in worst-group reliability without unacceptable loss of aggregate diagnostic performance. Specifically, Equi-Agent is considered successful if it reduces false-positive or false-negative disparities relative to the strongest non-agentic baseline while maintaining comparable or improved AUROC and F1-score. For longitudinal glaucoma progression, Equi-Agent is considered successful if it improves subgroup reliability and achieves competitive temporal prediction performance. Claims of state-of-the-art performance are made only if Equi-Agent outperforms the strongest reproduced longitudinal baselines under the same test split and evaluation protocol.
+We define success as an improvement in worst-group reliability without unacceptable loss of aggregate diagnostic performance. Specifically, Equi-Agent is considered successful if it reduces false-positive or false-negative disparities relative to the strongest non-agentic baseline while maintaining comparable or improved F1-score, balanced accuracy, and calibration. For longitudinal glaucoma progression, Equi-Agent is considered successful if it improves subgroup reliability and achieves competitive temporal prediction performance. Claims of state-of-the-art performance are made only if Equi-Agent outperforms the strongest reproduced longitudinal baselines under the same test split and evaluation protocol.
 
 \section{Results}
 \subsection{Diagnostic Performance Across Disease Tasks}
@@ -670,7 +670,9 @@ Standalone foundation-model performance varied substantially by disease task and
 
 Macro-averaged across AMD, DR, and glaucoma, RETFound OCT remained the strongest standalone model by F1-score, while confidence-weighted ensembling provided the strongest static ensemble F1-score among the non-agentic baselines. However, no standalone or static method simultaneously achieved strong aggregate performance and stable worst-group reliability, motivating dynamic trust calibration.
 
-An interim live Equi-Agent run on a stratified 1,500-case FairVision subset is included as a placeholder to show the current arbitration output format. This run used 500 task-cases per disease with balanced labels and completed without API errors. Performance was strongest for glaucoma (AUROC 0.842, F1 0.785), weaker for AMD (AUROC 0.558, F1 0.486), and weakest for DR (AUROC 0.543, F1 0.404). Because this subset is deliberately balanced and smaller than the full FairVision test set, these results are not used for final claims, but they provide an initial live-system operating point for manuscript development.
+\subsection{Interim Live Equi-Agent Subset}
+\label{subsec:results_interim_live_subset}
+An interim live Equi-Agent run on a stratified 1,500-case FairVision subset is included as a placeholder to show the current arbitration output format (Table~\ref{tab:equi_agent_stratified1500_placeholder}). This run used 500 task-cases per disease with balanced labels and completed without API errors. Thresholded performance was strongest for glaucoma (F1 0.785), weaker for AMD (F1 0.486), and weakest for DR (F1 0.404). On the exact same 1,500 cases, Equi-Agent showed a more conservative operating point than several high-recall standalone baselines, while static fusion baselines were more specific but missed substantially more positives (Table~\ref{tab:equi_agent_stratified1500_comparison}). Because this subset is deliberately balanced and smaller than the full FairVision test set, these results are not used for final claims, but they provide an initial live-system operating point for manuscript development.
 
 \subsection{Subgroup Fairness and Error Disparity Reduction}
 \label{subsec:results_fairness}
@@ -710,7 +712,7 @@ This study develops Equi-Agent as a framework for dynamic trust calibration in r
 
 The multi-agent design makes this trust decision explicit. The Vision Specialist grounds probability outputs in retinal morphology, the Functional Specialist provides glaucoma-relevant visual-field interpretation, the Equity Auditor translates validation-derived subgroup priors into trust adjustments, and the Safety Agent audits uncertainty and discordance. This decomposition is useful scientifically because it makes each source of evidence inspectable. It is also useful clinically because unsafe cases can be escalated rather than forced into a confident prediction.
 
-The FairVision foundation-model comparison demonstrates why arbitration is needed: high aggregate performance and reliable subgroup behavior do not necessarily coincide. The critical test for Equi-Agent is therefore not only whether it improves mean AUROC or F1-score, but whether it improves the reliability of the worst-served patients while preserving diagnostic utility.
+The FairVision foundation-model comparison demonstrates why arbitration is needed: high aggregate performance and reliable subgroup behavior do not necessarily coincide. The critical test for Equi-Agent is therefore not only whether it improves mean thresholded performance, but whether it improves the reliability of the worst-served patients while preserving diagnostic utility.
 
 \subsection{Fairness of Foundation-Model Comparison}
 \label{subsec:discussion_fairness_protocol}
