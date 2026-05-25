@@ -9,12 +9,20 @@ CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-equi-agent/outputs/checkpoints}"
 TABLES_ROOT="${TABLES_ROOT:-equi-agent/outputs/tables}"
 TASKS="${TASKS:-glaucoma_detection progression_forecasting}"
 DEVICE="${DEVICE:-cuda}"
-BATCH_SIZE="${BATCH_SIZE:-32}"
+BATCH_SIZE="${BATCH_SIZE:-64}"
 NUM_WORKERS="${NUM_WORKERS:-4}"
 THRESHOLD_METRIC="${THRESHOLD_METRIC:-f1}"
-RETFOUND_BACKBONE_WEIGHTS="${RETFOUND_BACKBONE_WEIGHTS:-equi-agent/weights/RETFound_mae_natureOCT.pth}"
+URFOUND_ROOT="${URFOUND_ROOT:-Foundation_Models/UrFound-main}"
+URFOUND_WEIGHTS="${URFOUND_WEIGHTS:-}"
+URFOUND_MODEL="${URFOUND_MODEL:-vit_base_patch16}"
+MAX_ITER="${MAX_ITER:-5000}"
 PATH_PREFIX_FROM="${PATH_PREFIX_FROM:-}"
 PATH_PREFIX_TO="${PATH_PREFIX_TO:-}"
+
+if [[ -z "${URFOUND_WEIGHTS}" ]]; then
+  echo "URFOUND_WEIGHTS must point to a downloaded UrFound checkpoint." >&2
+  exit 1
+fi
 
 python equi-agent/scripts/build_manifests.py \
   --datasets-root "${DATASETS_ROOT}" \
@@ -25,21 +33,27 @@ if [[ -n "${PATH_PREFIX_FROM}" ]]; then
   PATH_ARGS+=(--path-prefix-from "${PATH_PREFIX_FROM}" --path-prefix-to "${PATH_PREFIX_TO}")
 fi
 
-for task in ${TASKS}; do
-  prediction_file="${PREDICTIONS_ROOT}/gdp_${task}_retfound_oct.csv"
-  checkpoint_file="${CHECKPOINT_ROOT}/gdp_${task}_retfound_oct_linear_probe.pkl"
-  metrics_dir="${METRICS_ROOT}/exp8_gdp_${task}_retfound_oct"
+COMMON_ARGS=(
+  --urfound-root "${URFOUND_ROOT}"
+  --pretrained-weights "${URFOUND_WEIGHTS}"
+  --model "${URFOUND_MODEL}"
+  --max-iter "${MAX_ITER}"
+  --threshold-metric "${THRESHOLD_METRIC}"
+  --batch-size "${BATCH_SIZE}"
+  --num-workers "${NUM_WORKERS}"
+  --device "${DEVICE}"
+)
 
-  python equi-agent/scripts/predict_gdp_retfound_oct.py \
+for task in ${TASKS}; do
+  prediction_file="${PREDICTIONS_ROOT}/gdp_${task}_urfound_oct.csv"
+  checkpoint_file="${CHECKPOINT_ROOT}/gdp_${task}_urfound_oct_linear_probe.pkl"
+  metrics_dir="${METRICS_ROOT}/exp8_gdp_${task}_urfound_oct"
+
+  python equi-agent/scripts/predict_gdp_urfound_oct.py \
     --task "${task}" \
-    --mode linear-probe \
-    --backbone-weights "${RETFOUND_BACKBONE_WEIGHTS}" \
-    --threshold-metric "${THRESHOLD_METRIC}" \
-    --batch-size "${BATCH_SIZE}" \
-    --num-workers "${NUM_WORKERS}" \
-    --device "${DEVICE}" \
     --checkpoint "${checkpoint_file}" \
     --out "${prediction_file}" \
+    "${COMMON_ARGS[@]}" \
     "${PATH_ARGS[@]}"
 
   python equi-agent/scripts/evaluate_predictions.py \
@@ -51,6 +65,6 @@ python equi-agent/scripts/build_manuscript_tables.py \
   --metrics-root "${METRICS_ROOT}" \
   --out-dir "${TABLES_ROOT}"
 
-echo "GDP RETFound OCT complete."
-echo "Predictions: ${PREDICTIONS_ROOT}/gdp_*_retfound_oct.csv"
-echo "Metrics: ${METRICS_ROOT}/exp8_gdp_*_retfound_oct"
+echo "GDP UrFound OCT complete."
+echo "Predictions: ${PREDICTIONS_ROOT}/gdp_*_urfound_oct.csv"
+echo "Metrics: ${METRICS_ROOT}/exp8_gdp_*_urfound_oct"
