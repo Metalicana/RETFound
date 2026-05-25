@@ -37,7 +37,7 @@ def equi_agent_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def require_runtime_libs():
+def require_runtime_libs(visionfm_root: Path):
     import numpy as np
     import pandas as pd
     import torch
@@ -50,8 +50,11 @@ def require_runtime_libs():
     from torchvision import transforms
     from tqdm import tqdm
 
-    sys.path.insert(0, str(equi_agent_root()))
-    from VisionAgent.linear_probing_oct3 import get_model_oct
+    if not visionfm_root.exists():
+        raise FileNotFoundError(f"VisionFM directory not found: {visionfm_root}")
+    sys.path.insert(0, str(visionfm_root))
+    import models
+    import utils
 
     return (
         np,
@@ -66,68 +69,44 @@ def require_runtime_libs():
         DataLoader,
         transforms,
         tqdm,
-        get_model_oct,
+        models,
+        utils,
     )
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Generate standard-schema Harvard-GDP RETFound OCT predictions for "
-            "glaucoma detection or progression forecasting."
+            "Train a GDP-specific linear probe on frozen VisionFM OCT features "
+            "and emit standard-schema Harvard-GDP predictions."
         )
     )
     parser.add_argument("--manifest-dir", type=Path, default=equi_agent_root() / "outputs" / "manifests")
+    parser.add_argument("--visionfm-root", type=Path, default=repo_root() / "Foundation_Models" / "VisionFM-main")
     parser.add_argument(
         "--task",
         choices=("glaucoma_detection", "progression_forecasting"),
         required=True,
     )
-    parser.add_argument(
-        "--mode",
-        choices=("linear-probe", "fairvision-head"),
-        default="linear-probe",
-        help=(
-            "linear-probe is the manuscript GDP protocol: train a balanced GDP-specific "
-            "logistic head on frozen RETFound backbone features from the GDP train split. "
-            "fairvision-head applies the FairVision-trained glaucoma head directly and is only valid "
-            "for exploratory glaucoma_detection transfer checks."
-        ),
-    )
-    parser.add_argument(
-        "--weights",
-        type=Path,
-        default=equi_agent_root() / "weights" / "oct_model_best.pth",
-        help=(
-            "FairVision-trained RETFound multi-head checkpoint. Only used for fairvision-head mode "
-            "or with --skip-backbone-preload; not used by the default GDP linear-probe protocol."
-        ),
-    )
-    parser.add_argument(
-        "--backbone-weights",
-        type=Path,
-        default=equi_agent_root() / "VisionAgent" / "weights" / "RETFound_mae_natureOCT.pth",
-        help="RETFound OCT MAE backbone checkpoint.",
-    )
-    parser.add_argument(
-        "--skip-backbone-preload",
-        action="store_true",
-        help="Use when --weights is a full RETFoundMultiHead state dict containing backbone and heads.",
-    )
+    parser.add_argument("--pretrained-weights", type=Path, required=True)
+    parser.add_argument("--checkpoint-key", default="teacher")
+    parser.add_argument("--arch", default="vit_base", choices=("vit_tiny", "vit_small", "vit_base", "vit_large", "vit_huge"))
+    parser.add_argument("--patch-size", type=int, default=16)
+    parser.add_argument("--feature-blocks", type=int, default=4)
     parser.add_argument(
         "--out",
         type=Path,
         default=None,
-        help="Prediction CSV path. Defaults to outputs/predictions/gdp_<task>_retfound_oct.csv.",
+        help="Prediction CSV path. Defaults to outputs/predictions/gdp_<task>_visionfm_oct.csv.",
     )
-    parser.add_argument("--checkpoint", type=Path, default=None, help="Optional pickle path for linear-probe classifier.")
+    parser.add_argument("--checkpoint", type=Path, default=None, help="Optional pickle path for the probe.")
     parser.add_argument(
         "--threshold-metric",
         choices=("f1", "balanced_accuracy", "fixed_0_5"),
         default="f1",
-        help="Decision threshold selection on the training split for linear-probe mode.",
+        help="Decision threshold selection on the GDP training split.",
     )
-    parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--image-size", type=int, default=224)
     parser.add_argument("--device", default=None, help="Example: cuda, cuda:0, mps, or cpu.")
@@ -139,17 +118,8 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional stale prefix in manifest bscan_path values to replace before loading NPZ files.",
     )
-    parser.add_argument(
-        "--path-prefix-to",
-        default=None,
-        help="Replacement prefix for --path-prefix-from.",
-    )
-    parser.add_argument(
-        "--logreg-c",
-        type=float,
-        default=0.316,
-        help="Inverse regularization strength for the balanced logistic linear probe.",
-    )
+    parser.add_argument("--path-prefix-to", default=None, help="Replacement prefix for --path-prefix-from.")
+    parser.add_argument("--logreg-c", type=float, default=0.316)
     parser.add_argument("--max-iter", type=int, default=5000)
     return parser.parse_args()
 
@@ -160,13 +130,6 @@ def set_seed(torch, seed: int) -> None:
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-
-
-def configure_retfound_env(args: argparse.Namespace) -> None:
-    if args.backbone_weights.exists():
-        os.environ["RETFOUND_OCT_BACKBONE_WEIGHTS"] = str(args.backbone_weights)
-    if args.skip_backbone_preload or not args.backbone_weights.exists():
-        os.environ["RETFOUND_SKIP_OCT_BACKBONE_PRELOAD"] = "1"
 
 
 def rewrite_bscan_paths(manifest, path_prefix_from: str | None, path_prefix_to: str | None):
@@ -199,15 +162,12 @@ def select_center_bscan(np, volume):
         return image
     if image.ndim != 3:
         raise ValueError(f"Expected 2D or 3D B-scan array, got shape={image.shape}")
-
-    # GDP B-scan arrays are commonly H x W x slices; FairVision OCT arrays are
-    # commonly slices x H x W. Choose the axis that looks like slice depth.
     slice_axis = min(range(3), key=lambda axis: image.shape[axis])
     center = image.shape[slice_axis] // 2
     return np.take(image, center, axis=slice_axis)
 
 
-class GDPBscanDataset:
+class GDPBscanVisionFMDataset:
     def __init__(self, np, Image, frame, transform):
         self.np = np
         self.Image = Image
@@ -230,24 +190,56 @@ class GDPBscanDataset:
         return self.transform(image), int(row["y_true"]), index
 
 
-def build_transform(transforms, image_size: int):
+def build_transform(transforms, utils, image_size: int):
+    mean, std = utils.get_stats("OCT")
     return transforms.Compose(
         [
             transforms.Resize((image_size, image_size)),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            transforms.Normalize(mean=mean, std=std),
         ]
     )
 
 
-def extract_backbone_features(torch, tqdm, model, loader, device):
+def build_visionfm_model(args, torch, models, utils, device):
+    model = models.__dict__[args.arch](
+        img_size=[args.image_size],
+        patch_size=args.patch_size,
+        num_classes=0,
+        use_mean_pooling=False,
+    )
+    original_torch_load = torch.load
+
+    def torch_load_visionfm_compatible(*load_args, **load_kwargs):
+        load_kwargs.setdefault("weights_only", False)
+        return original_torch_load(*load_args, **load_kwargs)
+
+    torch.load = torch_load_visionfm_compatible
+    try:
+        utils.load_pretrained_weights(
+            model,
+            str(args.pretrained_weights),
+            args.checkpoint_key,
+            args.arch,
+            args.patch_size,
+        )
+    finally:
+        torch.load = original_torch_load
+    model.to(device)
+    model.eval()
+    for parameter in model.parameters():
+        parameter.requires_grad = False
+    return model
+
+
+def extract_features(torch, tqdm, model, loader, device, feature_blocks: int):
     features_by_index = {}
     labels_by_index = {}
-    model.eval()
     with torch.no_grad():
         for images, labels, indices in tqdm(loader, desc="extract", leave=False):
             images = images.to(device, non_blocking=True).to(torch.float32)
-            features = model.backbone(images).detach().cpu().numpy()
+            outputs = model.get_intermediate_layers(images, feature_blocks)
+            features = torch.cat([layer[:, 0] for layer in outputs], dim=1).detach().cpu().numpy()
             for index, feature, label in zip(indices.numpy().tolist(), features, labels.numpy().tolist()):
                 features_by_index[index] = feature
                 labels_by_index[index] = int(label)
@@ -299,7 +291,7 @@ def standard_predictions(pd, frame, probs: dict[int, float], threshold: float):
                 "image_id": row["image_id"],
                 "dataset": row["dataset"],
                 "task": row["task"],
-                "model_name": "retfound_oct",
+                "model_name": "visionfm_oct",
                 "y_true": int(row["y_true"]),
                 "y_prob": y_prob,
                 "y_pred": int(y_prob >= threshold),
@@ -315,24 +307,8 @@ def standard_predictions(pd, frame, probs: dict[int, float], threshold: float):
     return pd.DataFrame(rows, columns=STANDARD_COLUMNS)
 
 
-def fairvision_head_probs(torch, tqdm, model, loader, device) -> dict[int, float]:
-    probs = {}
-    model.eval()
-    with torch.no_grad():
-        for images, _, indices in tqdm(loader, desc="fairvision-head", leave=False):
-            images = images.to(device, non_blocking=True).to(torch.float32)
-            outputs = model(images)
-            batch_probs = torch.sigmoid(outputs["glaucoma"][:, 0]).detach().cpu().numpy()
-            for index, y_prob in zip(indices.numpy().tolist(), batch_probs.tolist()):
-                probs[index] = float(y_prob)
-    return probs
-
-
 def main() -> None:
     args = parse_args()
-    if args.mode == "fairvision-head" and args.task != "glaucoma_detection":
-        raise ValueError("--mode fairvision-head is only valid for --task glaucoma_detection")
-
     (
         np,
         pd,
@@ -346,102 +322,89 @@ def main() -> None:
         DataLoader,
         transforms,
         tqdm,
-        get_model_oct,
-    ) = require_runtime_libs()
+        models,
+        utils,
+    ) = require_runtime_libs(args.visionfm_root)
     set_seed(torch, args.seed)
-    configure_retfound_env(args)
 
-    if args.mode == "fairvision-head" and not args.weights.exists():
-        raise FileNotFoundError(f"RETFound FairVision head weights not found: {args.weights}")
-    if not args.backbone_weights.exists() and not args.skip_backbone_preload:
-        raise FileNotFoundError(
-            f"RETFound OCT backbone weights not found: {args.backbone_weights}. "
-            "Set --backbone-weights or use --skip-backbone-preload with a full --weights state dict."
-        )
+    if not args.pretrained_weights.exists():
+        raise FileNotFoundError(f"VisionFM weights not found: {args.pretrained_weights}")
 
     manifest = pd.read_csv(args.manifest_dir / f"gdp_{args.task}.csv")
     manifest = rewrite_bscan_paths(manifest, args.path_prefix_from, args.path_prefix_to)
     train_df = split_frame(pd, manifest, "train", args.limit_train)
     test_df = split_frame(pd, manifest, "test", args.limit_test)
-    if test_df.empty:
-        raise ValueError(f"No test rows found for gdp_{args.task}.csv")
-    if args.mode == "linear-probe" and train_df.empty:
-        raise ValueError(f"No train rows found for gdp_{args.task}.csv")
+    if train_df.empty or test_df.empty:
+        raise ValueError(f"Missing train/test rows: train={len(train_df)}, test={len(test_df)}")
 
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
-    transform = build_transform(transforms, args.image_size)
+    transform = build_transform(transforms, utils, args.image_size)
     loader_kwargs = {
         "batch_size": args.batch_size,
         "shuffle": False,
         "num_workers": args.num_workers,
         "pin_memory": device.type == "cuda",
     }
-    test_loader = DataLoader(GDPBscanDataset(np, Image, test_df, transform), **loader_kwargs)
-    train_loader = None
-    if args.mode == "linear-probe":
-        train_loader = DataLoader(GDPBscanDataset(np, Image, train_df, transform), **loader_kwargs)
+    train_loader = DataLoader(GDPBscanVisionFMDataset(np, Image, train_df, transform), **loader_kwargs)
+    test_loader = DataLoader(GDPBscanVisionFMDataset(np, Image, test_df, transform), **loader_kwargs)
+    model = build_visionfm_model(args, torch, models, utils, device)
 
-    model = get_model_oct()
-    if args.mode == "fairvision-head" or args.skip_backbone_preload:
-        model.load_state_dict(torch.load(args.weights, map_location=device, weights_only=False))
-    model.to(device)
-    model.eval()
+    train_features, train_labels_by_index = extract_features(
+        torch, tqdm, model, train_loader, device, args.feature_blocks
+    )
+    test_features, _ = extract_features(torch, tqdm, model, test_loader, device, args.feature_blocks)
 
-    if args.mode == "fairvision-head":
-        test_probs = fairvision_head_probs(torch, tqdm, model, test_loader, device)
-        threshold = 0.5
-    else:
-        train_features, train_labels_by_index = extract_backbone_features(
-            torch, tqdm, model, train_loader, device
-        )
-        test_features, _ = extract_backbone_features(torch, tqdm, model, test_loader, device)
-        x_train, y_train = features_to_arrays(np, train_df, train_features, train_labels_by_index)
-        classifier = make_pipeline(
-            StandardScaler(),
-            LogisticRegression(
-                random_state=args.seed,
-                C=args.logreg_c,
-                max_iter=args.max_iter,
-                class_weight="balanced",
-            ),
-        )
-        classifier.fit(x_train, y_train)
-        train_probs = probs_by_index(classifier, train_features)
-        train_prob_array = np.array([train_probs[index] for index in range(len(train_df))])
-        threshold = threshold_grid(
-            np,
-            f1_score,
-            balanced_accuracy_score,
-            y_train,
-            train_prob_array,
-            args.threshold_metric,
-        )
-        test_probs = probs_by_index(classifier, test_features)
-        if args.checkpoint:
-            args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
-            with args.checkpoint.open("wb") as handle:
-                pickle.dump(
-                    {
-                        "classifier": classifier,
-                        "model_name": "retfound_oct",
-                        "dataset": "harvard_gdp",
-                        "task": args.task,
-                        "threshold": threshold,
-                        "threshold_metric": args.threshold_metric,
-                        "backbone_weights": str(args.backbone_weights),
-                    },
-                    handle,
-                )
-            print(f"wrote_checkpoint={args.checkpoint}")
+    x_train, y_train = features_to_arrays(np, train_df, train_features, train_labels_by_index)
+    classifier = make_pipeline(
+        StandardScaler(),
+        LogisticRegression(
+            random_state=args.seed,
+            C=args.logreg_c,
+            max_iter=args.max_iter,
+            class_weight="balanced",
+        ),
+    )
+    classifier.fit(x_train, y_train)
+    train_probs = probs_by_index(classifier, train_features)
+    train_prob_array = np.array([train_probs[index] for index in range(len(train_df))])
+    threshold = threshold_grid(
+        np,
+        f1_score,
+        balanced_accuracy_score,
+        y_train,
+        train_prob_array,
+        args.threshold_metric,
+    )
+    test_probs = probs_by_index(classifier, test_features)
+
+    if args.checkpoint:
+        args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
+        with args.checkpoint.open("wb") as handle:
+            pickle.dump(
+                {
+                    "classifier": classifier,
+                    "model_name": "visionfm_oct",
+                    "dataset": "harvard_gdp",
+                    "task": args.task,
+                    "threshold": threshold,
+                    "threshold_metric": args.threshold_metric,
+                    "image_size": args.image_size,
+                    "feature_blocks": args.feature_blocks,
+                    "pretrained_weights": str(args.pretrained_weights),
+                    "checkpoint_key": args.checkpoint_key,
+                    "arch": args.arch,
+                },
+                handle,
+            )
+        print(f"wrote_checkpoint={args.checkpoint}")
 
     predictions = standard_predictions(pd, test_df, test_probs, threshold)
-    out_path = args.out or equi_agent_root() / "outputs" / "predictions" / f"gdp_{args.task}_retfound_oct.csv"
+    out_path = args.out or equi_agent_root() / "outputs" / "predictions" / f"gdp_{args.task}_visionfm_oct.csv"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     predictions.to_csv(out_path, index=False)
     print(f"wrote={out_path}")
     print(f"rows={len(predictions)}")
     print(f"task={args.task}")
-    print(f"mode={args.mode}")
     print(f"threshold={threshold:.3f}")
     print(f"positives={int(predictions['y_true'].sum())} / {len(predictions)}")
 
