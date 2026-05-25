@@ -10,6 +10,15 @@ FAIRVISION_TASKS = {
     "glaucoma": "Glaucoma",
 }
 
+GDP_PROGRESSION_TARGETS = {
+    "md": "progression.md",
+    "vfi": "progression.vfi",
+    "td_pointwise": "progression.td_pointwise",
+    "md_fast": "progression.md_fast",
+    "md_fast_no_p_cut": "progression.md_fast_no_p_cut",
+    "td_pointwise_no_p_cut": "progression.td_pointwise_no_p_cut",
+}
+
 GDP_TD_COLUMNS = [
     "td1",
     "td2",
@@ -105,6 +114,17 @@ def infer_patient_id(filename: object) -> str:
     return Path(str(filename)).stem.replace("data_", "")
 
 
+def gdp_data_summary_path(gdp_root: Path) -> Path:
+    candidates = [
+        gdp_root / "ReadMe" / "data_summary.csv",
+        gdp_root / "data_summary.csv",
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    raise FileNotFoundError(f"Could not find GDP data_summary.csv under {gdp_root}")
+
+
 def normalize_binary_label(value: object, task: str) -> int | float:
     if pd.isna(value):
         return np.nan
@@ -178,7 +198,7 @@ def build_fairvision_task_manifest(fairvision_root: Path, task: str) -> pd.DataF
 
 
 def build_gdp_detection_manifest(gdp_root: Path) -> pd.DataFrame:
-    raw = pd.read_csv(gdp_root / "ReadMe" / "data_summary.csv")
+    raw = pd.read_csv(gdp_data_summary_path(gdp_root))
     filename_npz = raw["filename"].astype(str).map(lambda name: name if name.endswith(".npz") else f"{name}.npz")
 
     manifest = pd.DataFrame()
@@ -208,31 +228,54 @@ def build_gdp_detection_manifest(gdp_root: Path) -> pd.DataFrame:
     return manifest
 
 
-def build_gdp_progression_manifest(gdp_root: Path) -> pd.DataFrame:
-    raw = pd.read_csv(gdp_root / "ReadMe" / "data_summary.csv")
+def build_gdp_progression_manifest(gdp_root: Path, target_key: str = "md") -> pd.DataFrame:
+    if target_key not in GDP_PROGRESSION_TARGETS:
+        raise ValueError(f"Unknown GDP progression target {target_key!r}; choose from {sorted(GDP_PROGRESSION_TARGETS)}")
+    target_col = GDP_PROGRESSION_TARGETS[target_key]
+    raw = pd.read_csv(gdp_data_summary_path(gdp_root))
+    progression_split = raw["progression_forecasting_use"].astype(str).str.strip().str.lower()
     raw = raw[
-        raw["progression_forecasting_use"].notna()
-        & raw["progression.md"].notna()
-        & (raw["progression_forecasting_use"].astype(str).str.strip().str.lower() != "nan")
+        progression_split.isin(["training", "test"])
+        & raw[target_col].notna()
+        & (raw[target_col].astype(str).str.strip().str.lower() != "nan")
+        & (raw[target_col].astype(str).str.strip().str.upper() != "NA")
     ].copy()
     filename_npz = raw["filename"].astype(str).map(lambda name: name if name.endswith(".npz") else f"{name}.npz")
 
-    manifest = build_gdp_detection_manifest(gdp_root)
-    manifest = manifest[manifest["patient_id"].isin(raw["filename"].map(infer_patient_id))].copy()
-    manifest["task"] = "progression_forecasting"
-    manifest["split"] = raw["progression_forecasting_use"].map(normalize_split)
-    manifest["label_raw"] = raw["progression.md"]
-    manifest["y_true"] = pd.to_numeric(raw["progression.md"], errors="coerce")
-    manifest["progression_md"] = pd.to_numeric(raw["progression.md"], errors="coerce")
-    manifest["progression_vfi"] = pd.to_numeric(raw["progression.vfi"], errors="coerce")
-    manifest["progression_td_pointwise"] = pd.to_numeric(raw["progression.td_pointwise"], errors="coerce")
-    manifest["progression_md_fast"] = pd.to_numeric(raw["progression.md_fast"], errors="coerce")
-    manifest["progression_md_fast_no_p_cut"] = pd.to_numeric(raw["progression.md_fast_no_p_cut"], errors="coerce")
-    manifest["progression_td_pointwise_no_p_cut"] = pd.to_numeric(
-        raw["progression.td_pointwise_no_p_cut"], errors="coerce"
-    )
+    manifest = pd.DataFrame()
+    manifest["patient_id"] = raw["filename"].map(infer_patient_id)
+    manifest["eye_id"] = ""
+    manifest["visit_id"] = ""
     manifest["image_id"] = filename_npz
     manifest["filename"] = filename_npz
+    manifest["dataset"] = "harvard_gdp"
+    manifest["task"] = "progression_forecasting"
+    manifest["split"] = raw["progression_forecasting_use"].map(normalize_split)
+    manifest["label_raw"] = raw[target_col]
+    manifest["y_true"] = pd.to_numeric(raw[target_col], errors="coerce")
+    manifest["progression_target"] = target_key
+    manifest["progression_target_column"] = target_col
+    manifest["race"] = raw.get("race", "missing").fillna("missing").astype(str).str.lower()
+    manifest["ethnicity"] = raw.get("hispanic", "missing").map(hispanic_to_ethnicity)
+    manifest["sex_gender"] = raw.get("gender", "missing").fillna("missing").astype(str).str.lower()
+    manifest["age"] = pd.to_numeric(raw.get("age", np.nan), errors="coerce")
+    manifest["age_group"] = manifest["age"].map(age_to_group)
+    manifest["metadata_missing_flag"] = metadata_missing_flag(manifest)
+    manifest["bscan_path"] = filename_npz.map(lambda name: str(gdp_root / "Bscan" / name))
+    manifest["rnflt_path"] = filename_npz.map(lambda name: str(gdp_root / "RNFLT" / name))
+    manifest["bscan_key"] = "bscans"
+    manifest["rnflt_key"] = "rnflt"
+    manifest["md"] = pd.to_numeric(raw.get("md", np.nan), errors="coerce")
+    manifest["progression_md"] = pd.to_numeric(raw.get("progression.md", np.nan), errors="coerce")
+    manifest["progression_vfi"] = pd.to_numeric(raw.get("progression.vfi", np.nan), errors="coerce")
+    manifest["progression_td_pointwise"] = pd.to_numeric(raw.get("progression.td_pointwise", np.nan), errors="coerce")
+    manifest["progression_md_fast"] = pd.to_numeric(raw.get("progression.md_fast", np.nan), errors="coerce")
+    manifest["progression_md_fast_no_p_cut"] = pd.to_numeric(raw.get("progression.md_fast_no_p_cut", np.nan), errors="coerce")
+    manifest["progression_td_pointwise_no_p_cut"] = pd.to_numeric(
+        raw.get("progression.td_pointwise_no_p_cut", np.nan), errors="coerce"
+    )
+    for col in GDP_TD_COLUMNS:
+        manifest[col] = pd.to_numeric(raw.get(col, np.nan), errors="coerce")
     return manifest
 
 
@@ -285,6 +328,20 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build canonical Equi-Agent dataset manifests.")
     parser.add_argument("--datasets-root", type=Path, default=repo_root() / "Datasets")
     parser.add_argument("--out-dir", type=Path, default=repo_root() / "equi-agent" / "outputs" / "manifests")
+    parser.add_argument(
+        "--datasets",
+        nargs="+",
+        choices=("fairvision", "gdp"),
+        default=("fairvision", "gdp"),
+        help="Dataset families to build.",
+    )
+    parser.add_argument(
+        "--gdp-progression-targets",
+        nargs="+",
+        choices=sorted(GDP_PROGRESSION_TARGETS),
+        default=sorted(GDP_PROGRESSION_TARGETS),
+        help="GDP progression labels to emit as target-specific manifests.",
+    )
     return parser.parse_args()
 
 
@@ -297,25 +354,35 @@ def main() -> None:
     gdp_root = datasets_root / "GDP"
 
     manifests = []
-    for task in FAIRVISION_TASKS:
-        manifest = build_fairvision_task_manifest(fairvision_root, task)
-        manifests.append(manifest)
-        save_manifest(manifest, out_dir / f"fairvision_{task}.csv")
-        summarize_manifest(f"fairvision_{task}", manifest)
+    if "fairvision" in args.datasets:
+        for task in FAIRVISION_TASKS:
+            manifest = build_fairvision_task_manifest(fairvision_root, task)
+            manifests.append(manifest)
+            save_manifest(manifest, out_dir / f"fairvision_{task}.csv")
+            summarize_manifest(f"fairvision_{task}", manifest)
 
-    gdp_detection = build_gdp_detection_manifest(gdp_root)
-    manifests.append(gdp_detection)
-    save_manifest(gdp_detection, out_dir / "gdp_glaucoma_detection.csv")
-    summarize_manifest("gdp_glaucoma_detection", gdp_detection)
+    if "gdp" in args.datasets:
+        gdp_detection = build_gdp_detection_manifest(gdp_root)
+        manifests.append(gdp_detection)
+        save_manifest(gdp_detection, out_dir / "gdp_glaucoma_detection.csv")
+        summarize_manifest("gdp_glaucoma_detection", gdp_detection)
 
-    gdp_progression = build_gdp_progression_manifest(gdp_root)
-    manifests.append(gdp_progression)
-    save_manifest(gdp_progression, out_dir / "gdp_progression_forecasting.csv")
-    summarize_manifest("gdp_progression_forecasting", gdp_progression)
+        gdp_progression_legacy = None
+        for target_key in args.gdp_progression_targets:
+            gdp_progression = build_gdp_progression_manifest(gdp_root, target_key=target_key)
+            manifests.append(gdp_progression)
+            save_manifest(gdp_progression, out_dir / f"gdp_progression_forecasting_{target_key}.csv")
+            summarize_manifest(f"gdp_progression_forecasting_{target_key}", gdp_progression)
+            if target_key == "md":
+                gdp_progression_legacy = gdp_progression
 
-    combined = pd.concat(manifests, ignore_index=True, sort=False)
-    save_manifest(combined, out_dir / "all_manifest.csv")
-    print(f"combined: rows={len(combined)}")
+        if gdp_progression_legacy is not None:
+            save_manifest(gdp_progression_legacy, out_dir / "gdp_progression_forecasting.csv")
+
+    if manifests:
+        combined = pd.concat(manifests, ignore_index=True, sort=False)
+        save_manifest(combined, out_dir / "all_manifest.csv")
+        print(f"combined: rows={len(combined)}")
     print(f"wrote={out_dir}")
 
 

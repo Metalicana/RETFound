@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
+import io
 import json
 import os
 import random
@@ -26,6 +28,7 @@ from smoke_equi_agent_arbitration import (
     load_predictions,
     load_priors,
     mock_arbitrate,
+    read_csv,
     select_cases,
     write_csv,
     write_jsonl,
@@ -77,6 +80,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--predictions-root", type=Path, default=Path("equi-agent/outputs/predictions"))
     parser.add_argument("--metrics-root", type=Path, default=Path("equi-agent/outputs/metrics"))
+    parser.add_argument("--manifests-root", type=Path, default=Path("equi-agent/outputs/manifests"))
     parser.add_argument("--out-dir", type=Path, default=Path("equi-agent/outputs/equi_agent_live"))
     parser.add_argument("--tasks", nargs="+", default=TASKS, choices=TASKS)
     parser.add_argument("--models", nargs="+", default=DEFAULT_MODELS)
@@ -110,6 +114,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--deployment", default=os.getenv("AZURE_OPENAI_DEPLOYMENT") or os.getenv("OPENAI_MODEL") or "gpt-5.1")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-output-tokens", type=int, default=700)
+    parser.add_argument(
+        "--include-image-tokens",
+        action="store_true",
+        help="Attach OCT and SLO/Fundus images from FairVision NPZ files to the live vision-specialist prompt.",
+    )
+    parser.add_argument(
+        "--path-prefix-from",
+        default=os.getenv("FAIRVISION_PATH_PREFIX_FROM", "/home/ab575577/RETFound"),
+        help="Optional stale prefix in manifest image_path values to replace before loading NPZ files.",
+    )
+    parser.add_argument(
+        "--path-prefix-to",
+        default=os.getenv("FAIRVISION_PATH_PREFIX_TO", str(Path.cwd())),
+        help="Replacement prefix used with --path-prefix-from.",
+    )
+    parser.add_argument(
+        "--max-image-side",
+        type=int,
+        default=768,
+        help="Maximum side length for JPEG images attached to the LLM prompt.",
+    )
     parser.add_argument(
         "--max-probability-adjustment",
         type=float,
@@ -180,7 +205,112 @@ def build_evidence_packet(meta: dict[str, Any], arbitration: dict[str, Any]) -> 
     }
 
 
-def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]:
+def manifest_file(manifests_root: Path, task: str) -> Path:
+    return manifests_root / f"fairvision_{task}.csv"
+
+
+def load_manifests(manifests_root: Path, tasks: list[str]) -> tuple[dict[tuple[str, str], dict[str, str]], list[dict[str, Any]]]:
+    by_image_task: dict[tuple[str, str], dict[str, str]] = {}
+    loaded = []
+    for task in tasks:
+        path = manifest_file(manifests_root, task)
+        if not path.exists():
+            loaded.append({"task": task, "path": str(path), "rows": 0, "missing": True})
+            continue
+        rows = read_csv(path)
+        for row in rows:
+            by_image_task[(row.get("image_id", ""), task)] = row
+        loaded.append({"task": task, "path": str(path), "rows": len(rows), "missing": False})
+    return by_image_task, loaded
+
+
+def resolve_manifest_path(path_value: str, prefix_from: str | None, prefix_to: str | None) -> Path:
+    path_text = str(path_value or "")
+    path = Path(path_text)
+    if path.exists():
+        return path
+    if prefix_from and prefix_to and path_text.startswith(prefix_from):
+        rewritten = Path(prefix_to + path_text[len(prefix_from) :])
+        if rewritten.exists():
+            return rewritten
+        return rewritten
+    return path
+
+
+def normalize_to_uint8(array: Any) -> Any:
+    import numpy as np
+
+    image = np.asarray(array)
+    if image.ndim == 3:
+        image = image[image.shape[0] // 2] if image.shape[0] < image.shape[-1] else image[:, :, image.shape[-1] // 2]
+    image = image.astype("float32")
+    finite = np.isfinite(image)
+    if not finite.any():
+        return np.zeros(image.shape, dtype=np.uint8)
+    min_value = float(image[finite].min())
+    max_value = float(image[finite].max())
+    if max_value <= 1.0 and min_value >= 0.0:
+        image = image * 255.0
+    elif max_value > min_value:
+        image = 255.0 * (image - min_value) / (max_value - min_value)
+    return np.clip(image, 0, 255).astype(np.uint8)
+
+
+def jpeg_data_url(image_array: Any, max_side: int) -> str:
+    from PIL import Image
+
+    image = Image.fromarray(normalize_to_uint8(image_array))
+    if image.mode not in {"L", "RGB"}:
+        image = image.convert("RGB")
+    if max_side > 0:
+        image.thumbnail((max_side, max_side))
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", quality=88)
+    encoded = base64.b64encode(buffer.getvalue()).decode("utf-8")
+    return f"data:image/jpeg;base64,{encoded}"
+
+
+def image_payload_for_case(
+    meta: dict[str, Any],
+    manifest_lookup: dict[tuple[str, str], dict[str, str]],
+    prefix_from: str | None,
+    prefix_to: str | None,
+    max_side: int,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    task = str(meta.get("task", ""))
+    image_id = str(meta.get("image_id", ""))
+    row = manifest_lookup.get((image_id, task))
+    if row is None:
+        return None, {"image_id": image_id, "task": task, "reason": "manifest row not found"}
+
+    npz_path = resolve_manifest_path(row.get("image_path", ""), prefix_from, prefix_to)
+    if not npz_path.exists():
+        return None, {"image_id": image_id, "task": task, "path": str(npz_path), "reason": "NPZ not found"}
+
+    import numpy as np
+
+    with np.load(npz_path) as data:
+        oct_key = row.get("oct_key") or "oct_bscans"
+        fundus_key = row.get("fundus_key") or "slo_fundus"
+        missing_keys = [key for key in [oct_key, fundus_key] if key not in data]
+        if missing_keys:
+            return None, {
+                "image_id": image_id,
+                "task": task,
+                "path": str(npz_path),
+                "reason": f"missing NPZ keys: {', '.join(missing_keys)}",
+            }
+        payload = {
+            "oct_image_url": jpeg_data_url(data[oct_key], max_side),
+            "slo_image_url": jpeg_data_url(data[fundus_key], max_side),
+            "source_path": str(npz_path),
+            "oct_key": oct_key,
+            "fundus_key": fundus_key,
+        }
+    return payload, None
+
+
+def build_live_messages(evidence_packet: dict[str, Any], image_payload: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     system = (
         "You are Equi-Agent, an ophthalmic foundation-model arbitration layer. Your job is benchmark arbitration, "
         "not open-ended clinical consultation. Use only the current task's retinal model outputs as disease evidence. "
@@ -201,8 +331,10 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
                     "ethnicity, sex/gender, or age."
                 ),
                 "vision_specialist": (
-                    "Compare raw probabilities, validation-threshold binary predictions, modality patterns, and vote "
-                    "disagreement for the current task only."
+                    "If OCT/SLO images are attached, independently inspect the retinal morphology first, then compare "
+                    "against raw probabilities, validation-threshold binary predictions, modality patterns, and vote "
+                    "disagreement for the current task only. If no images are attached, state that the visual review is "
+                    "probability-only."
                 ),
                 "equity_auditor": (
                     "Translate false-negative and false-positive priors into sensitivity, precision, neutral, or "
@@ -249,10 +381,52 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
         },
         "evidence_packet": evidence_packet,
     }
+    user_text = json.dumps(user, sort_keys=True)
+    if not image_payload:
+        return [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_text},
+        ]
+
+    image_context = {
+        "attached_images": {
+            "oct": "OCT B-scan center slice from the same FairVision NPZ case",
+            "slo": "SLO/Fundus image from the same FairVision NPZ case",
+            "source_path": image_payload.get("source_path", ""),
+        },
+        "visual_audit_required": (
+            "Perform the legacy OphthalmicAgent-style grounded visual audit before arbitration. For AMD, inspect "
+            "RPE/drusen/fluid/atrophy; for DR, inspect hemorrhage/exudate/microaneurysm evidence; for glaucoma, inspect "
+            "optic disc cupping/RNFL-compatible signs when visible. Return the same JSON schema, with reasoning briefly "
+            "stating whether image morphology supports or conflicts with model evidence."
+        ),
+    }
     return [
         {"role": "system", "content": system},
-        {"role": "user", "content": json.dumps(user, sort_keys=True)},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": json.dumps(image_context, sort_keys=True) + "\n\n" + user_text},
+                {"type": "image_url", "image_url": {"url": image_payload["oct_image_url"]}},
+                {"type": "image_url", "image_url": {"url": image_payload["slo_image_url"]}},
+            ],
+        },
     ]
+
+
+def message_text_for_estimate(message: dict[str, Any]) -> str:
+    content = message.get("content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if item.get("type") == "text":
+                parts.append(str(item.get("text", "")))
+            elif item.get("type") == "image_url":
+                parts.append("[attached image]")
+        return "\n".join(parts)
+    return str(content)
 
 
 def select_case_keys(
@@ -475,6 +649,10 @@ def main() -> None:
 
     by_task, loaded_files, missing_files = load_predictions(args.predictions_root, args.tasks, args.models)
     subgroup_priors, global_priors = load_priors(args.metrics_root)
+    manifest_lookup: dict[tuple[str, str], dict[str, str]] = {}
+    loaded_manifests: list[dict[str, Any]] = []
+    if args.include_image_tokens:
+        manifest_lookup, loaded_manifests = load_manifests(args.manifests_root, args.tasks)
 
     provider = "dry_run"
     client = None
@@ -512,12 +690,38 @@ def main() -> None:
             meta = case_metadata(rows_by_model)
             arbitration = mock_arbitrate(task, rows_by_model, meta, subgroup_priors, global_priors)
             evidence_packet = build_evidence_packet(meta, arbitration)
-            messages = build_live_messages(evidence_packet)
+            image_payload = None
+            image_error = None
+            if args.include_image_tokens:
+                image_payload, image_error = image_payload_for_case(
+                    meta,
+                    manifest_lookup,
+                    args.path_prefix_from,
+                    args.path_prefix_to,
+                    args.max_image_side,
+                )
+                evidence_packet["retinal_image_context"] = (
+                    {
+                        "images_attached": True,
+                        "source_path": image_payload.get("source_path", "") if image_payload else "",
+                        "oct_key": image_payload.get("oct_key", "") if image_payload else "",
+                        "fundus_key": image_payload.get("fundus_key", "") if image_payload else "",
+                    }
+                    if image_payload
+                    else {
+                        "images_attached": False,
+                        "error": image_error,
+                    }
+                )
+            messages = build_live_messages(evidence_packet, image_payload)
 
             try:
                 if args.dry_run:
                     parsed, usage, raw_text = dry_run_response(arbitration)
-                    usage["prompt_tokens"] = sum(estimate_tokens(m["content"], args.chars_per_token) for m in messages)
+                    usage["prompt_tokens"] = sum(
+                        estimate_tokens(message_text_for_estimate(m), args.chars_per_token)
+                        for m in messages
+                    )
                     usage["completion_tokens"] = estimate_tokens(raw_text, args.chars_per_token)
                     usage["total_tokens"] = usage["prompt_tokens"] + usage["completion_tokens"]
                 else:
@@ -628,6 +832,8 @@ def main() -> None:
     write_jsonl(args.out_dir / "equi_agent_live_errors.jsonl", error_rows)
     write_jsonl(args.out_dir / "equi_agent_live_cases.jsonl", case_rows)
     write_jsonl(args.out_dir / "equi_agent_live_loaded_files.jsonl", loaded_files)
+    if loaded_manifests:
+        write_jsonl(args.out_dir / "equi_agent_live_loaded_manifests.jsonl", loaded_manifests)
     write_jsonl(args.out_dir / "equi_agent_live_missing_files.jsonl", missing_files)
 
     model_prior_rows = [

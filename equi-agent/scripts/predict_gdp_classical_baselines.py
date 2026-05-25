@@ -113,6 +113,17 @@ def parse_args() -> argparse.Namespace:
         help="Directory containing gdp_glaucoma_detection.csv and gdp_progression_forecasting.csv.",
     )
     parser.add_argument(
+        "--manifest-file",
+        type=Path,
+        default=None,
+        help="Optional explicit manifest CSV. Use this for target-specific GDP progression manifests.",
+    )
+    parser.add_argument(
+        "--model-prefix",
+        default=None,
+        help="Optional model-name prefix. Defaults to gdp_<task> or the explicit manifest stem.",
+    )
+    parser.add_argument(
         "--task",
         choices=("glaucoma_detection", "progression_forecasting"),
         default="progression_forecasting",
@@ -258,13 +269,14 @@ def threshold_grid(np, f1_score, y_true, y_prob, metric: str) -> float:
     return best_threshold
 
 
-def model_name(task: str, feature_set: str) -> str:
-    return f"gdp_{task}_{feature_set}_logreg"
+def model_name(task: str, feature_set: str, model_prefix: str | None = None) -> str:
+    prefix = model_prefix or f"gdp_{task}"
+    return f"{prefix}_{feature_set}_logreg"
 
 
-def standard_rows(pd, manifest, y_prob, threshold: float, task: str, feature_set: str):
+def standard_rows(pd, manifest, y_prob, threshold: float, task: str, feature_set: str, model_prefix: str | None = None):
     output = manifest.copy()
-    output["model_name"] = model_name(task, feature_set)
+    output["model_name"] = model_name(task, feature_set, model_prefix=model_prefix)
     output["y_prob"] = y_prob
     output["y_pred"] = (output["y_prob"] >= threshold).astype(int)
     return output[STANDARD_COLUMNS]
@@ -274,7 +286,7 @@ def main() -> None:
     args = parse_args()
     np, pd, SimpleImputer, LogisticRegression, f1_score, make_pipeline, StandardScaler, tqdm = require_runtime_libs()
 
-    manifest_path = args.manifest_dir / f"gdp_{args.task}.csv"
+    manifest_path = args.manifest_file or (args.manifest_dir / f"gdp_{args.task}.csv")
     manifest = pd.read_csv(manifest_path)
     manifest = manifest[manifest["split"].isin(["train", "test"])].copy()
     manifest = manifest[manifest["y_true"].notna()].copy()
@@ -303,6 +315,10 @@ def main() -> None:
     test_prob = clf.predict_proba(test_x)[:, 1]
     threshold = threshold_grid(np, f1_score, train_y, train_prob, args.threshold_metric)
 
+    model_prefix = args.model_prefix
+    if model_prefix is None and args.manifest_file is not None:
+        model_prefix = manifest_path.stem
+
     predictions = standard_rows(
         pd,
         manifest.loc[test_mask].copy(),
@@ -310,6 +326,7 @@ def main() -> None:
         threshold,
         args.task,
         args.feature_set,
+        model_prefix=model_prefix,
     )
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -317,6 +334,8 @@ def main() -> None:
     print(f"wrote={args.out}")
     print(f"rows={len(predictions)}")
     print(f"task={args.task}")
+    print(f"manifest={manifest_path}")
+    print(f"model_name={predictions['model_name'].iloc[0] if len(predictions) else model_name(args.task, args.feature_set, model_prefix)}")
     print(f"feature_set={args.feature_set}")
     print(f"threshold={threshold:.3f}")
     print(f"positives={int(predictions['y_true'].sum())} / {len(predictions)}")

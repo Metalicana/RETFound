@@ -15,6 +15,8 @@ DRY_RUN="${DRY_RUN:-0}"
 INCLUDE_CLASSICAL_BASELINES="${INCLUDE_CLASSICAL_BASELINES:-0}"
 SAMPLE_RANDOM="${SAMPLE_RANDOM:-0}"
 REQUEST_SLEEP_SEC="${REQUEST_SLEEP_SEC:-0}"
+REFERENCE_STRATEGY="${REFERENCE_STRATEGY:-${GDP_AGENT_REFERENCE_STRATEGY:-weighted}}"
+LOCK_REFERENCE_PREDICTION="${LOCK_REFERENCE_PREDICTION:-${GDP_AGENT_LOCK_REFERENCE_PREDICTION:-0}}"
 
 args=(
   --predictions-root "$PREDICTIONS_ROOT"
@@ -27,6 +29,7 @@ args=(
   --deployment "$DEPLOYMENT"
   --api-version "$API_VERSION"
   --request-sleep-sec "$REQUEST_SLEEP_SEC"
+  --reference-strategy "$REFERENCE_STRATEGY"
 )
 
 if [[ "$DRY_RUN" == "1" ]]; then
@@ -39,6 +42,10 @@ fi
 
 if [[ "$SAMPLE_RANDOM" == "1" ]]; then
   args+=(--sample-random)
+fi
+
+if [[ "$LOCK_REFERENCE_PREDICTION" == "1" ]]; then
+  args+=(--lock-reference-prediction)
 fi
 
 python equi-agent/scripts/run_equi_agent_gdp_progression_live.py "${args[@]}"

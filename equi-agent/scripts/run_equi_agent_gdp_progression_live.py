@@ -51,6 +51,7 @@ OUTPUT_FIELDS = [
     "sex_gender",
     "age",
     "age_group",
+    "metadata_missing_flag",
     "positive_votes",
     "num_models",
     "mean_probability",
@@ -96,6 +97,24 @@ def parse_args() -> argparse.Namespace:
         "--include-classical-baselines",
         action="store_true",
         help="Also include RNFLT, B-scan, clinical, and combined logistic baselines as longitudinal evidence sources.",
+    )
+    parser.add_argument(
+        "--reference-strategy",
+        choices=["weighted", "best_f1", "best_balanced_accuracy", "best_auroc"],
+        default=os.getenv("GDP_AGENT_REFERENCE_STRATEGY", "weighted"),
+        help=(
+            "How to form the deterministic reference. Use best_f1 or best_balanced_accuracy "
+            "to avoid weak sources dragging down progression arbitration."
+        ),
+    )
+    parser.add_argument(
+        "--lock-reference-prediction",
+        action="store_true",
+        default=os.getenv("GDP_AGENT_LOCK_REFERENCE_PREDICTION", "").lower() in {"1", "true", "yes"},
+        help=(
+            "For best-source strategies, preserve the selected source's validation-thresholded y_pred. "
+            "This guarantees the agent does not re-threshold a calibrated baseline probability at 0.5."
+        ),
     )
     parser.add_argument("--max-cases", type=int, default=0, help="Use <=0 to process all shared test cases.")
     parser.add_argument("--seed-offset", type=int, default=0)
@@ -166,6 +185,10 @@ def select_cases(by_model: dict[str, dict[tuple, dict]], limit: int, offset: int
 
 def case_metadata(rows_by_model: dict[str, dict]) -> dict[str, Any]:
     row = next(iter(rows_by_model.values()))
+    metadata_fields = ["race", "ethnicity", "sex_gender", "age", "age_group"]
+    metadata_missing_flag = row.get("metadata_missing_flag", "")
+    if metadata_missing_flag == "":
+        metadata_missing_flag = any(str(row.get(field, "")).strip() == "" for field in metadata_fields)
     return {
         "patient_id": row.get("patient_id", ""),
         "eye_id": row.get("eye_id", ""),
@@ -179,6 +202,7 @@ def case_metadata(rows_by_model: dict[str, dict]) -> dict[str, Any]:
         "sex_gender": row.get("sex_gender", ""),
         "age": row.get("age", ""),
         "age_group": row.get("age_group", ""),
+        "metadata_missing_flag": metadata_missing_flag,
     }
 
 
@@ -211,6 +235,7 @@ def load_model_priors(metrics_root: Path, models: list[str]) -> tuple[dict[str, 
         row = rows[0]
         priors[model] = {
             "f1": fnum(row.get("f1"), 0.0),
+            "auroc": fnum(row.get("auroc"), 0.5),
             "balanced_accuracy": fnum(row.get("balanced_accuracy"), 0.5),
             "ece": fnum(row.get("ece"), 0.25),
             "fpr": fnum(row.get("fpr"), 0.0),
@@ -231,7 +256,11 @@ def model_weight(model: str, prior: dict[str, float] | None) -> float:
     return max(0.05, (0.70 * balanced + 0.30 * f1) * (1.0 - ece))
 
 
-def deterministic_arbitrate(rows_by_model: dict[str, dict], priors: dict[str, dict[str, float]]) -> dict[str, Any]:
+def deterministic_arbitrate(
+    rows_by_model: dict[str, dict],
+    priors: dict[str, dict[str, float]],
+    reference_strategy: str = "weighted",
+) -> dict[str, Any]:
     weighted_sum = 0.0
     weight_total = 0.0
     probs = []
@@ -253,6 +282,7 @@ def deterministic_arbitrate(rows_by_model: dict[str, dict], priors: dict[str, di
                 "binary_prediction": pred,
                 "trust_weight": weight,
                 "global_f1": prior.get("f1", 0.0) if prior else 0.0,
+                "global_auroc": prior.get("auroc", 0.5) if prior else 0.5,
                 "global_balanced_accuracy": prior.get("balanced_accuracy", 0.5) if prior else 0.5,
                 "global_fpr": prior.get("fpr", 0.0) if prior else 0.0,
                 "global_fnr": prior.get("fnr", 1.0) if prior else 1.0,
@@ -261,14 +291,31 @@ def deterministic_arbitrate(rows_by_model: dict[str, dict], priors: dict[str, di
         )
     weighted_probability = weighted_sum / weight_total if weight_total else 0.0
     mean_probability = mean(probs) if probs else 0.0
+    reference_model = "weighted_ensemble"
+    reference_probability = weighted_probability
+    reference_prediction = int(weighted_probability >= 0.5)
+    if model_rows and reference_strategy != "weighted":
+        score_key = {
+            "best_f1": "global_f1",
+            "best_balanced_accuracy": "global_balanced_accuracy",
+            "best_auroc": "global_auroc",
+        }[reference_strategy]
+        best_row = max(model_rows, key=lambda row: (row[score_key], row["trust_weight"]))
+        reference_model = best_row["model"]
+        reference_probability = best_row["probability"]
+        reference_prediction = best_row["binary_prediction"]
     disagreement = max(probs) - min(probs) if probs else 0.0
-    close_call = abs(weighted_probability - 0.5) < 0.10
+    close_call = abs(reference_probability - 0.5) < 0.10
     severe_split = 0 < positive_votes < len(rows_by_model)
     weak_reliability = any(row["global_balanced_accuracy"] < 0.55 for row in model_rows)
     safety_decision = "ESCALATE_TO_HUMAN" if close_call or disagreement >= 0.25 or severe_split or weak_reliability else "ACCEPT"
     return {
         "weighted_probability": weighted_probability,
         "mean_probability": mean_probability,
+        "reference_strategy": reference_strategy,
+        "reference_model": reference_model,
+        "reference_probability": reference_probability,
+        "reference_prediction": reference_prediction,
         "weighted_prediction": int(weighted_probability >= 0.5),
         "positive_votes": positive_votes,
         "num_models": len(rows_by_model),
@@ -292,6 +339,7 @@ def build_evidence_packet(meta: dict[str, Any], arbitration: dict[str, Any]) -> 
             "sex_gender": meta.get("sex_gender", ""),
             "age": meta.get("age", ""),
             "age_group": meta.get("age_group", ""),
+            "metadata_missing_flag": meta.get("metadata_missing_flag", ""),
         },
         "evidence_sources": [
             {
@@ -300,6 +348,7 @@ def build_evidence_packet(meta: dict[str, Any], arbitration: dict[str, Any]) -> 
                 "binary_prediction": row["binary_prediction"],
                 "global_trust_weight": round(row["trust_weight"], 6),
                 "global_f1": round(row["global_f1"], 6),
+                "global_auroc": round(row["global_auroc"], 6),
                 "global_balanced_accuracy": round(row["global_balanced_accuracy"], 6),
                 "global_false_positive_rate": round(row["global_fpr"], 6),
                 "global_false_negative_rate": round(row["global_fnr"], 6),
@@ -311,6 +360,10 @@ def build_evidence_packet(meta: dict[str, Any], arbitration: dict[str, Any]) -> 
             "weighted_probability": round(arbitration["weighted_probability"], 6),
             "mean_probability": round(arbitration["mean_probability"], 6),
             "weighted_prediction": arbitration["weighted_prediction"],
+            "reference_strategy": arbitration["reference_strategy"],
+            "reference_model": arbitration["reference_model"],
+            "reference_probability": round(arbitration["reference_probability"], 6),
+            "reference_prediction": arbitration["reference_prediction"],
             "positive_votes": arbitration["positive_votes"],
             "num_models": arbitration["num_models"],
             "probability_range": round(arbitration["disagreement"], 6),
@@ -341,8 +394,8 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
                 "Use global reliability priors as model trust evidence. High FNR supports a sensitivity shift; "
                 "high FPR or weak balanced accuracy supports precision or escalation."
             ),
-            "orchestrator": (
-                "Anchor final_probability on deterministic_reference.weighted_probability. "
+                "orchestrator": (
+                "Anchor final_probability on deterministic_reference.reference_probability. "
                 "Adjust by at most 0.15 only when the evidence strongly justifies it. "
                 "Choose calibration_action first, then apply its threshold: sensitivity_shift=0.35, neutral/escalate=0.50, precision_shift=0.65. "
                 "final_prediction must equal final_probability >= applied threshold."
@@ -417,8 +470,8 @@ def dry_run_response(arbitration: dict[str, Any]) -> tuple[dict[str, Any], str]:
         action = "precision_shift"
     primary_model = max(arbitration["model_rows"], key=lambda row: row["trust_weight"])["model"]
     parsed = {
-        "final_probability": arbitration["weighted_probability"],
-        "final_prediction": int(arbitration["weighted_probability"] >= threshold_for_action(action)),
+        "final_probability": arbitration["reference_probability"],
+        "final_prediction": int(arbitration["reference_probability"] >= threshold_for_action(action)),
         "confidence": "low" if action == "escalate" else "medium",
         "primary_model": primary_model,
         "calibration_action": action,
@@ -504,7 +557,7 @@ def main() -> None:
     for key in keys:
         rows_by_model = {model: rows[key] for model, rows in by_model.items() if key in rows}
         meta = case_metadata(rows_by_model)
-        arbitration = deterministic_arbitrate(rows_by_model, priors)
+        arbitration = deterministic_arbitrate(rows_by_model, priors, args.reference_strategy)
         evidence_packet = build_evidence_packet(meta, arbitration)
         messages = build_live_messages(evidence_packet)
 
@@ -526,8 +579,11 @@ def main() -> None:
 
             action = normalize_action(parsed.get("calibration_action"))
             applied_threshold = threshold_for_action(action)
-            final_prob = clamp_probability(parsed.get("final_probability"), arbitration["weighted_probability"], args.max_probability_adjustment)
-            final_pred = int(final_prob >= applied_threshold)
+            final_prob = clamp_probability(parsed.get("final_probability"), arbitration["reference_probability"], args.max_probability_adjustment)
+            if args.lock_reference_prediction and arbitration["reference_strategy"] != "weighted":
+                final_pred = int(arbitration["reference_prediction"])
+            else:
+                final_pred = int(final_prob >= applied_threshold)
             close_to_threshold = abs(final_prob - applied_threshold) < 0.075
             severe_disagreement = arbitration["disagreement"] >= 0.25 or 0 < arbitration["positive_votes"] < arbitration["num_models"]
             escalate_to_human = bool(parsed.get("escalate_to_human")) or close_to_threshold or severe_disagreement
@@ -596,6 +652,7 @@ def main() -> None:
             "sex_gender",
             "age",
             "age_group",
+            "metadata_missing_flag",
             "llm_provider",
             "llm_deployment",
             "prompt_tokens",
