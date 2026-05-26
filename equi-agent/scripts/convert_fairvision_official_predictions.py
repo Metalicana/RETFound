@@ -130,6 +130,21 @@ def official_file_order(split_dir: Path, sort_files: bool) -> list[str]:
     return files
 
 
+def metadata_lookup(data_dir: Path):
+    import pandas as pd
+
+    path = data_dir / "metadata_lookup.csv"
+    if not path.exists():
+        return {}
+    return pd.read_csv(path).set_index("filename").to_dict("index")
+
+
+def npz_or_meta(data, meta: dict, npz_key: str, meta_key: str | None = None, default=""):
+    if npz_key in data.files:
+        return data[npz_key]
+    return meta.get(meta_key or npz_key, default)
+
+
 def prediction_probability(pred_row, task: str) -> float:
     if task == "amd":
         if pred_row.ndim == 0:
@@ -175,6 +190,7 @@ def main() -> None:
 
     split_dir = find_split_dir(args.data_dir, args.split)
     files = official_file_order(split_dir, sort_files=args.sort_files)
+    meta_by_file = metadata_lookup(args.data_dir)
     if len(files) != len(preds):
         raise ValueError(
             f"File/prediction count mismatch: files={len(files)} preds={len(preds)}. "
@@ -185,11 +201,12 @@ def main() -> None:
     for index, filename in enumerate(files):
         npz_path = split_dir / filename
         with np.load(npz_path, allow_pickle=True) as data:
+            meta = meta_by_file.get(filename, {})
             if args.task == "amd":
-                disease_stage = AMD_MAP.get(text_scalar(data["amd_condition"]), 0)
+                disease_stage = AMD_MAP.get(text_scalar(npz_or_meta(data, meta, "amd_condition")), 0)
                 y_true = int(disease_stage > 0)
             else:
-                disease_stage = DR_MAP.get(text_scalar(data["dr_subtype"]), 0)
+                disease_stage = DR_MAP.get(text_scalar(npz_or_meta(data, meta, "dr_subtype")), 0)
                 y_true = int(disease_stage > 0)
 
             official_gt = scalar(gts[index])
@@ -202,10 +219,10 @@ def main() -> None:
                     f"Label mismatch at row {index} file={filename}: npz={y_true} official_gt={official_gt}"
                 )
 
-            age = scalar(data["age"]) if "age" in data else ""
-            race = race_value(data["race"]) if "race" in data else "missing"
-            ethnicity = ethnicity_value(data["hispanic"]) if "hispanic" in data else "missing"
-            sex_gender = sex_value(data["male"]) if "male" in data else "missing"
+            age = scalar(npz_or_meta(data, meta, "age", default=""))
+            race = race_value(npz_or_meta(data, meta, "race", default="missing"))
+            ethnicity = ethnicity_value(npz_or_meta(data, meta, "hispanic", default="missing"))
+            sex_gender = sex_value(npz_or_meta(data, meta, "male", default="missing"))
 
         y_prob = prediction_probability(np.asarray(preds[index]), args.task)
         rows.append(

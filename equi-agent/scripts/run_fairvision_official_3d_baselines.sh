@@ -38,6 +38,9 @@ python equi-agent/scripts/stage_fairvision_official_layout.py \
   --tasks ${TASKS} \
   "${stage_args[@]}"
 
+python equi-agent/scripts/patch_fairvision_data_handler_hf_layout.py \
+  --fairvision-repo "${FAIRVISION_REPO}"
+
 run_one_task() {
   local task="$1"
   local disease_dir script_name model_name result_dir result_dir_final perf_file pred_raw metrics_dir sort_arg

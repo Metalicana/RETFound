@@ -83,6 +83,40 @@ def link_or_copy(src: Path, dst: Path, copy: bool, overwrite: bool) -> None:
         os.symlink(src.resolve(), dst)
 
 
+def official_metadata_frame(summary, task: str):
+    import pandas as pd
+
+    output = pd.DataFrame()
+    output["filename"] = summary["filename"].astype(str)
+    if task == "amd":
+        output["amd_condition"] = summary.get("amd", "").astype(str)
+        output["dr_subtype"] = ""
+        output["glaucoma"] = ""
+    elif task == "dr":
+        output["amd_condition"] = ""
+        output["dr_subtype"] = summary.get("dr", "").astype(str)
+        output["glaucoma"] = ""
+    else:
+        output["amd_condition"] = ""
+        output["dr_subtype"] = ""
+        output["glaucoma"] = summary.get("glaucoma", "").astype(str)
+
+    output["race"] = summary.get("race", "missing").astype(str)
+    gender = summary.get("gender", "")
+    output["male"] = gender.astype(str).str.lower().map({"male": 1, "m": 1, "female": 0, "f": 0}).fillna(-1).astype(int)
+    ethnicity = summary.get("ethnicity", "")
+    output["hispanic"] = (
+        ethnicity.astype(str)
+        .str.lower()
+        .map({"hispanic": 1, "yes": 1, "non-hispanic": 0, "not hispanic": 0, "no": 0})
+        .fillna(-1)
+        .astype(int)
+    )
+    output["age"] = summary.get("age", "")
+    output["use"] = summary.get("use", "")
+    return output
+
+
 def main() -> None:
     args = parse_args()
     import pandas as pd
@@ -106,6 +140,7 @@ def main() -> None:
             dst = args.out_root / source / SPLIT_TO_OFFICIAL[split_key] / filename
             link_or_copy(src, dst, copy=args.copy, overwrite=args.overwrite)
             rows += 1
+        official_metadata_frame(summary, task).to_csv(args.out_root / source / "metadata_lookup.csv", index=False)
         total += rows
         print(f"staged task={task} source={source} rows={rows} csv={csv_path}")
 
