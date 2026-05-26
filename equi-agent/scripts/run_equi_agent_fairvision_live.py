@@ -154,6 +154,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--provider", choices=["auto", "azure", "openai"], default="auto")
     parser.add_argument("--api-version", default=os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"))
     parser.add_argument("--request-sleep-sec", type=float, default=0.0, help="Optional delay between live API calls.")
+    parser.add_argument("--max-retries", type=int, default=2, help="Retries per case for transient API or JSON parse failures.")
+    parser.add_argument("--retry-sleep-sec", type=float, default=5.0, help="Base delay before retrying failed live calls.")
     parser.add_argument("--chars-per-token", type=float, default=4.0, help="Dry-run usage estimate only.")
     return parser.parse_args()
 
@@ -711,6 +713,34 @@ def response_text(response: Any) -> str:
     return response.choices[0].message.content or ""
 
 
+def live_response_with_retries(
+    client: Any,
+    deployment: str,
+    messages: list[dict[str, Any]],
+    temperature: float,
+    max_output_tokens: int,
+    max_retries: int,
+    retry_sleep_sec: float,
+) -> tuple[dict[str, Any], dict[str, int], str, int]:
+    last_error: Exception | None = None
+    attempts = max(1, max_retries + 1)
+    for attempt in range(attempts):
+        try:
+            response = call_llm(client, deployment, messages, temperature, max_output_tokens)
+            raw_text = response_text(response)
+            usage = usage_dict(response)
+            parsed = json_from_text(raw_text)
+            return parsed, usage, raw_text, attempt
+        except Exception as exc:
+            last_error = exc
+            if attempt >= attempts - 1:
+                break
+            if retry_sleep_sec > 0:
+                time.sleep(retry_sleep_sec * (attempt + 1))
+    assert last_error is not None
+    raise last_error
+
+
 def main() -> None:
     args = parse_args()
     thresholds = {
@@ -804,10 +834,16 @@ def main() -> None:
                     usage["completion_tokens"] = estimate_tokens(raw_text, args.chars_per_token)
                     usage["total_tokens"] = usage["prompt_tokens"] + usage["completion_tokens"]
                 else:
-                    response = call_llm(client, args.deployment, messages, args.temperature, args.max_output_tokens)
-                    raw_text = response_text(response)
-                    usage = usage_dict(response)
-                    parsed = json_from_text(raw_text)
+                    parsed, usage, raw_text, retry_count = live_response_with_retries(
+                        client,
+                        args.deployment,
+                        messages,
+                        args.temperature,
+                        args.max_output_tokens,
+                        args.max_retries,
+                        args.retry_sleep_sec,
+                    )
+                    usage["retry_count"] = retry_count
                     if args.request_sleep_sec > 0:
                         time.sleep(args.request_sleep_sec)
 
@@ -839,6 +875,7 @@ def main() -> None:
                         "escalate_to_human": escalate_to_human,
                         "llm_provider": provider,
                         "llm_deployment": args.deployment,
+                        "retry_count": usage.get("retry_count", 0),
                         **usage,
                     }
                 )
@@ -847,6 +884,7 @@ def main() -> None:
                         **meta,
                         "llm_provider": provider,
                         "llm_deployment": args.deployment,
+                        "retry_count": usage.get("retry_count", 0),
                         **usage,
                     }
                 )
@@ -867,6 +905,7 @@ def main() -> None:
                             "safety_decision": safety_decision,
                         },
                         "raw_response": raw_text,
+                        "retry_count": usage.get("retry_count", 0),
                     }
                 )
                 case_rows.append({**meta, **arbitration, "evidence_packet": evidence_packet})
@@ -905,6 +944,7 @@ def main() -> None:
             "prompt_tokens",
             "completion_tokens",
             "total_tokens",
+            "retry_count",
         ],
     )
     write_jsonl(args.out_dir / "equi_agent_live_raw_responses.jsonl", raw_rows)

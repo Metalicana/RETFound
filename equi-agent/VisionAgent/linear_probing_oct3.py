@@ -24,7 +24,10 @@ BATCH_SIZE = 64
 LR = 1e-3
 EPOCHS = 60
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-PATH = "oct_model_best.pth"
+PATH = os.environ.get(
+    "RETFOUND_OCT_MODEL_PATH",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "weights", "oct_model_best.pth")),
+)
 
 #class FairVisionNPZ(Dataset):
 #    def __init__(self, root_dir, split='Training', transform=None):
@@ -509,6 +512,7 @@ def train(resume = True):
 
         if avg_auc > best_avg_auc:
             best_avg_auc = avg_auc
+            os.makedirs(os.path.dirname(PATH), exist_ok=True)
             torch.save(model.state_dict(), PATH)
             print(f"New Best Model Saved! (Avg AUC: {best_avg_auc:.4f})")
 if __name__ == "__main__":

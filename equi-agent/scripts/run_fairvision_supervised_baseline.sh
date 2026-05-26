@@ -10,6 +10,7 @@ DEVICE="${DEVICE:-cuda}"
 METRICS_ROOT="${METRICS_ROOT:-equi-agent/outputs/metrics}"
 PREDICTIONS_ROOT="${PREDICTIONS_ROOT:-equi-agent/outputs/predictions}"
 CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-equi-agent/outputs/checkpoints}"
+THRESHOLD_METRIC="${THRESHOLD_METRIC:-balanced_accuracy}"
 PATH_PREFIX_FROM="${PATH_PREFIX_FROM:-}"
 PATH_PREFIX_TO="${PATH_PREFIX_TO:-}"
 
@@ -42,6 +43,7 @@ for task in ${TASKS}; do
   python equi-agent/scripts/tune_thresholds.py \
     --validation "${val_file}" \
     --test "${test_file}" \
+    --metric "${THRESHOLD_METRIC}" \
     --thresholds-out "${thresholds_file}" \
     --test-out "${thresholded_file}"
 

@@ -10,6 +10,7 @@ CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-equi-agent/outputs/checkpoints}"
 FLAIR_ROOT="${FLAIR_ROOT:-Foundation_Models/FLAIR-main}"
 FLAIR_WEIGHTS="${FLAIR_WEIGHTS:-}"
 FROM_HF="${FROM_HF:-false}"
+THRESHOLD_METRIC="${THRESHOLD_METRIC:-balanced_accuracy}"
 PATH_PREFIX_FROM="${PATH_PREFIX_FROM:-}"
 PATH_PREFIX_TO="${PATH_PREFIX_TO:-}"
 
@@ -46,6 +47,7 @@ for task in ${TASKS}; do
   python equi-agent/scripts/tune_thresholds.py \
     --validation "${val_file}" \
     --test "${test_file}" \
+    --metric "${THRESHOLD_METRIC}" \
     --thresholds-out "${thresholds_file}" \
     --test-out "${thresholded_file}"
 

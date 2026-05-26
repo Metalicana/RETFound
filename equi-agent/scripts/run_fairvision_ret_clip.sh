@@ -11,6 +11,7 @@ RET_CLIP_ROOT="${RET_CLIP_ROOT:-Foundation_Models/RET-CLIP-main}"
 RET_CLIP_WEIGHTS="${RET_CLIP_WEIGHTS:-}"
 VISION_MODEL="${VISION_MODEL:-ViT-B-16}"
 TEXT_MODEL="${TEXT_MODEL:-RoBERTa-wwm-ext-base-chinese}"
+THRESHOLD_METRIC="${THRESHOLD_METRIC:-balanced_accuracy}"
 PATH_PREFIX_FROM="${PATH_PREFIX_FROM:-}"
 PATH_PREFIX_TO="${PATH_PREFIX_TO:-}"
 
@@ -51,6 +52,7 @@ for task in ${TASKS}; do
   python equi-agent/scripts/tune_thresholds.py \
     --validation "${val_file}" \
     --test "${test_file}" \
+    --metric "${THRESHOLD_METRIC}" \
     --thresholds-out "${thresholds_file}" \
     --test-out "${thresholded_file}"
 
