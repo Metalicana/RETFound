@@ -6,6 +6,8 @@ DATASET_DIR="${DATASET_DIR:-Datasets/FairVision}"
 OUT_ROOT="${OUT_ROOT:-equi-agent/outputs/fairvision_official_3d}"
 PREDICTIONS_ROOT="${PREDICTIONS_ROOT:-equi-agent/outputs/predictions}"
 METRICS_ROOT="${METRICS_ROOT:-equi-agent/outputs/metrics}"
+STAGED_DATASET_DIR="${STAGED_DATASET_DIR:-${OUT_ROOT}/staged_fairvision}"
+STAGE_COPY="${STAGE_COPY:-false}"
 
 TASKS="${TASKS:-amd dr}"
 MODEL_TYPE="${MODEL_TYPE:-resnet18}"
@@ -26,18 +28,28 @@ SORT_FILES="${SORT_FILES:-false}"
 mkdir -p "${OUT_ROOT}" "${PREDICTIONS_ROOT}" "${METRICS_ROOT}"
 RETFOUND_ROOT="$(pwd)"
 
+stage_args=()
+if [[ "${STAGE_COPY}" == "true" ]]; then
+  stage_args+=(--copy)
+fi
+python equi-agent/scripts/stage_fairvision_official_layout.py \
+  --source-root "${DATASET_DIR}" \
+  --out-root "${STAGED_DATASET_DIR}" \
+  --tasks ${TASKS} \
+  "${stage_args[@]}"
+
 run_one_task() {
   local task="$1"
   local disease_dir script_name model_name result_dir result_dir_final perf_file pred_raw metrics_dir sort_arg
 
   case "${task}" in
     amd)
-      disease_dir="${DATASET_DIR}/AMD"
+      disease_dir="${STAGED_DATASET_DIR}/AMD"
       script_name="scripts/train_amd_fair_3d.py"
       model_name="fairvision_official_3d_resnet18_amd"
       ;;
     dr)
-      disease_dir="${DATASET_DIR}/DR"
+      disease_dir="${STAGED_DATASET_DIR}/DR"
       script_name="scripts/train_dr_fair_3d.py"
       model_name="fairvision_official_3d_resnet18_dr"
       ;;
