@@ -12,6 +12,40 @@ TASK_TO_SOURCE = {
     "glaucoma": "Glaucoma",
 }
 
+AMD_OFFICIAL_LABELS = {
+    "normal": "no.amd.diagnosis",
+    "no amd": "no.amd.diagnosis",
+    "no.amd.diagnosis": "no.amd.diagnosis",
+    "not.in.icd.table": "not.in.icd.table",
+    "early amd": "early.dry",
+    "early.dry": "early.dry",
+    "intermediate amd": "intermediate.dry",
+    "intermediate.dry": "intermediate.dry",
+    "late amd": "advanced.atrophic.dry.with.subfoveal.involvement",
+    "advanced amd": "advanced.atrophic.dry.with.subfoveal.involvement",
+    "advanced.atrophic.dry.with.subfoveal.involvement": "advanced.atrophic.dry.with.subfoveal.involvement",
+    "advanced.atrophic.dry.without.subfoveal.involvement": "advanced.atrophic.dry.without.subfoveal.involvement",
+    "wet.amd.active.choroidal.neovascularization": "wet.amd.active.choroidal.neovascularization",
+    "wet.amd.inactive.choroidal.neovascularization": "wet.amd.inactive.choroidal.neovascularization",
+    "wet.amd.inactive.scar": "wet.amd.inactive.scar",
+}
+
+
+DR_OFFICIAL_LABELS = {
+    "normal": "no.dr.diagnosis",
+    "no dr": "no.dr.diagnosis",
+    "no.dr.diagnosis": "no.dr.diagnosis",
+    "not.in.icd.table": "not.in.icd.table",
+    "non-vision threatening dr": "mild.npdr",
+    "non vision threatening dr": "mild.npdr",
+    "mild.npdr": "mild.npdr",
+    "moderate.npdr": "moderate.npdr",
+    "vision threatening dr": "severe.npdr",
+    "vision-threatening dr": "severe.npdr",
+    "severe.npdr": "severe.npdr",
+    "pdr": "pdr",
+}
+
 
 SPLIT_TO_FOLDER = {
     "training": "Training",
@@ -89,12 +123,26 @@ def official_metadata_frame(summary, task: str):
     output = pd.DataFrame()
     output["filename"] = summary["filename"].astype(str)
     if task == "amd":
-        output["amd_condition"] = summary.get("amd", "").astype(str)
+        output["amd_condition"] = (
+            summary.get("amd", "")
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            .map(AMD_OFFICIAL_LABELS)
+            .fillna(summary.get("amd", "").astype(str))
+        )
         output["dr_subtype"] = ""
         output["glaucoma"] = ""
     elif task == "dr":
         output["amd_condition"] = ""
-        output["dr_subtype"] = summary.get("dr", "").astype(str)
+        output["dr_subtype"] = (
+            summary.get("dr", "")
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            .map(DR_OFFICIAL_LABELS)
+            .fillna(summary.get("dr", "").astype(str))
+        )
         output["glaucoma"] = ""
     else:
         output["amd_condition"] = ""

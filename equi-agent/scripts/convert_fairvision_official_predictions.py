@@ -27,6 +27,8 @@ STANDARD_COLUMNS = [
 
 
 AMD_MAP = {
+    "normal": 0,
+    "no amd": 0,
     "not.in.icd.table": 0,
     "no.amd.diagnosis": 0,
     "early.dry": 1,
@@ -40,6 +42,10 @@ AMD_MAP = {
 
 
 DR_MAP = {
+    "normal": 0,
+    "no dr": 0,
+    "non-vision threatening dr": 0,
+    "vision threatening dr": 1,
     "not.in.icd.table": 0,
     "no.dr.diagnosis": 0,
     "mild.npdr": 0,
