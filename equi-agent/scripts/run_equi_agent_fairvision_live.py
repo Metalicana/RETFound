@@ -115,6 +115,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-output-tokens", type=int, default=700)
     parser.add_argument(
+        "--prompt-variant",
+        choices=["current", "visual_first", "f1_rescue"],
+        default=os.getenv("EQUI_AGENT_PROMPT_VARIANT", "current"),
+        help="Prompt policy used by the arbitration LLM. Use micro experiments to compare variants.",
+    )
+    parser.add_argument("--sensitivity-threshold", type=float, default=0.35)
+    parser.add_argument("--neutral-threshold", type=float, default=0.50)
+    parser.add_argument("--precision-threshold", type=float, default=0.65)
+    parser.add_argument(
         "--include-image-tokens",
         action="store_true",
         help="Attach OCT and SLO/Fundus images from FairVision NPZ files to the live vision-specialist prompt.",
@@ -310,7 +319,33 @@ def image_payload_for_case(
     return payload, None
 
 
-def build_live_messages(evidence_packet: dict[str, Any], image_payload: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+def prompt_variant_guidance(variant: str) -> str:
+    if variant == "visual_first":
+        return (
+            "PROMPT_VARIANT=visual_first. When images are attached, perform morphology review before reading model votes. "
+            "For AMD, require visible drusen/RPE disruption/subretinal fluid/atrophy or a reliable positive source before "
+            "raising probability. For DR, require visible hemorrhage/exudate/microaneurysm-like vascular lesions or a reliable "
+            "positive source. For glaucoma, use OCT/SLO morphology to adjudicate cup/RNFL-compatible evidence. If image "
+            "morphology clearly conflicts with weak near-all-positive model behavior, down-weight the votes."
+        )
+    if variant == "f1_rescue":
+        return (
+            "PROMPT_VARIANT=f1_rescue. Optimize forced benchmark F1 while preserving threshold consistency. Do not chase "
+            "specificity at the cost of missing most positives. For rare-positive DR, prefer sensitivity_shift when any "
+            "validated source with acceptable balanced accuracy is positive or morphology is suspicious. For AMD, avoid "
+            "near-all-positive voting as sole evidence, but do not suppress positives when multiple modalities and morphology "
+            "support disease. Use precision_shift only when false-positive priors are strong and positive evidence is weak."
+        )
+    return "PROMPT_VARIANT=current. Use the default trust-calibration policy."
+
+
+def build_live_messages(
+    evidence_packet: dict[str, Any],
+    image_payload: dict[str, Any] | None = None,
+    prompt_variant: str = "current",
+    thresholds: dict[str, float] | None = None,
+) -> list[dict[str, Any]]:
+    thresholds = thresholds or {"sensitivity_shift": 0.35, "neutral": 0.5, "escalate": 0.5, "precision_shift": 0.65}
     system = (
         "You are Equi-Agent, an ophthalmic foundation-model arbitration layer. Your job is benchmark arbitration, "
         "not open-ended clinical consultation. Use only the current task's retinal model outputs as disease evidence. "
@@ -321,7 +356,8 @@ def build_live_messages(evidence_packet: dict[str, Any], image_payload: dict[str
         "when a reliable model/subgroup prior shows high false-negative risk. Prefer precision or down-weighting when "
         "a reliable model/subgroup prior shows high false-positive risk and low false-negative risk. Always provide a "
         "forced binary diagnostic prediction and probability for benchmark scoring. Escalation is only an auxiliary "
-        "safety/referral flag; it must never replace or abstain from the diagnostic prediction. Return only valid JSON."
+        "safety/referral flag; it must never replace or abstain from the diagnostic prediction. Return only valid JSON. "
+        + prompt_variant_guidance(prompt_variant)
     )
     user = {
         "instructions": {
@@ -342,9 +378,11 @@ def build_live_messages(evidence_packet: dict[str, Any], image_payload: dict[str
                 ),
                 "orchestrator": (
                     "Anchor final_probability on deterministic_reference.weighted_probability. Adjust by at most 0.10 "
-                    "only when the priors strongly justify a sensitivity or precision shift. Choose calibration_action first, "
-                    "then apply its threshold: sensitivity_shift uses 0.35, neutral/escalate uses 0.50, and precision_shift "
-                    "uses 0.65. final_prediction must be based on final_probability >= the applied threshold."
+                    "only when the priors, visual morphology, or validated source disagreement strongly justify a shift. "
+                    f"Choose calibration_action first, then apply its threshold: sensitivity_shift uses "
+                    f"{thresholds['sensitivity_shift']:.2f}, neutral/escalate uses {thresholds['neutral']:.2f}, "
+                    f"and precision_shift uses {thresholds['precision_shift']:.2f}. final_prediction must be based on "
+                    "final_probability >= the applied threshold."
                 ),
                 "safety_agent": (
                     "Set escalate_to_human=true for close calls around the applied threshold, severe split votes, statistically "
@@ -359,10 +397,10 @@ def build_live_messages(evidence_packet: dict[str, Any], image_payload: dict[str
             ),
             "threshold": 0.5,
             "dynamic_thresholds": {
-                "sensitivity_shift": 0.35,
-                "neutral": 0.5,
-                "escalate": 0.5,
-                "precision_shift": 0.65,
+                "sensitivity_shift": thresholds["sensitivity_shift"],
+                "neutral": thresholds["neutral"],
+                "escalate": thresholds["escalate"],
+                "precision_shift": thresholds["precision_shift"],
             },
             "benchmark_rule": (
                 "Do not abstain. Do not output -1. Do not use escalate_to_human as the diagnosis. "
@@ -534,12 +572,15 @@ def normalize_action(value: Any) -> str:
     return "neutral"
 
 
-def threshold_for_action(action: str) -> float:
+def threshold_for_action(action: str, thresholds: dict[str, float] | None = None) -> float:
+    thresholds = thresholds or {"sensitivity_shift": 0.35, "neutral": 0.5, "escalate": 0.5, "precision_shift": 0.65}
     if action == "sensitivity_shift":
-        return 0.35
+        return thresholds["sensitivity_shift"]
     if action == "precision_shift":
-        return 0.65
-    return 0.50
+        return thresholds["precision_shift"]
+    if action == "escalate":
+        return thresholds["escalate"]
+    return thresholds["neutral"]
 
 
 def normalize_prediction(probability: float, applied_threshold: float) -> int:
@@ -562,7 +603,10 @@ def safety_flag_for_case(arbitration: dict[str, Any], probability: float, applie
     return escalate, "ESCALATE_TO_HUMAN" if escalate else "ACCEPT"
 
 
-def dry_run_response(arbitration: dict[str, Any]) -> tuple[dict[str, Any], dict[str, int], str]:
+def dry_run_response(
+    arbitration: dict[str, Any],
+    thresholds: dict[str, float] | None = None,
+) -> tuple[dict[str, Any], dict[str, int], str]:
     model_rows = arbitration.get("model_rows", [])
     primary = "ensemble"
     if model_rows:
@@ -580,7 +624,7 @@ def dry_run_response(arbitration: dict[str, Any]) -> tuple[dict[str, Any], dict[
         "confidence": "low" if arbitration["safety_decision"] != "ACCEPT" else "medium",
         "primary_model": primary,
         "calibration_action": action,
-        "applied_threshold": threshold_for_action(action),
+        "applied_threshold": threshold_for_action(action, thresholds),
         "escalate_to_human": arbitration["safety_decision"] != "ACCEPT",
         "reasoning": "Dry-run deterministic weighted arbitration using validation priors.",
     }
@@ -645,6 +689,12 @@ def response_text(response: Any) -> str:
 
 def main() -> None:
     args = parse_args()
+    thresholds = {
+        "sensitivity_shift": args.sensitivity_threshold,
+        "neutral": args.neutral_threshold,
+        "escalate": args.neutral_threshold,
+        "precision_shift": args.precision_threshold,
+    }
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
     by_task, loaded_files, missing_files = load_predictions(args.predictions_root, args.tasks, args.models)
@@ -713,11 +763,16 @@ def main() -> None:
                         "error": image_error,
                     }
                 )
-            messages = build_live_messages(evidence_packet, image_payload)
+            messages = build_live_messages(
+                evidence_packet,
+                image_payload,
+                prompt_variant=args.prompt_variant,
+                thresholds=thresholds,
+            )
 
             try:
                 if args.dry_run:
-                    parsed, usage, raw_text = dry_run_response(arbitration)
+                    parsed, usage, raw_text = dry_run_response(arbitration, thresholds)
                     usage["prompt_tokens"] = sum(
                         estimate_tokens(message_text_for_estimate(m), args.chars_per_token)
                         for m in messages
@@ -738,7 +793,7 @@ def main() -> None:
                     args.max_probability_adjustment,
                 )
                 calibration_action = normalize_action(parsed.get("calibration_action"))
-                applied_threshold = threshold_for_action(calibration_action)
+                applied_threshold = threshold_for_action(calibration_action, thresholds)
                 final_pred = normalize_prediction(final_prob, applied_threshold)
                 escalate_to_human, safety_decision = safety_flag_for_case(arbitration, final_prob, applied_threshold)
                 prediction_rows.append(

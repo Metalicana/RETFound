@@ -13,6 +13,13 @@ TEMPERATURE="${TEMPERATURE:-0}"
 MAX_OUTPUT_TOKENS="${MAX_OUTPUT_TOKENS:-700}"
 MAX_PROBABILITY_ADJUSTMENT="${MAX_PROBABILITY_ADJUSTMENT:-0.10}"
 REQUEST_SLEEP_SEC="${REQUEST_SLEEP_SEC:-0}"
+PROMPT_VARIANT="${PROMPT_VARIANT:-${EQUI_AGENT_PROMPT_VARIANT:-current}}"
+INCLUDE_IMAGE_TOKENS="${INCLUDE_IMAGE_TOKENS:-0}"
+MANIFESTS_ROOT="${MANIFESTS_ROOT:-equi-agent/outputs/manifests}"
+MAX_IMAGE_SIDE="${MAX_IMAGE_SIDE:-768}"
+SENSITIVITY_THRESHOLD="${SENSITIVITY_THRESHOLD:-0.35}"
+NEUTRAL_THRESHOLD="${NEUTRAL_THRESHOLD:-0.50}"
+PRECISION_THRESHOLD="${PRECISION_THRESHOLD:-0.65}"
 DRY_RUN="${DRY_RUN:-0}"
 RUN_COMPARE="${RUN_COMPARE:-1}"
 RUN_SUMMARY="${RUN_SUMMARY:-1}"
@@ -20,6 +27,7 @@ RUN_SUMMARY="${RUN_SUMMARY:-1}"
 COMMON_ARGS=(
   --predictions-root "${PREDICTIONS_ROOT}"
   --metrics-root "${METRICS_ROOT}"
+  --manifests-root "${MANIFESTS_ROOT}"
   --out-dir "${OUT_DIR}"
   --tasks ${TASKS}
   --models ${MODELS}
@@ -29,10 +37,19 @@ COMMON_ARGS=(
   --deployment "${DEPLOYMENT}"
   --max-probability-adjustment "${MAX_PROBABILITY_ADJUSTMENT}"
   --request-sleep-sec "${REQUEST_SLEEP_SEC}"
+  --prompt-variant "${PROMPT_VARIANT}"
+  --max-image-side "${MAX_IMAGE_SIDE}"
+  --sensitivity-threshold "${SENSITIVITY_THRESHOLD}"
+  --neutral-threshold "${NEUTRAL_THRESHOLD}"
+  --precision-threshold "${PRECISION_THRESHOLD}"
 )
 
 if [[ "${DRY_RUN}" == "1" ]]; then
   COMMON_ARGS+=(--dry-run)
+fi
+
+if [[ "${INCLUDE_IMAGE_TOKENS}" == "1" ]]; then
+  COMMON_ARGS+=(--include-image-tokens)
 fi
 
 python equi-agent/scripts/run_equi_agent_fairvision_live.py "${COMMON_ARGS[@]}"
