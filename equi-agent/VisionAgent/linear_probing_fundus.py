@@ -1,11 +1,11 @@
-#Linear Probing Fundus using AMD, DR, Glaucoma as 0,1 
+#Linear Probing Fundus using AMD, DR, Glaucoma as 0,1
 
 import os
+from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-import pandas as pd
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from PIL import Image
@@ -18,7 +18,8 @@ except ImportError:
     raise ImportError("Error: 'models_vit.py' not found.")
 
 # --- CONFIGURATION ---
-DATA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Datasets", "FairVision"))
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DATA_ROOT = os.environ.get("EQUI_AGENT_DATA_ROOT", str(PROJECT_ROOT / "data"))
 
 # H100 Hyperparameters
 BATCH_SIZE = 64      # Optimized for 80GB VRAM
@@ -33,12 +34,11 @@ class FairVisionNPZ(Dataset):
         self.files = []
         self.transform = transform
         self.sources = ['AMD', 'DR', 'Glaucoma']
-        self.root_dir = root_dir
-        
+
         # Mappings: 0.0 = Healthy, 1.0 = Disease
         self.amd_map = {
             'not.in.icd.table': 0., 'no.amd.diagnosis': 0.,
-            'early.dry': 1., 'intermediate.dry': 1., 
+            'early.dry': 1., 'intermediate.dry': 1.,
             'advanced.atrophic.dry.with.subfoveal.involvement': 1.,
             'advanced.atrophic.dry.without.subfoveal.involvement': 1.,
             'wet.amd.active.choroidal.neovascularization': 1.,
@@ -51,35 +51,19 @@ class FairVisionNPZ(Dataset):
             'severe.npdr': 1., 'pdr': 1.
         }
 
-        split_key = str(split).strip().lower()
-        split_folder = {'training': 'Training', 'validation': 'Validation', 'test': 'Test'}.get(split_key, split)
-
-        print(f"Scanning {split_folder} data in {root_dir}...")
+        print(f"Scanning {split} data in {root_dir}...")
         for source in self.sources:
-            rows = self._load_metadata(source)
-            rows = [rec for rec in rows if str(rec.get('use', '')).strip().lower() == split_key]
-            if not rows:
+            path = os.path.join(root_dir, source, split)
+            if not os.path.exists(path):
+                print(f"Warning: Directory not found: {path}")
                 continue
 
-            for rec in rows:
-                fname = rec['filename']
-                f_path = os.path.join(root_dir, split_folder, fname)
-                if not os.path.exists(f_path):
-                    f_path = os.path.join(root_dir, split_folder, source, fname)
-                if not os.path.exists(f_path):
-                    print(f"Warning: Data file not found: {f_path}")
-                    continue
-                self.files.append({'path': f_path, 'source': source, 'meta': rec})
-                
-        print(f"Found {len(self.files)} images for {split_folder}.")
+            # Find all .npz files
+            files_found = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.npz')]
+            for f_path in files_found:
+                self.files.append({'path': f_path, 'source': source})
 
-    def _load_metadata(self, source):
-        csv_name = f"data_summary_{source.lower()}.csv"
-        csv_path = os.path.join(self.root_dir, "HarvardFairVision30k", source, "ReadMe", csv_name)
-        if not os.path.exists(csv_path):
-            print(f"Warning: Metadata CSV not found at {csv_path}")
-            return []
-        return pd.read_csv(csv_path).to_dict('records')
+        print(f"Found {len(self.files)} images for {split}.")
 
     def __len__(self):
         return len(self.files)
@@ -89,33 +73,31 @@ class FairVisionNPZ(Dataset):
         try:
             # Load NPZ
             data = np.load(item['path'])
-            
+
             fundus_img = data['slo_fundus']
             if fundus_img.max() <= 1.0:
                 fundus_img = (fundus_img * 255).astype(np.uint8)
             else:
                 fundus_img = fundus_img.astype(np.uint8)
-                
-                
+
+
             # Convert to RGB (RETFound expects 3 channels)
-            image = Image.fromarray(fundus_img).convert('RGB')   
-            
+            image = Image.fromarray(fundus_img).convert('RGB')
+
             if self.transform:
-                image = self.transform(image) 
-                
+                image = self.transform(image)
+
             label = torch.zeros(NUM_CLASSES)
             source = item['source']
-            csv_meta = item.get('meta', {})
-                   
+
             if source == 'AMD':
-                cond = str(csv_meta.get('amd', ''))
+                cond = str(data['amd_condition'])
                 if self.amd_map.get(cond, 0.) >= 1.0: label[0] = 1.0
             elif source == 'DR':
-                cond = str(csv_meta.get('dr', ''))
+                cond = str(data['dr_subtype'])
                 if self.dr_map.get(cond, 0.) >= 1.0: label[1] = 1.0
             elif source == 'Glaucoma':
-                glaucoma_value = csv_meta.get('glaucoma', data['glaucoma'] if 'glaucoma' in data else 0)
-                if str(glaucoma_value).strip().lower() in {'1', 'yes', 'true'}: label[2] = 1.0
+                if int(data['glaucoma']) == 1: label[2] = 1.0
 
             race = int(data['race']) if 'race' in data else -1
             return image, label, race
@@ -128,9 +110,12 @@ class FairVisionNPZ(Dataset):
 
 def get_model():
     print("Loading RETFound ViT-Large with Frozen Backbone...")
-    
-    weight_path = os.path.join(os.path.dirname(__file__), "weights", "RETFound_mae_natureCFP.pth")
-        
+
+    weight_path = os.environ.get(
+        "RETFOUND_CFP_WEIGHTS",
+        str(PROJECT_ROOT / "VisionAgent" / "weights" / "RETFound_mae_natureCFP.pth"),
+    )
+
     # 1. Initialize the architecture
     model = RETFound_mae(
         img_size=224,
@@ -138,11 +123,11 @@ def get_model():
         drop_path_rate=0.2,
         global_pool='',
     )
-    
+
     # 2. FREEZE THE ENTIRE MODEL (Backbone)
     for param in model.parameters():
         param.requires_grad = False
-    
+
     # 3. LOAD PRE-TRAINED WEIGHTS
     checkpoint = torch.load(weight_path, map_location='cpu', weights_only=False)
     state_dict = checkpoint['model'] if 'model' in checkpoint else checkpoint
@@ -151,27 +136,27 @@ def get_model():
     for k in keys_to_remove:
         if k in state_dict:
             del state_dict[k]
-            
+
     # Load the backbone weights (strict=False is mandatory here)
     msg = model.load_state_dict(state_dict, strict=False)
-    
+
     # 4. RE-INITIALIZE AND UNFREEZE THE HEAD
     # This ensures the diagnostic head is fresh and trainable
     model.head = torch.nn.Linear(1024, NUM_CLASSES)
     model.head.weight.data.normal_(mean=0.0, std=0.01)
     model.head.bias.data.zero_()
-    
+
     for param in model.head.parameters():
         param.requires_grad = True
 
     print(f"Backbone frozen. Head initialized for {NUM_CLASSES} classes.")
-    
+
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_params = sum(p.numel() for p in model.parameters())
     print(f"Total Parameters: {total_params:,}")
-    print(f"Trainable Parameters (Head): {trainable_params:,}") 
+    print(f"Trainable Parameters (Head): {trainable_params:,}")
     # This should be around 3,075
-    
+
     return model
 
 
@@ -184,7 +169,7 @@ def train():
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-    
+
     val_transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
@@ -194,71 +179,71 @@ def train():
     # Datasets & Loaders
     train_ds = FairVisionNPZ(DATA_ROOT, split='Training', transform=train_transform)
     val_ds = FairVisionNPZ(DATA_ROOT, split='Validation', transform=val_transform)
-    
+
     # H100 Optimization: 16 workers, pin_memory
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, 
+    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,
                               num_workers=16, pin_memory=True)
-    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, 
+    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False,
                             num_workers=8, pin_memory=True)
-    
+
     model = get_model().to(DEVICE)
-    
+
     optimizer = optim.AdamW(model.parameters(), lr=LR, weight_decay=0.05)
-    criterion = nn.BCEWithLogitsLoss() 
+    criterion = nn.BCEWithLogitsLoss()
     scaler = torch.cuda.amp.GradScaler() # Mixed Precision
-    
+
     best_auc = 0.0
 
     print(f"Starting Training on {DEVICE} for {EPOCHS} epochs...")
-    
+
     for epoch in range(EPOCHS):
         model.train()
         train_loss = 0.0
-        
+
         loop = tqdm(train_loader, desc=f"Epoch {epoch+1}")
         for imgs, labels, _ in loop:
             imgs, labels = imgs.to(DEVICE), labels.to(DEVICE)
-            
+
             optimizer.zero_grad()
-            
+
             with torch.cuda.amp.autocast():
                 outputs = model(imgs)
                 loss = criterion(outputs, labels)
-            
+
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
-            
+
             train_loss += loss.item()
             loop.set_postfix(loss=loss.item())
-            
+
         # Validation
         model.eval()
         val_preds = []
         val_targets = []
-        
+
         with torch.no_grad():
             for imgs, labels, _ in val_loader:
                 imgs = imgs.to(DEVICE)
                 with torch.cuda.amp.autocast():
                     outputs = model(imgs)
                     probs = torch.sigmoid(outputs)
-                
+
                 val_preds.append(probs.cpu().numpy())
                 val_targets.append(labels.cpu().numpy())
-                
+
         val_preds = np.vstack(val_preds)
         val_targets = np.vstack(val_targets)
-        
+
         try:
             auc = roc_auc_score(val_targets, val_preds, average="macro")
             print(f"Epoch {epoch+1} Results - Loss: {train_loss/len(train_loader):.4f} - Val AUC: {auc:.4f}")
-            
+
             if auc > best_auc:
                 best_auc = auc
                 torch.save(model.state_dict(), "fundus_model.pth")
                 print(f">>> SAVED BEST MODEL (AUC: {best_auc:.4f})")
-                
+
         except Exception as e:
             print(f"Warning: Could not calculate AUC: {e}")
 

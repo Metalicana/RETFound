@@ -1,19 +1,21 @@
 #processing the whole test data for AMD without 0,1,2,3
 
-import os
 import torch
 import numpy as np
 import pandas as pd
+import os
+from pathlib import Path
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
 from sklearn.metrics import roc_auc_score
 
 # Import your existing classes from your training file
-from VisionAgent.linear_probing_fundus import FairVisionNPZ, get_model 
+from VisionAgent.linear_probing_fundus import FairVisionNPZ, get_model
 
-DATA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Datasets", "FairVision"))
-MODEL_WEIGHTS = "fundus_model.pth"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DATA_ROOT = os.environ.get("EQUI_AGENT_DATA_ROOT", str(PROJECT_ROOT / "data"))
+MODEL_WEIGHTS = os.environ.get("EQUI_AGENT_FUNDUS_MODEL_WEIGHTS", "fundus_model.pth")
 NUM_CLASSES = 3
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -21,7 +23,7 @@ def load_trained_model(weights_path):
     print(f"Rebuilding model architecture and loading weights from {weights_path}...")
     # This calls your get_model function which has the frozen backbone
     model = get_model()
-    
+
     # Load the state_dict saved during training
     model.load_state_dict(torch.load(weights_path, map_location=DEVICE, weights_only=False))
     model.to(DEVICE)
@@ -49,16 +51,16 @@ def main():
     with torch.no_grad():
         for i, (imgs, labels, races) in enumerate(tqdm(test_loader)):
             imgs = imgs.to(DEVICE)
-            
+
             # Forward pass
             outputs = model(imgs)
             probs = torch.sigmoid(outputs).cpu().numpy()
-            
+
             # Metadata for the CSV
             for j in range(len(imgs)):
                 # Get the original file path from the dataset
-                file_info = test_ds.files[i * 32 + j] 
-                
+                file_info = test_ds.files[i * 32 + j]
+
                 results.append({
                     'file_path': file_info['path'],
                     'source_folder': file_info['source'],
@@ -80,7 +82,7 @@ def main():
     for idx, disease in enumerate(['AMD', 'DR', 'Glaucoma']):
         y_true = df[f'target_{disease}'].values
         y_score = df[f'prob_{disease}'].values
-        
+
         # Only calculate if there are positive examples in the test set
         if len(np.unique(y_true[y_true != -1])) > 1:
             auc = roc_auc_score(y_true[y_true != -1], y_score[y_true != -1])

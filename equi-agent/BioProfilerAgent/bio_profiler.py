@@ -5,16 +5,16 @@ from pprint import pprint
 from dotenv import load_dotenv
 
 
-load_dotenv() 
+load_dotenv()
 api_key = os.getenv("AZURE_OPENAI_API_KEY")
 endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
 DEPLOYMENT = "gpt-5.1"
-        
+
 class BioProfiler:
     def __init__(self, model_client=None):
-        
+
         self.model_client = AzureOpenAI(
-          azure_endpoint = endpoint, 
+          azure_endpoint = endpoint,
           api_key = api_key,
           api_version="2024-12-01-preview"
           )
@@ -28,7 +28,7 @@ class BioProfiler:
         """
         # 1. Filter the dictionary to only include clinical info
         clinical_info = {
-            k: v for k, v in metadata_dict.items() 
+            k: v for k, v in metadata_dict.items()
             if k not in self.internal_keys
         }
 
@@ -38,9 +38,9 @@ class BioProfiler:
         # 3. Create the prompt for the Bio-Profiler
         prompt = f"""
         You are a specialized Medical Bio-Profiler for an Ophthalmology Clinic.
-        Below is raw metadata for a patient. Transform this data into a 
-        concise, 3-sentence clinical narrative. 
-        
+        Below is raw metadata for a patient. Transform this data into a
+        concise, 3-sentence clinical narrative.
+
         Highlight specific clinical values (like MD) that a consultant should be aware of.
         Demographic fields may be described only as metadata for downstream reliability
         calibration; do not present race, ethnicity, sex/gender, or age as direct disease evidence.
@@ -50,10 +50,10 @@ class BioProfiler:
 
         CLINICAL NARRATIVE:
         """
-        
+
        # 4. Call the OpenAI API
         response = self.model_client.chat.completions.create(
-            model=DEPLOYMENT,  
+            model=DEPLOYMENT,
             messages=[
                 {"role": "system", "content": "You are a professional medical scribe."},
                 {"role": "user", "content": prompt}
@@ -69,12 +69,12 @@ class BioProfiler:
 ## --- Integration Test Logic ---
 #if __name__ == "__main__":
 #    # 1. Setup paths
-#    BASE_PATH = "../Datasets/FairVision"
-#    
+#    BASE_PATH = "data/"
+#
 #    disease = 'DR'
 #    loader = GenericEyeLoader(BASE_PATH)
 #    df = loader.get_metadata(disease)
-#    
+#
 #    # Grab the first test patient
 #    test_rows = df[df['use'] == 'test']
 #    if not test_rows.empty:
@@ -82,9 +82,9 @@ class BioProfiler:
 #        metadata = patient_record['metadata']
 #    else:
 #        print("No test data found to process.")
-#        
-#        
-#        
+#
+#
+#
 #pprint(metadata)
 #profiler = BioProfiler()
 #print(profiler.generate_narrative(metadata))
