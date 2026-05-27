@@ -68,6 +68,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default=None, help="Example: cuda, cuda:0, or cpu.")
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument(
+        "--oct-representation",
+        choices=("center", "mean", "max", "mean_max_center", "three_slices"),
+        default="center",
+        help="How to convert an OCT volume to a 2D/RGB image for 2D backbones.",
+    )
+    parser.add_argument("--freeze-backbone", action="store_true", help="Train only the final classifier head.")
+    parser.add_argument("--balanced-sampler", action="store_true", help="Sample positives and negatives with equal weight.")
+    parser.add_argument(
         "--imagenet-weights",
         action="store_true",
         help="Use torchvision ImageNet weights if available locally. May try to download if not cached.",
@@ -114,6 +122,20 @@ def build_model(torch, models, arch: str, imagenet_weights: bool):
     raise ValueError(f"Unsupported arch: {arch}")
 
 
+def freeze_backbone(torch, model, arch: str) -> None:
+    for parameter in model.parameters():
+        parameter.requires_grad = False
+    if arch == "resnet50":
+        for parameter in model.fc.parameters():
+            parameter.requires_grad = True
+        return
+    if arch == "vit_b_16":
+        for parameter in model.heads.head.parameters():
+            parameter.requires_grad = True
+        return
+    raise ValueError(f"Unsupported arch: {arch}")
+
+
 def normalize_to_uint8(np, image):
     image = np.asarray(image, dtype="float32")
     finite = np.isfinite(image)
@@ -130,13 +152,54 @@ def normalize_to_uint8(np, image):
     return (image * 255.0).astype("uint8")
 
 
+def slice_axis(np, volume) -> int:
+    volume = np.asarray(volume)
+    if volume.ndim != 3:
+        raise ValueError(f"Expected 3D OCT volume, got shape={volume.shape}")
+    # FairVision and GDP commonly store OCT as slices x H x W. If this differs,
+    # the slice axis is usually the smallest dimension.
+    return min(range(3), key=lambda axis: volume.shape[axis])
+
+
+def take_slice(np, volume, axis: int, fraction: float):
+    index = int(round((volume.shape[axis] - 1) * fraction))
+    return np.take(volume, index, axis=axis)
+
+
+def oct_to_image(np, volume, representation: str):
+    volume = np.asarray(volume, dtype="float32")
+    axis = slice_axis(np, volume)
+    if representation == "center":
+        return take_slice(np, volume, axis, 0.5)
+    if representation == "mean":
+        return np.mean(volume, axis=axis)
+    if representation == "max":
+        return np.max(volume, axis=axis)
+    if representation == "mean_max_center":
+        center = take_slice(np, volume, axis, 0.5)
+        mean = np.mean(volume, axis=axis)
+        max_proj = np.max(volume, axis=axis)
+        return np.stack([center, mean, max_proj], axis=-1)
+    if representation == "three_slices":
+        return np.stack(
+            [
+                take_slice(np, volume, axis, 0.25),
+                take_slice(np, volume, axis, 0.5),
+                take_slice(np, volume, axis, 0.75),
+            ],
+            axis=-1,
+        )
+    raise ValueError(f"Unknown OCT representation: {representation}")
+
+
 class FairVisionImageDataset:
-    def __init__(self, np, Image, frame, modality: str, transform):
+    def __init__(self, np, Image, frame, modality: str, transform, oct_representation: str):
         self.np = np
         self.Image = Image
         self.frame = frame.reset_index(drop=True)
         self.modality = modality
         self.transform = transform
+        self.oct_representation = oct_representation
 
     def __len__(self) -> int:
         return len(self.frame)
@@ -146,7 +209,7 @@ class FairVisionImageDataset:
         with self.np.load(row["image_path"]) as data:
             if self.modality == "oct":
                 volume = data["oct_bscans"]
-                image = volume[volume.shape[0] // 2]
+                image = oct_to_image(self.np, volume, self.oct_representation)
             else:
                 image = data["slo_fundus"]
         image = normalize_to_uint8(self.np, image)
@@ -193,6 +256,18 @@ def train_one_epoch(torch, tqdm, model, loader, optimizer, criterion, device):
         running_loss += float(loss.detach().cpu().item()) * len(labels)
         n += len(labels)
     return running_loss / max(n, 1)
+
+
+def build_balanced_sampler(torch, train_df):
+    labels = train_df["y_true"].astype(int).to_numpy()
+    positives = max(int(labels.sum()), 1)
+    negatives = max(int(len(labels) - labels.sum()), 1)
+    weights = [0.5 / positives if label == 1 else 0.5 / negatives for label in labels]
+    return torch.utils.data.WeightedRandomSampler(
+        weights=torch.as_tensor(weights, dtype=torch.double),
+        num_samples=len(weights),
+        replacement=True,
+    )
 
 
 def predict(torch, tqdm, model, loader, device):
@@ -286,14 +361,17 @@ def main() -> None:
         ]
     )
 
-    train_set = FairVisionImageDataset(np, Image, train_df, args.modality, transform_train)
-    val_set = FairVisionImageDataset(np, Image, val_df, args.modality, transform_eval)
-    test_set = FairVisionImageDataset(np, Image, test_df, args.modality, transform_eval)
+    train_set = FairVisionImageDataset(np, Image, train_df, args.modality, transform_train, args.oct_representation)
+    val_set = FairVisionImageDataset(np, Image, val_df, args.modality, transform_eval, args.oct_representation)
+    test_set = FairVisionImageDataset(np, Image, test_df, args.modality, transform_eval, args.oct_representation)
+
+    sampler = build_balanced_sampler(torch, train_df) if args.balanced_sampler else None
 
     train_loader = DataLoader(
         train_set,
         batch_size=args.batch_size,
-        shuffle=True,
+        shuffle=sampler is None,
+        sampler=sampler,
         num_workers=args.num_workers,
         pin_memory=device.type == "cuda",
     )
@@ -301,11 +379,23 @@ def main() -> None:
     test_loader = DataLoader(test_set, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
     model = build_model(torch, models, args.arch, args.imagenet_weights).to(device)
+    if args.freeze_backbone:
+        freeze_backbone(torch, model, args.arch)
     positives = float(train_df["y_true"].sum())
     negatives = float(len(train_df) - positives)
     pos_weight = torch.tensor([negatives / max(positives, 1.0)], device=device)
     criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    optimizer = torch.optim.AdamW(
+        [parameter for parameter in model.parameters() if parameter.requires_grad],
+        lr=args.lr,
+        weight_decay=args.weight_decay,
+    )
+    print(
+        f"train_rows={len(train_df)} val_rows={len(val_df)} test_rows={len(test_df)} "
+        f"train_pos={int(positives)} train_neg={int(negatives)} "
+        f"oct_representation={args.oct_representation} freeze_backbone={args.freeze_backbone} "
+        f"balanced_sampler={args.balanced_sampler}"
+    )
 
     best_state = None
     best_val_auroc = float("-inf")
@@ -344,6 +434,9 @@ def main() -> None:
                 "modality": args.modality,
                 "task": args.task,
                 "imagenet_weights": args.imagenet_weights,
+                "oct_representation": args.oct_representation,
+                "freeze_backbone": args.freeze_backbone,
+                "balanced_sampler": args.balanced_sampler,
                 "best_epoch": best_epoch,
                 "best_val_auroc": best_val_auroc,
             },

@@ -12,6 +12,9 @@ IMAGE_SIZE="${IMAGE_SIZE:-224}"
 NUM_WORKERS="${NUM_WORKERS:-4}"
 DEVICE="${DEVICE:-cuda}"
 IMAGENET_WEIGHTS="${IMAGENET_WEIGHTS:-1}"
+OCT_REPRESENTATION="${OCT_REPRESENTATION:-center}"
+FREEZE_BACKBONE="${FREEZE_BACKBONE:-0}"
+BALANCED_SAMPLER="${BALANCED_SAMPLER:-0}"
 METRICS_ROOT="${METRICS_ROOT:-equi-agent/outputs/metrics}"
 PREDICTIONS_ROOT="${PREDICTIONS_ROOT:-equi-agent/outputs/predictions}"
 CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-equi-agent/outputs/checkpoints}"
@@ -29,8 +32,16 @@ if [[ "${IMAGENET_WEIGHTS}" == "1" || "${IMAGENET_WEIGHTS}" == "true" ]]; then
   WEIGHT_ARGS+=(--imagenet-weights)
 fi
 
+EXTRA_ARGS=()
+if [[ "${FREEZE_BACKBONE}" == "1" || "${FREEZE_BACKBONE}" == "true" ]]; then
+  EXTRA_ARGS+=(--freeze-backbone)
+fi
+if [[ "${BALANCED_SAMPLER}" == "1" || "${BALANCED_SAMPLER}" == "true" ]]; then
+  EXTRA_ARGS+=(--balanced-sampler)
+fi
+
 for task in ${TASKS}; do
-  stem="fairvision_${task}_${ARCH}_${MODALITY}_supervised"
+  stem="fairvision_${task}_${ARCH}_${MODALITY}_${OCT_REPRESENTATION}_supervised"
   val_file="${PREDICTIONS_ROOT}/${stem}_val.csv"
   test_file="${PREDICTIONS_ROOT}/${stem}_test.csv"
   thresholded_file="${PREDICTIONS_ROOT}/${stem}_test_thresholded.csv"
@@ -48,10 +59,12 @@ for task in ${TASKS}; do
     --weight-decay "${WEIGHT_DECAY}" \
     --image-size "${IMAGE_SIZE}" \
     --num-workers "${NUM_WORKERS}" \
+    --oct-representation "${OCT_REPRESENTATION}" \
     --device "${DEVICE}" \
     --checkpoint "${checkpoint_file}" \
     --out-val "${val_file}" \
     --out-test "${test_file}" \
+    "${EXTRA_ARGS[@]}" \
     "${WEIGHT_ARGS[@]}" \
     "${PATH_ARGS[@]}"
 
@@ -67,4 +80,4 @@ for task in ${TASKS}; do
     --out-dir "${metrics_dir}"
 done
 
-echo "Supervised FairVision baseline complete: ARCH=${ARCH} MODALITY=${MODALITY} IMAGE_SIZE=${IMAGE_SIZE}"
+echo "Supervised FairVision baseline complete: ARCH=${ARCH} MODALITY=${MODALITY} OCT_REPRESENTATION=${OCT_REPRESENTATION} IMAGE_SIZE=${IMAGE_SIZE}"
