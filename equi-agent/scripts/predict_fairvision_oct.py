@@ -52,13 +52,34 @@ def require_runtime_libs():
 
 def load_oct_image(np, Image, transforms, image_path: str, transform):
     with np.load(image_path) as data:
-        oct_volume = data["oct_bscans"]
-        oct_slice = oct_volume[oct_volume.shape[0] // 2]
-        if oct_slice.max() <= 1.0:
-            oct_slice = (oct_slice * 255).astype("uint8")
-        else:
-            oct_slice = oct_slice.astype("uint8")
+        oct_slice = select_center_slice(np, data["oct_bscans"])
+        oct_slice = normalize_to_uint8(np, oct_slice)
     return transform(Image.fromarray(oct_slice).convert("RGB"))
+
+
+def select_center_slice(np, volume):
+    image = np.asarray(volume)
+    if image.ndim == 2:
+        return image
+    if image.ndim != 3:
+        raise ValueError(f"Expected 2D or 3D OCT array, got shape={image.shape}")
+    slice_axis = min(range(3), key=lambda axis: image.shape[axis])
+    return np.take(image, image.shape[slice_axis] // 2, axis=slice_axis)
+
+
+def normalize_to_uint8(np, image):
+    image = np.asarray(image, dtype="float32")
+    finite = np.isfinite(image)
+    if not finite.any():
+        return np.zeros(image.shape, dtype="uint8")
+    lo, hi = np.percentile(image[finite], [1.0, 99.0])
+    if hi <= lo:
+        lo = float(np.nanmin(image[finite]))
+        hi = float(np.nanmax(image[finite]))
+    if hi <= lo:
+        return np.zeros(image.shape, dtype="uint8")
+    image = np.clip((image - lo) / (hi - lo), 0.0, 1.0)
+    return (image * 255.0).astype("uint8")
 
 
 def output_probability(torch, outputs, task: str, batch_index: int) -> float:

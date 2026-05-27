@@ -27,6 +27,33 @@ from sklearn.metrics import roc_auc_score
 from VisionAgent.fairvision_npz import FairVisionNPZ
 
 
+def print_dataset_diagnostics(name, dataset):
+    print(f"{name} label summary: {dataset.label_summary()}")
+    sample_count = int(os.environ.get("MIRAGE_AUDIT_SAMPLES", 2))
+    if sample_count <= 0:
+        return
+    for source in dataset.sources:
+        seen = 0
+        for item in dataset.files:
+            if item["source"] != source:
+                continue
+            with np.load(item["path"]) as data:
+                label, metadata = dataset._build_label_and_metadata(item, data)
+                raw = {
+                    key: dataset._scalar_to_string(data[key])
+                    for key in ("amd_condition", "dr_subtype", "glaucoma")
+                    if key in data.files
+                }
+                shape = tuple(data["slo_fundus"].shape) if "slo_fundus" in data.files else None
+            print(
+                f"{name} audit {source}: file={metadata['filename']} "
+                f"slo_shape={shape} raw={raw} label={label.tolist()} groundtruth={metadata['groundtruth']}"
+            )
+            seen += 1
+            if seen >= sample_count:
+                break
+
+
 class MultiAgentLoss(nn.Module):
     def __init__(self, device):
         super().__init__()
@@ -159,6 +186,8 @@ def main() -> None:
     val_ds = FairVisionNPZ(data_root, split="Validation", transform=val_transform, image_kind="slo")
     if len(train_ds) == 0 or len(val_ds) == 0:
         raise RuntimeError(f"FairVision splits are empty: train={len(train_ds)} val={len(val_ds)}")
+    print_dataset_diagnostics("train", train_ds)
+    print_dataset_diagnostics("val", val_ds)
 
     train_loader = DataLoader(
         train_ds,

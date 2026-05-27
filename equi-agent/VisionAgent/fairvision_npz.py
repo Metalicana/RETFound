@@ -60,6 +60,57 @@ class FairVisionNPZ(Dataset):
             self._append_legacy_files(source)
         print(f"Found {len(self.files)} images with metadata for {self.split_folder}.")
 
+    def label_summary(self):
+        summary = {}
+        for source in self.sources:
+            rows = [item["meta"] for item in self.files if item["source"] == source]
+            if not rows:
+                summary[source] = {"rows": 0}
+                continue
+
+            if source == "AMD":
+                raw_values = [self._scalar_to_string(row.get("amd", "")) for row in rows]
+                stages = [int(self.amd_map.get(value, 0.0)) for value in raw_values]
+                summary[source] = {
+                    "rows": len(rows),
+                    "raw_counts": self._counts(raw_values),
+                    "stage_counts": self._counts(stages),
+                    "stage>=1_rate": self._rate(stage >= 1 for stage in stages),
+                    "stage>=2_rate": self._rate(stage >= 2 for stage in stages),
+                    "stage>=3_rate": self._rate(stage >= 3 for stage in stages),
+                }
+            elif source == "DR":
+                raw_values = [self._scalar_to_string(row.get("dr", "")) for row in rows]
+                labels = [int(self.dr_map.get(value, 0.0)) for value in raw_values]
+                summary[source] = {
+                    "rows": len(rows),
+                    "raw_counts": self._counts(raw_values),
+                    "positive_rate": self._rate(label == 1 for label in labels),
+                }
+            else:
+                raw_values = [self._scalar_to_string(row.get("glaucoma", "")) for row in rows]
+                labels = [1 if value in {"1", "1.0", "true", "yes", "y"} else 0 for value in raw_values]
+                summary[source] = {
+                    "rows": len(rows),
+                    "raw_counts": self._counts(raw_values),
+                    "positive_rate": self._rate(label == 1 for label in labels),
+                }
+        return summary
+
+    @staticmethod
+    def _counts(values):
+        counts = {}
+        for value in values:
+            counts[value] = counts.get(value, 0) + 1
+        return dict(sorted(counts.items(), key=lambda item: str(item[0])))
+
+    @staticmethod
+    def _rate(values):
+        values = list(values)
+        if not values:
+            return 0.0
+        return float(sum(values) / len(values))
+
     def _append_records(self, source, records):
         for file_meta in records:
             fname = str(file_meta["filename"])
@@ -191,21 +242,39 @@ class FairVisionNPZ(Dataset):
         }
         return label, metadata
 
+    @staticmethod
+    def _normalize_to_uint8(image):
+        image = np.asarray(image, dtype="float32")
+        finite = np.isfinite(image)
+        if not finite.any():
+            return np.zeros(image.shape, dtype="uint8")
+        lo, hi = np.percentile(image[finite], [1.0, 99.0])
+        if hi <= lo:
+            lo = float(np.nanmin(image[finite]))
+            hi = float(np.nanmax(image[finite]))
+        if hi <= lo:
+            return np.zeros(image.shape, dtype="uint8")
+        image = np.clip((image - lo) / (hi - lo), 0.0, 1.0)
+        return (image * 255.0).astype("uint8")
+
+    @staticmethod
+    def _center_slice(volume):
+        volume = np.asarray(volume)
+        if volume.ndim == 2:
+            return volume
+        if volume.ndim != 3:
+            raise ValueError(f"Expected 2D or 3D OCT array, got shape={volume.shape}")
+        slice_axis = min(range(3), key=lambda axis: volume.shape[axis])
+        return np.take(volume, volume.shape[slice_axis] // 2, axis=slice_axis)
+
     def _oct_image(self, data):
-        oct_volume = data["oct_bscans"]
-        oct_slice = oct_volume[oct_volume.shape[0] // 2]
-        if oct_slice.max() <= 1.0:
-            oct_slice = (oct_slice * 255).astype(np.uint8)
-        else:
-            oct_slice = oct_slice.astype(np.uint8)
+        oct_slice = self._center_slice(data["oct_bscans"])
+        oct_slice = self._normalize_to_uint8(oct_slice)
         return Image.fromarray(oct_slice).convert("RGB")
 
     def _slo_image(self, data):
         fundus_img = data["slo_fundus"]
-        if fundus_img.max() <= 1.0:
-            fundus_img = (fundus_img * 255).astype(np.uint8)
-        else:
-            fundus_img = fundus_img.astype(np.uint8)
+        fundus_img = self._normalize_to_uint8(fundus_img)
         return Image.fromarray(fundus_img).convert("L")
 
     def __getitem__(self, idx):

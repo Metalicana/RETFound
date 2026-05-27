@@ -68,6 +68,41 @@ PATH = os.environ.get(
     str(EQUI_AGENT_ROOT / "weights" / "oct_model_best.pth"),
 )
 
+
+def _env_flag(name, default=True):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def print_dataset_diagnostics(name, dataset):
+    print(f"{name} label summary: {dataset.label_summary()}")
+    sample_count = int(os.environ.get("RETFOUND_AUDIT_SAMPLES", 2))
+    if sample_count <= 0:
+        return
+
+    for source in dataset.sources:
+        seen = 0
+        for item in dataset.files:
+            if item["source"] != source:
+                continue
+            with np.load(item["path"]) as data:
+                label, metadata = dataset._build_label_and_metadata(item, data)
+                raw = {
+                    key: dataset._scalar_to_string(data[key])
+                    for key in ("amd_condition", "dr_subtype", "glaucoma")
+                    if key in data.files
+                }
+                shape = tuple(data["oct_bscans"].shape) if "oct_bscans" in data.files else None
+            print(
+                f"{name} audit {source}: file={metadata['filename']} "
+                f"oct_shape={shape} raw={raw} label={label.tolist()} groundtruth={metadata['groundtruth']}"
+            )
+            seen += 1
+            if seen >= sample_count:
+                break
+
 #class FairVisionNPZ(Dataset):
 #    def __init__(self, root_dir, split='Training', transform=None):
 #        self.files = []
@@ -506,6 +541,7 @@ class MultiAgentLoss(nn.Module):
 def train(resume = True):
     print(f"Using FairVision data root: {DATA_ROOT}")
     print(f"Saving RETFound OCT weights to: {PATH}")
+    print(f"Resume existing RETFound OCT checkpoint: {resume}")
       # Transforms (ImageNet Stats)
     train_transform = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -528,6 +564,8 @@ def train(resume = True):
             f"FairVision splits are empty: train={len(train_ds)} val={len(val_ds)}. "
             f"Check FAIRVISION_DATA_ROOT={DATA_ROOT!r}."
         )
+    print_dataset_diagnostics("train", train_ds)
+    print_dataset_diagnostics("val", val_ds)
     
     train_loader = DataLoader(
         train_ds,
@@ -637,4 +675,4 @@ def train(resume = True):
             torch.save(model.state_dict(), PATH)
             print(f"New Best Model Saved! (Avg AUC: {best_avg_auc:.4f})")
 if __name__ == "__main__":
-    train()
+    train(resume=_env_flag("RETFOUND_RESUME", True))
