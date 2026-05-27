@@ -1,23 +1,42 @@
 #!/bin/bash
-#
-#SBATCH --job-name=SLO_MIRAGE_Probing
-#SBATCH --output=slurm_logs/slurm-%j.out
-#SBATCH --error=slurm_logs/slurm-%j.err
-#SBATCH --time=04:00:00
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=16
-#SBATCH --gres=gpu:1
-
 set -euo pipefail
 
 echo "--- Starting job on node $(hostname) ---"
 
-source $(conda info --base)/etc/profile.d/conda.sh
-module load anaconda
-conda activate "${CONDA_ENV:-retfound}"
+setup_conda_env() {
+  if [[ -z "${CONDA_ENV_NAME:-}" && -z "${CONDA_ENV:-}" ]]; then
+    echo "Using current Python environment: ${CONDA_DEFAULT_ENV:-system}"
+    return
+  fi
 
-nvidia-smi
+  if ! command -v conda >/dev/null 2>&1; then
+    echo "Warning: conda command not found; using current environment."
+    return
+  fi
+
+  conda_base="$(conda info --base 2>/dev/null || true)"
+  if [[ -n "${conda_base}" && -f "${conda_base}/etc/profile.d/conda.sh" ]]; then
+    source "${conda_base}/etc/profile.d/conda.sh"
+  fi
+
+  target_env="${CONDA_ENV_NAME:-${CONDA_ENV}}"
+  if [[ "${CONDA_DEFAULT_ENV:-}" != "${target_env}" ]]; then
+    conda activate "${target_env}" || echo "Warning: could not activate conda env '${target_env}'; using current environment."
+  fi
+}
+
+setup_conda_env
+echo "Python: $(command -v python)"
+python - <<'PY'
+import sys
+print(f"Python version: {sys.version.split()[0]}")
+PY
+
+if command -v nvidia-smi >/dev/null 2>&1; then
+  nvidia-smi
+else
+  echo "Warning: nvidia-smi not found."
+fi
 
 cd "$(dirname "$0")"
 mkdir -p slurm_logs weights

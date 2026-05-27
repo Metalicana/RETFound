@@ -1,31 +1,44 @@
 #!/bin/bash
-#
-# SLURM DIRECTIVES: Configure the resources needed for your final job.
-#
-#SBATCH --job-name=OCT_Linear_Probing    # Name of job for the queue
-#SBATCH --output=slurm_logs/slurm-%j.out  # Standard output log file (where prints go)
-#SBATCH --error=slurm_logs/slurm-%j.err   # Standard error log file
-#SBATCH --time=04:00:00                # Maximum job run time (5 hours)
-#SBATCH --nodes=1                      # Request 1 node
-#SBATCH --ntasks-per-node=1            # Run one main task
-#SBATCH --cpus-per-task=16              # Request 16 CPU cores (Matches your NUM_WORKERS=16 setting)
-#SBATCH --gres=gpu:1                   # Request 1 GPU (the resource needed)
-
 set -euo pipefail
 
 # --- SETUP ENVIRONMENT ---
 echo "--- Starting job on node $(hostname) ---"
 
-source $(conda info --base)/etc/profile.d/conda.sh
+setup_conda_env() {
+  if [[ -z "${CONDA_ENV_NAME:-}" && -z "${CONDA_ENV:-}" ]]; then
+    echo "Using current Python environment: ${CONDA_DEFAULT_ENV:-system}"
+    return
+  fi
 
-# Load the required modules
-module load anaconda
+  if ! command -v conda >/dev/null 2>&1; then
+    echo "Warning: conda command not found; using current environment."
+    return
+  fi
 
-# Activate your conda environment (crucial!)
-conda activate "${CONDA_ENV:-retfound}"
+  conda_base="$(conda info --base 2>/dev/null || true)"
+  if [[ -n "${conda_base}" && -f "${conda_base}/etc/profile.d/conda.sh" ]]; then
+    source "${conda_base}/etc/profile.d/conda.sh"
+  fi
+
+  target_env="${CONDA_ENV_NAME:-${CONDA_ENV}}"
+  if [[ "${CONDA_DEFAULT_ENV:-}" != "${target_env}" ]]; then
+    conda activate "${target_env}" || echo "Warning: could not activate conda env '${target_env}'; using current environment."
+  fi
+}
+
+setup_conda_env
+echo "Python: $(command -v python)"
+python - <<'PY'
+import sys
+print(f"Python version: {sys.version.split()[0]}")
+PY
 
 # Check GPU status (Optional, but good for logs)
-nvidia-smi
+if command -v nvidia-smi >/dev/null 2>&1; then
+  nvidia-smi
+else
+  echo "Warning: nvidia-smi not found."
+fi
 
 cd "$(dirname "$0")"
 mkdir -p slurm_logs weights

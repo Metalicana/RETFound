@@ -90,11 +90,11 @@ From the repo root, run both legacy-equivalent multi-head probes:
 bash equi-agent/scripts/run_fairvision_retfound_mirage_training.sh
 ```
 
-Or submit/run them separately from `equi-agent`:
+Or run them separately from `equi-agent`:
 
 ```bash
-sbatch train_oct.sh
-sbatch train_slo.sh
+bash train_oct.sh
+bash train_slo.sh
 ```
 
 Useful overrides:
