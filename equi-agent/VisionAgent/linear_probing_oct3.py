@@ -17,8 +17,9 @@ from sklearn.metrics import roc_auc_score, mean_absolute_error
 
 try:
     from VisionAgent.models_vit import RETFound_mae
-except ImportError:
-    raise ImportError("Error: 'models_vit.py' not found.")
+    from VisionAgent.fairvision_npz import FairVisionNPZ
+except ImportError as exc:
+    raise ImportError("Error loading RETFound model or FairVision dataset helpers.") from exc
 
 EQUI_AGENT_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = EQUI_AGENT_ROOT.parent
@@ -31,27 +32,36 @@ def _resolve_fairvision_root():
         candidates.append(Path(configured).expanduser())
     candidates.extend(
         [
+            REPO_ROOT / "Datasets" / "FairVision",
             EQUI_AGENT_ROOT / "data",
             REPO_ROOT / "Datasets" / "FairVision" / "HarvardFairVision30k",
-            REPO_ROOT / "Datasets" / "FairVision",
-            REPO_ROOT / "OphthalmicAgent" / "data",
         ]
     )
 
     for candidate in candidates:
-        nested = candidate / "HarvardFairVision30k"
-        if nested.exists():
-            candidate = nested
-        if all((candidate / disease).exists() for disease in ("AMD", "DR", "Glaucoma")):
+        candidate = candidate.expanduser()
+        has_diseases = all((candidate / disease).exists() for disease in ("AMD", "DR", "Glaucoma"))
+        has_flat_splits = all((candidate / split).exists() for split in ("Training", "Validation", "Test"))
+        has_hf_metadata = all(
+            (candidate / "HarvardFairVision30k" / disease / "ReadMe").exists()
+            for disease in ("AMD", "DR", "Glaucoma")
+        )
+        parent_has_flat_splits = all((candidate.parent / split).exists() for split in ("Training", "Validation", "Test"))
+        has_legacy_splits = all(
+            any((candidate / disease / split).exists() for split in ("Training", "Validation", "Test"))
+            for disease in ("AMD", "DR", "Glaucoma")
+        )
+        if (has_flat_splits and has_hf_metadata) or (has_diseases and (parent_has_flat_splits or has_legacy_splits)):
             return str(candidate)
 
     return str(candidates[0])
 
 
 DATA_ROOT = _resolve_fairvision_root()
-BATCH_SIZE = 64
-LR = 1e-3
-EPOCHS = 60
+BATCH_SIZE = int(os.environ.get("RETFOUND_BATCH_SIZE", 64))
+LR = float(os.environ.get("RETFOUND_LR", 1e-3))
+EPOCHS = int(os.environ.get("RETFOUND_EPOCHS", 60))
+NUM_WORKERS = int(os.environ.get("RETFOUND_NUM_WORKERS", 16))
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 PATH = os.environ.get(
     "RETFOUND_OCT_MODEL_WEIGHTS",
@@ -146,18 +156,21 @@ PATH = os.environ.get(
 #        except Exception:
 #            return self.__getitem__(idx - 1 if idx > 0 else 0)
 
-class FairVisionNPZ(Dataset):
+class _LegacyFairVisionNPZ(Dataset):
     def __init__(self, root_dir, split='Training', transform=None):
         self.files = []
         self.transform = transform
         self.sources = ['AMD', 'DR', 'Glaucoma']
-        self.csv_base_path = root_dir
-        
-        self.metadata_lookup = self._load_all_metadata()
+        self.root_dir = Path(root_dir).expanduser()
+        self.split_folder = self._normalize_split(split)
+        self.csv_base_path = self._metadata_root()
+        self.image_base_path = self._image_root()
 
         self.amd_map = {
             'not.in.icd.table': 0., 'no.amd.diagnosis': 0.,
+            'normal': 0., 'no amd': 0.,
             'early.dry': 1., 'intermediate.dry': 2., 
+            'early amd': 1., 'intermediate amd': 2., 'late amd': 3.,
             'advanced.atrophic.dry.with.subfoveal.involvement': 3.,
             'advanced.atrophic.dry.without.subfoveal.involvement': 3.,
             'wet.amd.active.choroidal.neovascularization': 3.,
@@ -167,58 +180,160 @@ class FairVisionNPZ(Dataset):
         
         self.dr_map = {
             'not.in.icd.table': 0., 'no.dr.diagnosis': 0.,
+            'no dr': 0., 'non-vision threatening dr': 0.,
             'mild.npdr': 0., 'moderate.npdr': 0.,
-            'severe.npdr': 1., 'pdr': 1.
+            'severe.npdr': 1., 'pdr': 1., 'vision threatening dr': 1.
         }
 
-        print(f"Scanning {split} data in {root_dir}...")
-        for source in self.sources:
-            path = os.path.join(root_dir, source, split)
-            if not os.path.exists(path):
-                continue
-            
-            all_files_found = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.npz')]
-            all_files_found.sort()
-            
-#            taking first 100 only for each disease
-#            files_found = all_files_found[:100]
-            
-            files_found = all_files_found
+        self.metadata_lookup = self._load_all_metadata()
 
-            
+        print(f"Scanning {self.split_folder} data in {self.root_dir}...")
+        for source in self.sources:
+            records = self._metadata_records_for_split(source)
+            if records:
+                for file_meta in records:
+                    fname = str(file_meta["filename"])
+                    f_path = self._find_npz_path(source, self.split_folder, fname)
+                    if f_path is None:
+                        print(f"Warning: NPZ not found for {source}/{self.split_folder}/{fname}")
+                        continue
+                    self.files.append({
+                        'path': str(f_path),
+                        'source': source,
+                        'meta': file_meta,
+                    })
+                continue
+
+            legacy_dir = self.root_dir / source / self.split_folder
+            if not legacy_dir.exists():
+                print(f"Warning: No metadata or legacy directory found for {source}: {legacy_dir}")
+                continue
+
+            files_found = sorted(path for path in legacy_dir.iterdir() if path.suffix == ".npz")
             for f_path in files_found:
-                fname = os.path.basename(f_path)
-                # Attach the specific metadata for this file immediately
-                file_meta = self.metadata_lookup.get(fname, {})
-                
+                fname = f_path.name
+                file_meta = self.metadata_lookup.get((source, fname), self.metadata_lookup.get(fname, {}))
                 self.files.append({
-                    'path': f_path, 
+                    'path': str(f_path),
                     'source': source,
-                    'meta': file_meta
+                    'meta': file_meta,
                 })
 
-        print(f"Found {len(self.files)} images with metadata for {split}.")
+        print(f"Found {len(self.files)} images with metadata for {self.split_folder}.")
+
+    @staticmethod
+    def _normalize_split(split):
+        key = str(split).strip().lower()
+        return {
+            'train': 'Training',
+            'training': 'Training',
+            'val': 'Validation',
+            'valid': 'Validation',
+            'validation': 'Validation',
+            'test': 'Test',
+        }.get(key, str(split))
+
+    @staticmethod
+    def _scalar_to_string(value):
+        if hasattr(value, "item"):
+            value = value.item()
+        if isinstance(value, bytes):
+            value = value.decode("utf-8", errors="ignore")
+        return str(value).strip().lower()
+
+    def _metadata_root(self):
+        if (self.root_dir / "HarvardFairVision30k").exists():
+            return self.root_dir / "HarvardFairVision30k"
+        return self.root_dir
+
+    def _image_root(self):
+        if all((self.root_dir / split).exists() for split in ("Training", "Validation", "Test")):
+            return self.root_dir
+        if all((self.root_dir.parent / split).exists() for split in ("Training", "Validation", "Test")):
+            return self.root_dir.parent
+        return self.root_dir
+
+    def _metadata_csv_path(self, source):
+        task = source.lower()
+        candidates = [
+            self.csv_base_path / source / "ReadMe" / f"data_summary_{task}.csv",
+            self.csv_base_path / source / f"data_summary_{task}.csv",
+            self.root_dir / source / "ReadMe" / f"data_summary_{task}.csv",
+            self.root_dir / source / f"data_summary_{task}.csv",
+        ]
+        return next((path for path in candidates if path.exists()), None)
+
+    def _metadata_records_for_split(self, source):
+        csv_path = self._metadata_csv_path(source)
+        if csv_path is None:
+            return []
+        df = pd.read_csv(csv_path)
+        if "use" in df.columns:
+            split_mask = df["use"].map(self._normalize_split) == self.split_folder
+            df = df[split_mask].copy()
+        return df.to_dict('records')
+
+    def _find_npz_path(self, source, split_folder, filename):
+        candidates = [
+            self.image_base_path / split_folder / filename,
+            self.image_base_path / source / split_folder / filename,
+            self.root_dir / split_folder / filename,
+            self.root_dir / source / split_folder / filename,
+            self.csv_base_path / source / split_folder / filename,
+        ]
+        return next((path for path in candidates if path.exists()), None)
 
     def _load_all_metadata(self):
         """Pre-loads CSVs and converts them to a fast-access dictionary."""
         combined_meta = {}
         for source in self.sources:
-            csv_name = f"data_summary_{source.lower()}.csv"
-            csv_candidates = [
-                os.path.join(self.csv_base_path, source, csv_name),
-                os.path.join(self.csv_base_path, source, "ReadMe", csv_name),
-            ]
-            csv_path = next((path for path in csv_candidates if os.path.exists(path)), csv_candidates[0])
-            
-            if os.path.exists(csv_path):
+            csv_path = self._metadata_csv_path(source)
+
+            if csv_path is not None:
                 df = pd.read_csv(csv_path)
                 records = df.to_dict('records')
                 for rec in records:
-                    # Use 'filename' column as the key
-                    combined_meta[rec['filename']] = rec
+                    combined_meta[(source, rec['filename'])] = rec
+                    combined_meta.setdefault(rec['filename'], rec)
             else:
-                print(f"Warning: Metadata CSV not found at {csv_path}")
+                print(f"Warning: Metadata CSV not found for {source} under {self.root_dir}")
         return combined_meta
+
+    def _build_label_and_metadata(self, item, data):
+        label = torch.full((5,), -1.0)
+        source = item['source']
+        csv_meta = item['meta']
+
+        if source == 'AMD':
+            raw_value = data['amd_condition'] if 'amd_condition' in data.files else csv_meta.get('amd', '')
+            severity = int(self.amd_map.get(self._scalar_to_string(raw_value), 0.))
+            label[0] = 1.0 if severity >= 1 else 0.0
+            label[1] = 1.0 if severity >= 2 else 0.0
+            label[2] = 1.0 if severity >= 3 else 0.0
+        elif source == 'DR':
+            raw_value = data['dr_subtype'] if 'dr_subtype' in data.files else csv_meta.get('dr', '')
+            severity = int(self.dr_map.get(self._scalar_to_string(raw_value), 0.))
+            label[3] = 1.0 if severity >= 1.0 else 0.0
+        elif source == 'Glaucoma':
+            raw_value = data['glaucoma'] if 'glaucoma' in data.files else csv_meta.get('glaucoma', 0)
+            key = self._scalar_to_string(raw_value)
+            severity = 1 if key in {'1', '1.0', 'true', 'yes', 'y'} else 0
+            label[4] = 1.0 if severity == 1 else 0.0
+        else:
+            severity = -1
+
+        metadata = {
+            'disease': source,
+            'age': csv_meta.get('age', 'unknown'),
+            'gender': csv_meta.get('gender', 'unknown'),
+            'race': csv_meta.get('race', 'unknown'),
+            'ethnicity': csv_meta.get('ethnicity', 'unknown'),
+            'language': csv_meta.get('language', 'unknown'),
+            'maritalstatus': csv_meta.get('maritalstatus', 'unknown'),
+            'filename': os.path.basename(item['path']),
+            'groundtruth': severity,
+        }
+        return label, metadata
 
     def __getitem__(self, idx):
         item = self.files[idx]
@@ -232,42 +347,7 @@ class FairVisionNPZ(Dataset):
             else: oct_slice = oct_slice.astype(np.uint8)
             image = Image.fromarray(oct_slice).convert('RGB')
             if self.transform: image = self.transform(image)
-            
-            # --- Label Processing ---
-            label = torch.full((5,), -1.0) 
-            source = item['source']
-            csv_meta = item['meta'] # This is the pre-loaded metadata dict
-            
-            if source == 'AMD':
-                cond = str(data['amd_condition'])
-                severity = int(self.amd_map.get(cond, 0.))
-                # AMD uses indices 0, 1, and 2
-                label[0] = 1.0 if severity >= 1 else 0.0
-                label[1] = 1.0 if severity >= 2 else 0.0
-                label[2] = 1.0 if severity >= 3 else 0.0
-                
-            elif source == 'DR':
-                cond = str(data['dr_subtype'])
-                severity = int(self.dr_map.get(cond, 0.))
-                label[3] = 1.0 if severity  >= 1.0 else 0.0
-                
-            elif source == 'Glaucoma':
-                severity = int(data['glaucoma'])
-                label[4] = 1.0 if severity == 1 else 0.0
-                
-            # --- Metadata Assembly ---
-            # We pull from the dictionary we populated in __init__
-            metadata = {
-                'disease': source,
-                'age': csv_meta.get('age', 'unknown'),
-                'gender': csv_meta.get('gender', 'unknown'),
-                'race': csv_meta.get('race', 'unknown'),
-                'ethnicity': csv_meta.get('ethnicity', 'unknown'),
-                'language': csv_meta.get('language', 'unknown'),
-                'maritalstatus': csv_meta.get('maritalstatus', 'unknown'),
-                'filename': os.path.basename(item['path']),
-                'groundtruth': severity
-            }
+            label, metadata = self._build_label_and_metadata(item, data)
             
             return image, label, metadata
 
@@ -443,9 +523,26 @@ def train(resume = True):
 
     train_ds = FairVisionNPZ(DATA_ROOT, split='Training', transform=train_transform)
     val_ds = FairVisionNPZ(DATA_ROOT, split='Validation', transform=val_transform)
+    if len(train_ds) == 0 or len(val_ds) == 0:
+        raise RuntimeError(
+            f"FairVision splits are empty: train={len(train_ds)} val={len(val_ds)}. "
+            f"Check FAIRVISION_DATA_ROOT={DATA_ROOT!r}."
+        )
     
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=16, pin_memory=True)
-    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=8, pin_memory=True)
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=BATCH_SIZE,
+        shuffle=True,
+        num_workers=NUM_WORKERS,
+        pin_memory=DEVICE.type == "cuda",
+    )
+    val_loader = DataLoader(
+        val_ds,
+        batch_size=BATCH_SIZE,
+        shuffle=False,
+        num_workers=max(1, NUM_WORKERS // 2),
+        pin_memory=DEVICE.type == "cuda",
+    )
     
     model = get_model_oct().to(DEVICE)
     checkpoint_path = PATH
@@ -509,12 +606,14 @@ def train(resume = True):
         # 1. AMD AUC (Calculate for each cumulative level)
         amd_mask = all_targets[:, 0] != -1
         if amd_mask.any():
-            # Calculate AUC for Stage >= 1
-            metrics['AMD_AUC_L1'] = roc_auc_score(all_targets[amd_mask, 0], all_amd_preds[amd_mask, 0])
-            # Average the three AMD layers for a single AMD score
-            metrics['AMD_Avg_AUC'] = np.mean([
-                roc_auc_score(all_targets[amd_mask, i], all_amd_preds[amd_mask, i]) for i in range(3)
-            ])
+            amd_aucs = [
+                roc_auc_score(all_targets[amd_mask, i], all_amd_preds[amd_mask, i])
+                for i in range(3)
+                if len(np.unique(all_targets[amd_mask, i])) > 1
+            ]
+            if amd_aucs:
+                metrics['AMD_AUC_L1'] = amd_aucs[0]
+                metrics['AMD_Avg_AUC'] = np.mean(amd_aucs)
 
         # 2. DR AUC
         dr_mask = all_targets[:, 3] != -1
@@ -527,7 +626,8 @@ def train(resume = True):
             metrics['Glaucoma_AUC'] = roc_auc_score(all_targets[gl_mask, 4], all_gl_preds[gl_mask, 0])
 
         # --- LOGGING & SAVING ---
-        avg_auc = np.mean([v for k, v in metrics.items() if 'AUC' in k])
+        auc_values = [v for k, v in metrics.items() if 'AUC' in k]
+        avg_auc = np.mean(auc_values) if auc_values else 0.0
         print(f"\n[Epoch {epoch+1}] Avg Loss: {train_loss/len(train_loader):.4f}")
         print(f"AMD Avg AUC: {metrics.get('AMD_Avg_AUC', 0):.4f} | DR AUC: {metrics.get('DR_AUC', 0):.4f} | GL AUC: {metrics.get('Glaucoma_AUC', 0):.4f}")
 

@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+from pathlib import Path
 from PIL import Image
 import matplotlib.pyplot as plt
 from pprint import pprint
@@ -10,14 +11,35 @@ class GenericEyeLoader:
         """
         base_path: The root folder containing DR, AMD, and Glaucoma folders.
         """
-        self.base_path = base_path
+        self.base_path = Path(base_path).expanduser()
 
     def get_metadata(self, disease):
         """Loads the correct CSV based on disease name."""
         # Standardizing naming: e.g., 'glaucoma' -> 'data_summary_glaucoma.csv'
         csv_name = f"data_summary_{disease.lower()}.csv"
-        csv_path = os.path.join(self.base_path, disease, csv_name)
+        csv_candidates = [
+            self.base_path / "HarvardFairVision30k" / disease / "ReadMe" / csv_name,
+            self.base_path / "HarvardFairVision30k" / disease / csv_name,
+            self.base_path / disease / "ReadMe" / csv_name,
+            self.base_path / disease / csv_name,
+        ]
+        csv_path = next((path for path in csv_candidates if path.exists()), None)
+        if csv_path is None:
+            searched = "\n".join(str(path) for path in csv_candidates)
+            raise FileNotFoundError(f"Could not find {csv_name}. Searched:\n{searched}")
         return pd.read_csv(csv_path)
+
+    def _npz_path(self, disease, split_folder, npz_filename):
+        candidates = [
+            self.base_path / split_folder / npz_filename,
+            self.base_path / disease / split_folder / npz_filename,
+            self.base_path / "HarvardFairVision30k" / disease / split_folder / npz_filename,
+        ]
+        npz_path = next((path for path in candidates if path.exists()), None)
+        if npz_path is None:
+            searched = "\n".join(str(path) for path in candidates)
+            raise FileNotFoundError(f"Could not find {npz_filename}. Searched:\n{searched}")
+        return npz_path
 
     def load_patient(self, disease, patient_row):
         """
@@ -37,10 +59,8 @@ class GenericEyeLoader:
         patient_id = npz_filename.replace('data_', '').replace('.npz', '')
         jpg_filename = f"slo_fundus_{patient_id}.jpg"
 
-        disease_dir = os.path.join(self.base_path, disease, split_folder)
-
         # 3. Load NPZ (OCT/Tensors)
-        npz_path = os.path.join(disease_dir, npz_filename)
+        npz_path = self._npz_path(disease, split_folder, npz_filename)
         container = np.load(npz_path)
 
         if(disease == "AMD"):
@@ -98,7 +118,7 @@ class GenericEyeLoader:
             "metadata": patient_row.to_dict(),
             "oct_tensors": oct_volume,
             "fundus_img": fundus_img,
-            "directory": npz_path,
+            "directory": str(npz_path),
             "stage": stage,
             "oct_img": oct_image
         }

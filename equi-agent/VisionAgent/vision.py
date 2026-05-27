@@ -1,5 +1,6 @@
 import sys
 import os
+from pathlib import Path
 import torch
 import numpy as np
 from torchvision import transforms
@@ -10,7 +11,8 @@ import base64
 import io
 from VisionAgent.linear_probing_oct3 import get_model_oct
 
-MIRAGE_DIR = os.path.abspath("./VisionAgent/MIRAGE")
+EQUI_AGENT_ROOT = Path(__file__).resolve().parents[1]
+MIRAGE_DIR = os.environ.get("MIRAGE_DIR", str(EQUI_AGENT_ROOT / "VisionAgent" / "MIRAGE"))
 sys.path.append(MIRAGE_DIR)
 
 from linear_probing_slo import get_model_slo

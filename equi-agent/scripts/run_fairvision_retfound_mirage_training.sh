@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+RETFOUND_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+EQUI_AGENT_DIR="${RETFOUND_ROOT}/equi-agent"
+
+FAIRVISION_DATA_ROOT="${FAIRVISION_DATA_ROOT:-${RETFOUND_ROOT}/Datasets/FairVision}"
+RUN_RETFOUND="${RUN_RETFOUND:-1}"
+RUN_MIRAGE="${RUN_MIRAGE:-1}"
+
+RETFOUND_OCT_BACKBONE_WEIGHTS="${RETFOUND_OCT_BACKBONE_WEIGHTS:-${EQUI_AGENT_DIR}/weights/RETFound_mae_natureOCT.pth}"
+RETFOUND_OCT_MODEL_WEIGHTS="${RETFOUND_OCT_MODEL_WEIGHTS:-${EQUI_AGENT_DIR}/weights/oct_model_best.pth}"
+RETFOUND_EPOCHS="${RETFOUND_EPOCHS:-60}"
+RETFOUND_BATCH_SIZE="${RETFOUND_BATCH_SIZE:-64}"
+RETFOUND_NUM_WORKERS="${RETFOUND_NUM_WORKERS:-16}"
+
+MIRAGE_DIR="${MIRAGE_DIR:-${EQUI_AGENT_DIR}/VisionAgent/MIRAGE}"
+MIRAGE_SLO_MODEL_WEIGHTS="${MIRAGE_SLO_MODEL_WEIGHTS:-${EQUI_AGENT_DIR}/weights/slo_model_best.pth}"
+MIRAGE_EPOCHS="${MIRAGE_EPOCHS:-60}"
+MIRAGE_BATCH_SIZE="${MIRAGE_BATCH_SIZE:-64}"
+MIRAGE_NUM_WORKERS="${MIRAGE_NUM_WORKERS:-16}"
+
+mkdir -p "${EQUI_AGENT_DIR}/weights"
+
+if [[ "${RUN_RETFOUND}" == "1" ]]; then
+  (
+    cd "${EQUI_AGENT_DIR}"
+    FAIRVISION_DATA_ROOT="${FAIRVISION_DATA_ROOT}" \
+    RETFOUND_OCT_BACKBONE_WEIGHTS="${RETFOUND_OCT_BACKBONE_WEIGHTS}" \
+    RETFOUND_OCT_MODEL_WEIGHTS="${RETFOUND_OCT_MODEL_WEIGHTS}" \
+    RETFOUND_EPOCHS="${RETFOUND_EPOCHS}" \
+    RETFOUND_BATCH_SIZE="${RETFOUND_BATCH_SIZE}" \
+    RETFOUND_NUM_WORKERS="${RETFOUND_NUM_WORKERS}" \
+      python -u -m VisionAgent.linear_probing_oct3
+  )
+fi
+
+if [[ "${RUN_MIRAGE}" == "1" ]]; then
+  python -u "${EQUI_AGENT_DIR}/scripts/train_fairvision_mirage_slo.py" \
+    --data-root "${FAIRVISION_DATA_ROOT}" \
+    --mirage-dir "${MIRAGE_DIR}" \
+    --output-weights "${MIRAGE_SLO_MODEL_WEIGHTS}" \
+    --epochs "${MIRAGE_EPOCHS}" \
+    --batch-size "${MIRAGE_BATCH_SIZE}" \
+    --num-workers "${MIRAGE_NUM_WORKERS}"
+fi
+
+echo "RETFound/MIRAGE FairVision training complete."

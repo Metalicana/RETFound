@@ -11,6 +11,8 @@
 #SBATCH --cpus-per-task=16              # Request 16 CPU cores (Matches your NUM_WORKERS=16 setting)
 #SBATCH --gres=gpu:1                   # Request 1 GPU (the resource needed)
 
+set -euo pipefail
+
 # --- SETUP ENVIRONMENT ---
 echo "--- Starting job on node $(hostname) ---"
 
@@ -20,16 +22,26 @@ source $(conda info --base)/etc/profile.d/conda.sh
 module load anaconda
 
 # Activate your conda environment (crucial!)
-conda activate eyeAgent
+conda activate "${CONDA_ENV:-retfound}"
 
 # Check GPU status (Optional, but good for logs)
 nvidia-smi
 
 cd "$(dirname "$0")"
-mkdir -p slurm_logs
+mkdir -p slurm_logs weights
+
+export FAIRVISION_DATA_ROOT="${FAIRVISION_DATA_ROOT:-../Datasets/FairVision}"
+export RETFOUND_OCT_BACKBONE_WEIGHTS="${RETFOUND_OCT_BACKBONE_WEIGHTS:-weights/RETFound_mae_natureOCT.pth}"
+export RETFOUND_OCT_MODEL_WEIGHTS="${RETFOUND_OCT_MODEL_WEIGHTS:-weights/oct_model_best.pth}"
+export RETFOUND_EPOCHS="${RETFOUND_EPOCHS:-60}"
+export RETFOUND_BATCH_SIZE="${RETFOUND_BATCH_SIZE:-64}"
+export RETFOUND_NUM_WORKERS="${RETFOUND_NUM_WORKERS:-16}"
 
 # --- EXECUTE PYTHON SCRIPT ---
 echo "Running main training script: linear_probing_oct3.py"
+echo "FAIRVISION_DATA_ROOT=${FAIRVISION_DATA_ROOT}"
+echo "RETFOUND_OCT_BACKBONE_WEIGHTS=${RETFOUND_OCT_BACKBONE_WEIGHTS}"
+echo "RETFOUND_OCT_MODEL_WEIGHTS=${RETFOUND_OCT_MODEL_WEIGHTS}"
 
 python -u -m VisionAgent.linear_probing_oct3
 

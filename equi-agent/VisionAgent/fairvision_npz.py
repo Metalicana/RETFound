@@ -1,0 +1,225 @@
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import torch
+from PIL import Image
+from torch.utils.data import Dataset
+
+
+class FairVisionNPZ(Dataset):
+    def __init__(self, root_dir, split="Training", transform=None, image_kind="oct"):
+        self.files = []
+        self.transform = transform
+        self.image_kind = image_kind
+        self.sources = ["AMD", "DR", "Glaucoma"]
+        self.root_dir = Path(root_dir).expanduser()
+        self.split_folder = self._normalize_split(split)
+        self.csv_base_path = self._metadata_root()
+        self.image_base_path = self._image_root()
+
+        self.amd_map = {
+            "not.in.icd.table": 0.0,
+            "no.amd.diagnosis": 0.0,
+            "normal": 0.0,
+            "no amd": 0.0,
+            "early.dry": 1.0,
+            "early amd": 1.0,
+            "intermediate.dry": 2.0,
+            "intermediate amd": 2.0,
+            "late amd": 3.0,
+            "advanced.atrophic.dry.with.subfoveal.involvement": 3.0,
+            "advanced.atrophic.dry.without.subfoveal.involvement": 3.0,
+            "wet.amd.active.choroidal.neovascularization": 3.0,
+            "wet.amd.inactive.choroidal.neovascularization": 3.0,
+            "wet.amd.inactive.scar": 3.0,
+        }
+        self.dr_map = {
+            "not.in.icd.table": 0.0,
+            "no.dr.diagnosis": 0.0,
+            "no dr": 0.0,
+            "non-vision threatening dr": 0.0,
+            "mild.npdr": 0.0,
+            "moderate.npdr": 0.0,
+            "severe.npdr": 1.0,
+            "pdr": 1.0,
+            "vision threatening dr": 1.0,
+        }
+
+        self.metadata_lookup = self._load_all_metadata()
+
+        print(f"Scanning {self.split_folder} data in {self.root_dir}...")
+        for source in self.sources:
+            records = self._metadata_records_for_split(source)
+            if records:
+                self._append_records(source, records)
+                continue
+            self._append_legacy_files(source)
+        print(f"Found {len(self.files)} images with metadata for {self.split_folder}.")
+
+    def _append_records(self, source, records):
+        for file_meta in records:
+            fname = str(file_meta["filename"])
+            f_path = self._find_npz_path(source, self.split_folder, fname)
+            if f_path is None:
+                print(f"Warning: NPZ not found for {source}/{self.split_folder}/{fname}")
+                continue
+            self.files.append({"path": str(f_path), "source": source, "meta": file_meta})
+
+    def _append_legacy_files(self, source):
+        legacy_dir = self.root_dir / source / self.split_folder
+        if not legacy_dir.exists():
+            print(f"Warning: No metadata or legacy directory found for {source}: {legacy_dir}")
+            return
+        files_found = sorted(path for path in legacy_dir.iterdir() if path.suffix == ".npz")
+        for f_path in files_found:
+            fname = f_path.name
+            file_meta = self.metadata_lookup.get((source, fname), self.metadata_lookup.get(fname, {}))
+            self.files.append({"path": str(f_path), "source": source, "meta": file_meta})
+
+    @staticmethod
+    def _normalize_split(split):
+        key = str(split).strip().lower()
+        return {
+            "train": "Training",
+            "training": "Training",
+            "val": "Validation",
+            "valid": "Validation",
+            "validation": "Validation",
+            "test": "Test",
+        }.get(key, str(split))
+
+    @staticmethod
+    def _scalar_to_string(value):
+        if hasattr(value, "item"):
+            value = value.item()
+        if isinstance(value, bytes):
+            value = value.decode("utf-8", errors="ignore")
+        return str(value).strip().lower()
+
+    def _metadata_root(self):
+        if (self.root_dir / "HarvardFairVision30k").exists():
+            return self.root_dir / "HarvardFairVision30k"
+        return self.root_dir
+
+    def _image_root(self):
+        if all((self.root_dir / split).exists() for split in ("Training", "Validation", "Test")):
+            return self.root_dir
+        if all((self.root_dir.parent / split).exists() for split in ("Training", "Validation", "Test")):
+            return self.root_dir.parent
+        return self.root_dir
+
+    def _metadata_csv_path(self, source):
+        task = source.lower()
+        candidates = [
+            self.csv_base_path / source / "ReadMe" / f"data_summary_{task}.csv",
+            self.csv_base_path / source / f"data_summary_{task}.csv",
+            self.root_dir / source / "ReadMe" / f"data_summary_{task}.csv",
+            self.root_dir / source / f"data_summary_{task}.csv",
+        ]
+        return next((path for path in candidates if path.exists()), None)
+
+    def _metadata_records_for_split(self, source):
+        csv_path = self._metadata_csv_path(source)
+        if csv_path is None:
+            return []
+        df = pd.read_csv(csv_path)
+        if "use" in df.columns:
+            split_mask = df["use"].map(self._normalize_split) == self.split_folder
+            df = df[split_mask].copy()
+        return df.to_dict("records")
+
+    def _find_npz_path(self, source, split_folder, filename):
+        candidates = [
+            self.image_base_path / split_folder / filename,
+            self.image_base_path / source / split_folder / filename,
+            self.root_dir / split_folder / filename,
+            self.root_dir / source / split_folder / filename,
+            self.csv_base_path / source / split_folder / filename,
+        ]
+        return next((path for path in candidates if path.exists()), None)
+
+    def _load_all_metadata(self):
+        combined_meta = {}
+        for source in self.sources:
+            csv_path = self._metadata_csv_path(source)
+            if csv_path is not None:
+                records = pd.read_csv(csv_path).to_dict("records")
+                for rec in records:
+                    combined_meta[(source, rec["filename"])] = rec
+                    combined_meta.setdefault(rec["filename"], rec)
+            else:
+                print(f"Warning: Metadata CSV not found for {source} under {self.root_dir}")
+        return combined_meta
+
+    def _build_label_and_metadata(self, item, data):
+        label = torch.full((5,), -1.0)
+        source = item["source"]
+        csv_meta = item["meta"]
+
+        if source == "AMD":
+            raw_value = data["amd_condition"] if "amd_condition" in data.files else csv_meta.get("amd", "")
+            severity = int(self.amd_map.get(self._scalar_to_string(raw_value), 0.0))
+            label[0] = 1.0 if severity >= 1 else 0.0
+            label[1] = 1.0 if severity >= 2 else 0.0
+            label[2] = 1.0 if severity >= 3 else 0.0
+        elif source == "DR":
+            raw_value = data["dr_subtype"] if "dr_subtype" in data.files else csv_meta.get("dr", "")
+            severity = int(self.dr_map.get(self._scalar_to_string(raw_value), 0.0))
+            label[3] = 1.0 if severity >= 1.0 else 0.0
+        elif source == "Glaucoma":
+            raw_value = data["glaucoma"] if "glaucoma" in data.files else csv_meta.get("glaucoma", 0)
+            key = self._scalar_to_string(raw_value)
+            severity = 1 if key in {"1", "1.0", "true", "yes", "y"} else 0
+            label[4] = 1.0 if severity == 1 else 0.0
+        else:
+            severity = -1
+
+        metadata = {
+            "disease": source,
+            "age": csv_meta.get("age", "unknown"),
+            "gender": csv_meta.get("gender", "unknown"),
+            "race": csv_meta.get("race", "unknown"),
+            "ethnicity": csv_meta.get("ethnicity", "unknown"),
+            "language": csv_meta.get("language", "unknown"),
+            "maritalstatus": csv_meta.get("maritalstatus", "unknown"),
+            "filename": os.path.basename(item["path"]),
+            "groundtruth": severity,
+        }
+        return label, metadata
+
+    def _oct_image(self, data):
+        oct_volume = data["oct_bscans"]
+        oct_slice = oct_volume[oct_volume.shape[0] // 2]
+        if oct_slice.max() <= 1.0:
+            oct_slice = (oct_slice * 255).astype(np.uint8)
+        else:
+            oct_slice = oct_slice.astype(np.uint8)
+        return Image.fromarray(oct_slice).convert("RGB")
+
+    def _slo_image(self, data):
+        fundus_img = data["slo_fundus"]
+        if fundus_img.max() <= 1.0:
+            fundus_img = (fundus_img * 255).astype(np.uint8)
+        else:
+            fundus_img = fundus_img.astype(np.uint8)
+        return Image.fromarray(fundus_img).convert("L")
+
+    def __getitem__(self, idx):
+        item = self.files[idx]
+        try:
+            data = np.load(item["path"])
+            image = self._slo_image(data) if self.image_kind == "slo" else self._oct_image(data)
+            if self.transform:
+                image = self.transform(image)
+            label, metadata = self._build_label_and_metadata(item, data)
+            return image, label, metadata
+        except Exception as exc:
+            print(f"Error at index {idx}: {exc}")
+            return self.__getitem__(idx - 1 if idx > 0 else 0)
+
+    def __len__(self):
+        return len(self.files)

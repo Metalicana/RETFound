@@ -105,7 +105,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--backbone-weights",
         type=Path,
-        default=equi_agent_root() / "VisionAgent" / "weights" / "RETFound_mae_natureOCT.pth",
+        default=equi_agent_root() / "weights" / "RETFound_mae_natureOCT.pth",
         help="Path to RETFound OCT backbone checkpoint used to construct the model.",
     )
     parser.add_argument(

@@ -164,7 +164,7 @@ if __name__ == "__main__":
 
     results = []
 
-    BASE_PATH = os.environ.get("EQUI_AGENT_DATA_ROOT", "data/")
+    BASE_PATH = os.environ.get("EQUI_AGENT_DATA_ROOT", "../Datasets/FairVision")
     diseases = ['Glaucoma', 'AMD', 'DR']
 #    diseases = ['AMD', 'Glaucoma', 'DR']
 #    diseases = ['DR', 'AMD', 'Glaucoma']

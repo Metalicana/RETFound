@@ -2,6 +2,7 @@
 ##Separate heads for all
 
 import os
+from pathlib import Path
 import torch
 import numpy as np
 import pandas as pd
@@ -10,10 +11,14 @@ from torchvision import transforms
 from tqdm import tqdm
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, classification_report
 
-from VisionAgent.linear_probing_oct3 import FairVisionNPZ, get_model_oct
+from VisionAgent.linear_probing_oct3 import FairVisionNPZ, get_model_oct, _resolve_fairvision_root
 
-DATA_ROOT = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/data/"
-MODEL_WEIGHTS = "weights/oct_model_best.pth" 
+EQUI_AGENT_ROOT = Path(__file__).resolve().parents[1]
+DATA_ROOT = os.environ.get("FAIRVISION_DATA_ROOT", _resolve_fairvision_root())
+MODEL_WEIGHTS = os.environ.get(
+    "RETFOUND_OCT_MODEL_WEIGHTS",
+    str(EQUI_AGENT_ROOT / "weights" / "oct_model_best.pth"),
+)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 THRESHOLDS = {

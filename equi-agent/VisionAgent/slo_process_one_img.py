@@ -1,11 +1,13 @@
 import sys
 import os
+from pathlib import Path
 import torch
 import numpy as np
 from PIL import Image
 from torchvision import transforms
 
-MIRAGE_DIR = os.path.abspath("./VisionAgent/MIRAGE")
+EQUI_AGENT_ROOT = Path(__file__).resolve().parents[1]
+MIRAGE_DIR = os.environ.get("MIRAGE_DIR", str(EQUI_AGENT_ROOT / "VisionAgent" / "MIRAGE"))
 sys.path.append(MIRAGE_DIR)
 
 from linear_probing_slo import get_model_slo
@@ -59,14 +61,18 @@ if __name__ == "__main__":
     # Setup Model
     original_dir = os.getcwd()
     os.chdir(MIRAGE_DIR)
-    model = get_model().to(DEVICE) # Now it finds the weights in the current folder
+    model = get_model_slo().to(DEVICE) # Now it finds the weights in the current folder
     os.chdir(original_dir)
     
-    model.load_state_dict(torch.load("slo_model_best.pth", map_location=DEVICE))
+    weights_path = os.environ.get("MIRAGE_SLO_MODEL_WEIGHTS", str(EQUI_AGENT_ROOT / "weights" / "slo_model_best.pth"))
+    model.load_state_dict(torch.load(weights_path, map_location=DEVICE))
 
     # Path to a specific SLO image (.png, .jpg, etc.)
     # If your data is in .npz, you'll need to extract the 'slo_fundus' array first
-    test_image_path = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/data/AMD/Test/data_07007.npz"
+    test_image_path = os.environ.get(
+        "FAIRVISION_TEST_IMAGE",
+        str(EQUI_AGENT_ROOT.parent / "Datasets" / "FairVision" / "Test" / "data_07007.npz"),
+    )
 
     if os.path.exists(test_image_path):
         predict_single_image(model, test_image_path, DEVICE)

@@ -72,6 +72,41 @@ Inspect local NPZ formats before wiring model inputs:
 python equi-agent/scripts/smoke_npz_formats.py --max-per-group 1
 ```
 
+## RETFound and MIRAGE FairVision Training
+
+The refactor trains against the new dataset layout by default:
+
+```text
+RETFound/
+  Datasets/FairVision/{Training,Validation,Test}/data_*.npz
+  Datasets/FairVision/HarvardFairVision30k/{AMD,DR,Glaucoma}/ReadMe/data_summary_*.csv
+  equi-agent/weights/{RETFound_mae_natureOCT.pth,oct_model_best.pth,slo_model_best.pth}
+  equi-agent/VisionAgent/MIRAGE/MIRAGE-Base.pth
+```
+
+From the repo root, run both legacy-equivalent multi-head probes:
+
+```bash
+bash equi-agent/scripts/run_fairvision_retfound_mirage_training.sh
+```
+
+Or submit/run them separately from `equi-agent`:
+
+```bash
+sbatch train_oct.sh
+sbatch train_slo.sh
+```
+
+Useful overrides:
+
+```bash
+FAIRVISION_DATA_ROOT=/home/ab575577/RETFound/Datasets/FairVision
+RETFOUND_OCT_BACKBONE_WEIGHTS=/home/ab575577/RETFound/equi-agent/weights/RETFound_mae_natureOCT.pth
+RETFOUND_OCT_MODEL_WEIGHTS=/home/ab575577/RETFound/equi-agent/weights/oct_model_best.pth
+MIRAGE_DIR=/home/ab575577/RETFound/equi-agent/VisionAgent/MIRAGE
+MIRAGE_SLO_MODEL_WEIGHTS=/home/ab575577/RETFound/equi-agent/weights/slo_model_best.pth
+```
+
 ## Standard Prediction Schema
 
 Every downstream method should emit one row per sample, task, split, and model:
