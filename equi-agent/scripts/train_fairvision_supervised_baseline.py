@@ -114,6 +114,22 @@ def build_model(torch, models, arch: str, imagenet_weights: bool):
     raise ValueError(f"Unsupported arch: {arch}")
 
 
+def normalize_to_uint8(np, image):
+    image = np.asarray(image, dtype="float32")
+    finite = np.isfinite(image)
+    if not finite.any():
+        return np.zeros(image.shape, dtype="uint8")
+    lo, hi = np.percentile(image[finite], [1.0, 99.0])
+    if hi <= lo:
+        lo = float(np.nanmin(image[finite]))
+        hi = float(np.nanmax(image[finite]))
+    if hi <= lo:
+        return np.zeros(image.shape, dtype="uint8")
+    image = (image - lo) / (hi - lo)
+    image = np.clip(image, 0.0, 1.0)
+    return (image * 255.0).astype("uint8")
+
+
 class FairVisionImageDataset:
     def __init__(self, np, Image, frame, modality: str, transform):
         self.np = np
@@ -133,10 +149,7 @@ class FairVisionImageDataset:
                 image = volume[volume.shape[0] // 2]
             else:
                 image = data["slo_fundus"]
-        if image.max() <= 1.0:
-            image = (image * 255).astype("uint8")
-        else:
-            image = image.astype("uint8")
+        image = normalize_to_uint8(self.np, image)
         image = self.Image.fromarray(image).convert("RGB")
         return self.transform(image), float(row["y_true"]), index
 
@@ -195,6 +208,21 @@ def predict(torch, tqdm, model, loader, device):
     return probs_by_index
 
 
+def classification_summary(np, sklearn_metrics, frame, probs_by_index: dict[int, float]) -> dict[str, float]:
+    labels = frame.reset_index(drop=True)["y_true"].astype(int).to_numpy()
+    probs = np.asarray([probs_by_index[i] for i in range(len(labels))], dtype="float32")
+    preds = (probs >= 0.5).astype(int)
+    try:
+        auroc = float(sklearn_metrics.roc_auc_score(labels, probs))
+    except Exception:
+        auroc = float("nan")
+    return {
+        "auroc": auroc,
+        "f1": float(sklearn_metrics.f1_score(labels, preds, zero_division=0)),
+        "balanced_accuracy": float(sklearn_metrics.balanced_accuracy_score(labels, preds)),
+    }
+
+
 def to_standard_predictions(pd, frame, probs_by_index: dict[int, float], arch: str, modality: str):
     rows = []
     for index, row in frame.reset_index(drop=True).iterrows():
@@ -226,6 +254,8 @@ def to_standard_predictions(pd, frame, probs_by_index: dict[int, float], arch: s
 def main() -> None:
     args = parse_args()
     np, pd, torch, Image, DataLoader, Dataset, models, transforms, tqdm = require_runtime_libs()
+    from sklearn import metrics as sklearn_metrics
+
     set_seed(torch, args.seed)
 
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
@@ -277,9 +307,33 @@ def main() -> None:
     criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
+    best_state = None
+    best_val_auroc = float("-inf")
+    best_epoch = 0
     for epoch in range(1, args.epochs + 1):
         loss = train_one_epoch(torch, tqdm, model, train_loader, optimizer, criterion, device)
-        print(f"epoch={epoch} train_loss={loss:.6f}")
+        val_probs = predict(torch, tqdm, model, val_loader, device)
+        val_summary = classification_summary(np, sklearn_metrics, val_df, val_probs)
+        val_auroc = val_summary["auroc"]
+        if np.isfinite(val_auroc) and val_auroc > best_val_auroc:
+            best_val_auroc = val_auroc
+            best_epoch = epoch
+            best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
+        print(
+            "epoch={epoch} train_loss={loss:.6f} val_auroc={auroc:.6f} "
+            "val_f1@0.5={f1:.6f} val_bal_acc@0.5={bal:.6f} best_epoch={best_epoch}".format(
+                epoch=epoch,
+                loss=loss,
+                auroc=val_summary["auroc"],
+                f1=val_summary["f1"],
+                bal=val_summary["balanced_accuracy"],
+                best_epoch=best_epoch,
+            )
+        )
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
+        print(f"loaded_best_epoch={best_epoch} best_val_auroc={best_val_auroc:.6f}")
 
     if args.checkpoint:
         args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
@@ -290,6 +344,8 @@ def main() -> None:
                 "modality": args.modality,
                 "task": args.task,
                 "imagenet_weights": args.imagenet_weights,
+                "best_epoch": best_epoch,
+                "best_val_auroc": best_val_auroc,
             },
             args.checkpoint,
         )
