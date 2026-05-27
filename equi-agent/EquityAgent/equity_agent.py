@@ -137,11 +137,11 @@ class EquityAgent:
         system_content = (
             "You are a Clinical Equity Auditor. Your task is to translate decimal error rates (Calibration Data) "
             "into percentage-based diagnostic thresholds for the Orchestrator.\n\n"
-
+            
             "SCALE TRANSLATION PROTOCOL:\n"
             "- Calibration Input: Decimals (e.g., 0.15 = 15% error rate).\n"
             "- Orchestrator Output: Percentages (e.g., 35%, 50%, or 65% threshold).\n\n"
-
+            
             "CORE MISSION: You prevent model-reliability failures. Use subgroup membership only to identify "
             "which validation-derived error priors apply; never treat demographics as direct disease evidence. "
             "Recommend sensitivity shifts when reliable priors show high false-negative risk, and precision shifts "
@@ -153,7 +153,7 @@ class EquityAgent:
             "### TASK OVERVIEW\n"
             "Audit the patient's AI data against empirical calibration JSONs. You must determine if a "
             "'Sensitivity Shift' is required to prevent missing early/intermediate pathology.\n\n"
-
+            
             "### DATA INPUTS\n"
             "1) PATIENT_CONTEXT (Full Distributions & [!] TOTAL PATHOLOGY SIGNAL):\n"
             f"{patient_blob}\n\n"
@@ -178,14 +178,14 @@ class EquityAgent:
             "   - Trigger this if FN rate > 0.15.\n"
             "   - MANDATORY: If a 35% shift is active, and the '[!] TOTAL PATHOLOGY SIGNAL' (Sum of Stages 1-3) "
             "is > 35%, command the Orchestrator to investigate Stage 1 or 2, even if Stage 0 is the single highest probability.\n\n"
-
+            
             "2) **PRECISION_SHIFT (Threshold = 65%)**: \n"
             "   - Trigger this if FP rate > 0.15 and FN rate is low (< 0.10).\n\n"
-
+            
             "3) **PRIMARY_MODEL SELECTION**: \n"
             "   - Compare RETFOUND and MIRAGE decimal error rates. Favor the model with the lowest cumulative error "
             "for this specific patient's race/age/gender.\n\n"
-
+            
             "### REQUIRED OUTPUT FORMAT\n"
             "[BIAS_AUDIT_REPORT]\n"
             "- RISK_TYPE: [FN Risk / FP Risk / Minimal Risk]\n"
@@ -195,12 +195,12 @@ class EquityAgent:
             "Total Pathology Signal found in the distribution.]\n"
             "[/BIAS_AUDIT_REPORT]"
         )
-
+        
         messages = [
             {"role": "system", "content": system_content},
             {"role": "user", "content": base_content}
         ]
-
+        
         # Call Azure OpenAI Chat Completions using chat completion endpoint
         try:
             resp = self.client.chat.completions.create(

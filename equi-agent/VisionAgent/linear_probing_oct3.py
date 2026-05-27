@@ -1,9 +1,8 @@
 #With AMD 0,1,2,3
 #Separate heads for all
-#changed normalization
+#changed normalization 
 
 import os
-from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -20,8 +19,7 @@ try:
 except ImportError:
     raise ImportError("Error: 'models_vit.py' not found.")
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DATA_ROOT = os.environ.get("EQUI_AGENT_DATA_ROOT", str(PROJECT_ROOT / "data"))
+DATA_ROOT = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/data/"
 BATCH_SIZE = 64
 LR = 1e-3
 EPOCHS = 60
@@ -33,17 +31,17 @@ PATH = "oct_model_best.pth"
 #        self.files = []
 #        self.transform = transform
 #        self.sources = ['AMD', 'DR', 'Glaucoma']
-#
+#                
 #        self.amd_map = {
 #            'not.in.icd.table': 0., 'no.amd.diagnosis': 0.,
-#            'early.dry': 1., 'intermediate.dry': 2.,
+#            'early.dry': 1., 'intermediate.dry': 2., 
 #            'advanced.atrophic.dry.with.subfoveal.involvement': 3.,
 #            'advanced.atrophic.dry.without.subfoveal.involvement': 3.,
 #            'wet.amd.active.choroidal.neovascularization': 3.,
 #            'wet.amd.inactive.choroidal.neovascularization': 3.,
 #            'wet.amd.inactive.scar': 3.
 #        }
-#
+#        
 #        self.dr_map = {
 #            'not.in.icd.table': 0., 'no.dr.diagnosis': 0.,
 #            'mild.npdr': 0., 'moderate.npdr': 0.,
@@ -56,14 +54,14 @@ PATH = "oct_model_best.pth"
 #            if not os.path.exists(path):
 #                print(f"Warning: Directory not found: {path}")
 #                continue
-#
+#            
 #            # Find all .npz files
 #            all_files_found = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.npz')]
 #            all_files_found.sort()
-#
+#            
 ##            taking first 100 only for each disease
 #            files_found = all_files_found[:100]
-#
+#            
 ##            files_found = all_files_found
 #
 #            for f_path in files_found:
@@ -80,21 +78,21 @@ PATH = "oct_model_best.pth"
 #            data = np.load(item['path'])
 #            oct_volume = data['oct_bscans']
 #            oct_slice = oct_volume[oct_volume.shape[0] // 2]
-#
+#            
 #            if oct_slice.max() <= 1.0: oct_slice = (oct_slice * 255).astype(np.uint8)
 #            else: oct_slice = oct_slice.astype(np.uint8)
 ##            min_val = oct_slice.min()
-##            max_val = oct_slice.max()
+##            max_val = oct_slice.max()           
 ##            if max_val - min_val > 0:
-##              oct_slice = 255 * (oct_slice - min_val) / (max_val - min_val)
-##            oct_slice = oct_slice.astype(np.uint8)
-##
+##              oct_slice = 255 * (oct_slice - min_val) / (max_val - min_val)      
+##            oct_slice = oct_slice.astype(np.uint8)    
+##            
 #            image = Image.fromarray(oct_slice).convert('RGB')
 #            if self.transform: image = self.transform(image)
-#
-#            label = torch.full((5,), -1.0)
+#            
+#            label = torch.full((5,), -1.0) 
 #            source = item['source']
-#
+#            
 #            if source == 'AMD':
 #                cond = str(data['amd_condition'])
 #                severity = int(self.amd_map.get(cond, 0.))
@@ -102,16 +100,16 @@ PATH = "oct_model_best.pth"
 #                label[0] = 1.0 if severity >= 1 else 0.0
 #                label[1] = 1.0 if severity >= 2 else 0.0
 #                label[2] = 1.0 if severity >= 3 else 0.0
-#
+#                
 #            elif source == 'DR':
 #                cond = str(data['dr_subtype'])
 #                severity = int(self.dr_map.get(cond, 0.))
 #                label[3] = 1.0 if severity  >= 1.0 else 0.0
-#
+#                
 #            elif source == 'Glaucoma':
 #                severity = int(data['glaucoma'])
 #                label[4] = 1.0 if severity == 1 else 0.0
-#
+#                
 #            return image, label, -1
 #        except Exception:
 #            return self.__getitem__(idx - 1 if idx > 0 else 0)
@@ -122,19 +120,19 @@ class FairVisionNPZ(Dataset):
         self.transform = transform
         self.sources = ['AMD', 'DR', 'Glaucoma']
         self.csv_base_path = root_dir
-
+        
         self.metadata_lookup = self._load_all_metadata()
 
         self.amd_map = {
             'not.in.icd.table': 0., 'no.amd.diagnosis': 0.,
-            'early.dry': 1., 'intermediate.dry': 2.,
+            'early.dry': 1., 'intermediate.dry': 2., 
             'advanced.atrophic.dry.with.subfoveal.involvement': 3.,
             'advanced.atrophic.dry.without.subfoveal.involvement': 3.,
             'wet.amd.active.choroidal.neovascularization': 3.,
             'wet.amd.inactive.choroidal.neovascularization': 3.,
             'wet.amd.inactive.scar': 3.
         }
-
+        
         self.dr_map = {
             'not.in.icd.table': 0., 'no.dr.diagnosis': 0.,
             'mild.npdr': 0., 'moderate.npdr': 0.,
@@ -146,23 +144,23 @@ class FairVisionNPZ(Dataset):
             path = os.path.join(root_dir, source, split)
             if not os.path.exists(path):
                 continue
-
+            
             all_files_found = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.npz')]
             all_files_found.sort()
-
+            
 #            taking first 100 only for each disease
 #            files_found = all_files_found[:100]
-
+            
             files_found = all_files_found
 
-
+            
             for f_path in files_found:
                 fname = os.path.basename(f_path)
                 # Attach the specific metadata for this file immediately
                 file_meta = self.metadata_lookup.get(fname, {})
-
+                
                 self.files.append({
-                    'path': f_path,
+                    'path': f_path, 
                     'source': source,
                     'meta': file_meta
                 })
@@ -175,7 +173,7 @@ class FairVisionNPZ(Dataset):
         for source in self.sources:
             csv_name = f"data_summary_{source.lower()}.csv"
             csv_path = os.path.join(self.csv_base_path, source, csv_name)
-
+            
             if os.path.exists(csv_path):
                 df = pd.read_csv(csv_path)
                 records = df.to_dict('records')
@@ -190,7 +188,7 @@ class FairVisionNPZ(Dataset):
         item = self.files[idx]
         try:
             data = np.load(item['path'])
-
+            
             # --- Image Processing ---
             oct_volume = data['oct_bscans']
             oct_slice = oct_volume[oct_volume.shape[0] // 2]
@@ -198,12 +196,12 @@ class FairVisionNPZ(Dataset):
             else: oct_slice = oct_slice.astype(np.uint8)
             image = Image.fromarray(oct_slice).convert('RGB')
             if self.transform: image = self.transform(image)
-
+            
             # --- Label Processing ---
-            label = torch.full((5,), -1.0)
+            label = torch.full((5,), -1.0) 
             source = item['source']
             csv_meta = item['meta'] # This is the pre-loaded metadata dict
-
+            
             if source == 'AMD':
                 cond = str(data['amd_condition'])
                 severity = int(self.amd_map.get(cond, 0.))
@@ -211,16 +209,16 @@ class FairVisionNPZ(Dataset):
                 label[0] = 1.0 if severity >= 1 else 0.0
                 label[1] = 1.0 if severity >= 2 else 0.0
                 label[2] = 1.0 if severity >= 3 else 0.0
-
+                
             elif source == 'DR':
                 cond = str(data['dr_subtype'])
                 severity = int(self.dr_map.get(cond, 0.))
                 label[3] = 1.0 if severity  >= 1.0 else 0.0
-
+                
             elif source == 'Glaucoma':
                 severity = int(data['glaucoma'])
                 label[4] = 1.0 if severity == 1 else 0.0
-
+                
             # --- Metadata Assembly ---
             # We pull from the dictionary we populated in __init__
             metadata = {
@@ -234,7 +232,7 @@ class FairVisionNPZ(Dataset):
                 'filename': os.path.basename(item['path']),
                 'groundtruth': severity
             }
-
+            
             return image, label, metadata
 
         except Exception as e:
@@ -243,12 +241,12 @@ class FairVisionNPZ(Dataset):
 
     def __len__(self):
         return len(self.files)
-
+        
 class RETFoundMultiHead(nn.Module):
     def __init__(self, backbone):
         super(RETFoundMultiHead, self).__init__()
         self.backbone = backbone
-
+        
         # Define 3 separate specialist heads
         # AMD: 3 nodes for cumulative multi-label classification
         self.amd_head = nn.Sequential(
@@ -259,7 +257,7 @@ class RETFoundMultiHead(nn.Module):
         )
         # DR: 1 node for binary classification
 #        self.dr_head = nn.Linear(1024, 1)
-
+        
         # Instead of: self.dr_head = nn.Linear(1024, 1)
         self.dr_head = nn.Sequential(
             nn.Linear(1024, 256),
@@ -287,7 +285,7 @@ class RETFoundMultiHead(nn.Module):
         # Pass through the frozen backbone to get features
         # Note: RETFound (ViT) usually returns a feature vector of 1024 for the [CLS] token
         features = self.backbone(x)
-
+        
         # Return a dictionary of outputs from each specialist
         return {
             'amd': self.amd_head(features),
@@ -297,12 +295,9 @@ class RETFoundMultiHead(nn.Module):
 
 def get_model_oct():
 #    print("Loading RETFound ViT-Large with Separate Specialist Heads...")
-
-    weight_path = os.environ.get(
-        "RETFOUND_OCT_WEIGHTS",
-        str(PROJECT_ROOT / "VisionAgent" / "weights" / "RETFound_mae_natureOCT.pth"),
-    )
-
+    
+    weight_path = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/VisionAgent/weights/RETFound_mae_natureOCT.pth"
+        
     # 1. Initialize the backbone architecture
 
     backbone = RETFound_mae(
@@ -311,11 +306,11 @@ def get_model_oct():
         drop_path_rate=0.2,
         global_pool='',
     )
-
+    
     # 2. FREEZE THE ENTIRE BACKBONE
     for param in backbone.parameters():
         param.requires_grad = False
-
+    
     # 3. LOAD PRE-TRAINED WEIGHTS INTO BACKBONE
     checkpoint = torch.load(weight_path, map_location='cpu', weights_only=False)
     state_dict = checkpoint['model'] if 'model' in checkpoint else checkpoint
@@ -325,27 +320,27 @@ def get_model_oct():
     for k in keys_to_remove:
         if k in state_dict:
             del state_dict[k]
-
+            
     # Load into the backbone
     msg = backbone.load_state_dict(state_dict, strict=False)
 #    print(f"Backbone weights loaded. Missing keys (expected): {msg.missing_keys}")
-
+    
     # 4. WRAP IN MULTI-HEAD ARCHITECTURE
     model = RETFoundMultiHead(backbone)
-
+    
     # Ensure only the heads are trainable
     for param in model.amd_head.parameters(): param.requires_grad = True
     for param in model.dr_head.parameters(): param.requires_grad = True
     for param in model.glaucoma_head.parameters(): param.requires_grad = True
 
 #    print(f"Specialists Initialized: AMD (3 nodes), DR (1 node), Glaucoma (1 node)")
-
+    
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_params = sum(p.numel() for p in model.parameters())
 #    print(f"Total Parameters: {total_params:,}")
-#    print(f"Trainable Parameters (All Heads): {trainable_params:,}")
+#    print(f"Trainable Parameters (All Heads): {trainable_params:,}") 
     # This should be around 1024 * 5 + 5 = 5,125
-
+    
     return model
 
 class MultiAgentLoss(nn.Module):
@@ -354,15 +349,15 @@ class MultiAgentLoss(nn.Module):
 
         self.amd_pos_weight = torch.tensor([1.0, 1.5, 2.0]).to(device)
         self.bce_amd = nn.BCEWithLogitsLoss(pos_weight=self.amd_pos_weight)
-
+        
         self.dr_pos_weight = torch.tensor([5.0])
         self.bce_dr = nn.BCEWithLogitsLoss(pos_weight=self.dr_pos_weight.to(DEVICE))
-
+        
         self.bce_standard = nn.BCEWithLogitsLoss()
 
     def forward(self, outputs, targets):
         # targets: [Batch, 5] -> [AMD1, AMD2, AMD3, DR, Glaucoma]
-
+        
         # --- 1. AMD Loss ---
         # Mask only samples belonging to AMD folder
         amd_mask = (targets[:, 0] != -1)
@@ -387,8 +382,8 @@ class MultiAgentLoss(nn.Module):
             loss_gl = 0.0
 
         return loss_amd + loss_dr + loss_gl
-
-
+        
+        
 def train(resume = True):
       # Transforms (ImageNet Stats)
     train_transform = transforms.Compose([
@@ -398,7 +393,7 @@ def train(resume = True):
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-
+    
     val_transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
@@ -407,42 +402,42 @@ def train(resume = True):
 
     train_ds = FairVisionNPZ(DATA_ROOT, split='Training', transform=train_transform)
     val_ds = FairVisionNPZ(DATA_ROOT, split='Validation', transform=val_transform)
-
+    
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=16, pin_memory=True)
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=8, pin_memory=True)
-
+    
     model = get_model_oct().to(DEVICE)
     checkpoint_path = PATH
-
+    
     if resume and os.path.exists(checkpoint_path):
         model.load_state_dict(torch.load(checkpoint_path, map_location=DEVICE))
         print("Successfully loaded specialist weights. Resuming...")
-
+        
     optimizer = torch.optim.AdamW(
-        filter(lambda p: p.requires_grad, model.parameters()),
-        lr=LR,
+        filter(lambda p: p.requires_grad, model.parameters()), 
+        lr=LR, 
         weight_decay=0.05
     )
     criterion = MultiAgentLoss(DEVICE)
-
+    
     best_avg_auc = 0.0
 
     for epoch in range(EPOCHS):
         model.train()
         train_loss = 0.0
         loop = tqdm(train_loader, desc=f"Epoch {epoch+1}/{EPOCHS}")
-
+        
         for imgs, labels, _ in loop:
             imgs, labels = imgs.to(DEVICE), labels.to(DEVICE)
             optimizer.zero_grad()
-
+            
             # 1. Forward pass returns a DICTIONARY
-            outputs = model(imgs)
+            outputs = model(imgs) 
             loss = criterion(outputs, labels)
-
+                
             loss.backward()
             optimizer.step()
-
+        
             train_loss += loss.item()
             loop.set_postfix(loss=loss.item())
 
@@ -450,12 +445,12 @@ def train(resume = True):
         model.eval()
         # Separate lists for each specialist since they have different shapes
         val_data = { 'amd': [], 'dr': [], 'gl': [], 'targets': [] }
-
+        
         with torch.no_grad():
             for imgs, labels, _ in val_loader:
                 imgs = imgs.to(DEVICE)
                 outputs = model(imgs)
-
+                
                 # Apply Sigmoid to convert logits to probabilities [0, 1]
                 val_data['amd'].append(torch.sigmoid(outputs['amd']).cpu().numpy())
                 val_data['dr'].append(torch.sigmoid(outputs['dr']).cpu().numpy())
@@ -469,7 +464,7 @@ def train(resume = True):
         all_gl_preds = np.vstack(val_data['gl'])
 
         metrics = {}
-
+        
         # 1. AMD AUC (Calculate for each cumulative level)
         amd_mask = all_targets[:, 0] != -1
         if amd_mask.any():
