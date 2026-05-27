@@ -76,9 +76,31 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--epochs", type=int, default=80)
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--image-size", type=int, default=128)
+    parser.add_argument(
+        "--model",
+        choices=("small_cnn", "spatial_cnn"),
+        default="spatial_cnn",
+        help="spatial_cnn keeps spatial features and should easily memorize 64 examples if labels/images are wired correctly.",
+    )
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument("--device", default=None)
     return parser.parse_args()
+
+
+def normalize_to_uint8(np, arr):
+    arr = np.asarray(arr, dtype="float32")
+    finite = np.isfinite(arr)
+    if not finite.any():
+        return np.zeros(arr.shape, dtype="uint8")
+    lo, hi = np.percentile(arr[finite], [1.0, 99.0])
+    if hi <= lo:
+        lo, hi = float(np.nanmin(arr[finite])), float(np.nanmax(arr[finite]))
+    if hi <= lo:
+        return np.zeros(arr.shape, dtype="uint8")
+    arr = (arr - lo) / (hi - lo)
+    arr = np.clip(arr, 0.0, 1.0)
+    return (arr * 255.0).astype("uint8")
 
 
 def main() -> None:
@@ -109,7 +131,7 @@ def main() -> None:
     sample = pd.concat([pos, neg], ignore_index=True).sample(frac=1, random_state=args.seed).reset_index(drop=True)
 
     transform = transforms.Compose([
-        transforms.Resize((224, 224)),
+        transforms.Resize((args.image_size, args.image_size)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
     ])
@@ -127,33 +149,56 @@ def main() -> None:
                 else:
                     volume = data["oct_bscans"]
                     arr = volume[volume.shape[0] // 2]
-            arr = np.asarray(arr)
-            if arr.max() <= 1.0:
-                arr = (arr * 255).astype("uint8")
-            else:
-                arr = np.clip(arr, 0, 255).astype("uint8")
+            arr = normalize_to_uint8(np, arr)
             image = Image.fromarray(arr).convert("RGB")
             return transform(image), torch.tensor(float(row["binary_label"]), dtype=torch.float32)
 
-    model = nn.Sequential(
-        nn.Conv2d(3, 16, 3, padding=1),
-        nn.ReLU(),
-        nn.MaxPool2d(2),
-        nn.Conv2d(16, 32, 3, padding=1),
-        nn.ReLU(),
-        nn.MaxPool2d(2),
-        nn.Conv2d(32, 64, 3, padding=1),
-        nn.ReLU(),
-        nn.AdaptiveAvgPool2d((1, 1)),
-        nn.Flatten(),
-        nn.Linear(64, 1),
-    ).to(device)
+    if args.model == "small_cnn":
+        model = nn.Sequential(
+            nn.Conv2d(3, 16, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(16, 32, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool2d((1, 1)),
+            nn.Flatten(),
+            nn.Linear(64, 1),
+        )
+    else:
+        final_size = args.image_size // 16
+        model = nn.Sequential(
+            nn.Conv2d(3, 32, 3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(64, 128, 3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(128, 128, 3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Flatten(),
+            nn.Linear(128 * final_size * final_size, 256),
+            nn.ReLU(),
+            nn.Dropout(p=0.0),
+            nn.Linear(256, 1),
+        )
+    model = model.to(device)
 
     loader = DataLoader(SmallSet(), batch_size=args.batch_size, shuffle=True, num_workers=0)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.0)
     loss_fn = nn.BCEWithLogitsLoss()
 
-    print(f"task={args.task} modality={args.modality} n={len(sample)} pos={int(sample['binary_label'].sum())} neg={int((sample['binary_label'] == 0).sum())}")
+    print(f"task={args.task} modality={args.modality} model={args.model} image_size={args.image_size} n={len(sample)} pos={int(sample['binary_label'].sum())} neg={int((sample['binary_label'] == 0).sum())}")
     for epoch in range(1, args.epochs + 1):
         model.train()
         losses = []
