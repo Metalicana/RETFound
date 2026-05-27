@@ -3,6 +3,7 @@
 #changed normalization 
 
 import os
+from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -19,12 +20,43 @@ try:
 except ImportError:
     raise ImportError("Error: 'models_vit.py' not found.")
 
-DATA_ROOT = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/data/"
+EQUI_AGENT_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = EQUI_AGENT_ROOT.parent
+
+
+def _resolve_fairvision_root():
+    configured = os.environ.get("FAIRVISION_DATA_ROOT")
+    candidates = []
+    if configured:
+        candidates.append(Path(configured).expanduser())
+    candidates.extend(
+        [
+            EQUI_AGENT_ROOT / "data",
+            REPO_ROOT / "Datasets" / "FairVision" / "HarvardFairVision30k",
+            REPO_ROOT / "Datasets" / "FairVision",
+            REPO_ROOT / "OphthalmicAgent" / "data",
+        ]
+    )
+
+    for candidate in candidates:
+        nested = candidate / "HarvardFairVision30k"
+        if nested.exists():
+            candidate = nested
+        if all((candidate / disease).exists() for disease in ("AMD", "DR", "Glaucoma")):
+            return str(candidate)
+
+    return str(candidates[0])
+
+
+DATA_ROOT = _resolve_fairvision_root()
 BATCH_SIZE = 64
 LR = 1e-3
 EPOCHS = 60
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-PATH = "oct_model_best.pth"
+PATH = os.environ.get(
+    "RETFOUND_OCT_MODEL_WEIGHTS",
+    str(EQUI_AGENT_ROOT / "weights" / "oct_model_best.pth"),
+)
 
 #class FairVisionNPZ(Dataset):
 #    def __init__(self, root_dir, split='Training', transform=None):
@@ -172,7 +204,11 @@ class FairVisionNPZ(Dataset):
         combined_meta = {}
         for source in self.sources:
             csv_name = f"data_summary_{source.lower()}.csv"
-            csv_path = os.path.join(self.csv_base_path, source, csv_name)
+            csv_candidates = [
+                os.path.join(self.csv_base_path, source, csv_name),
+                os.path.join(self.csv_base_path, source, "ReadMe", csv_name),
+            ]
+            csv_path = next((path for path in csv_candidates if os.path.exists(path)), csv_candidates[0])
             
             if os.path.exists(csv_path):
                 df = pd.read_csv(csv_path)
@@ -296,7 +332,10 @@ class RETFoundMultiHead(nn.Module):
 def get_model_oct():
 #    print("Loading RETFound ViT-Large with Separate Specialist Heads...")
     
-    weight_path = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/VisionAgent/weights/RETFound_mae_natureOCT.pth"
+    weight_path = os.environ.get(
+        "RETFOUND_OCT_BACKBONE_WEIGHTS",
+        str(EQUI_AGENT_ROOT / "weights" / "RETFound_mae_natureOCT.pth"),
+    )
         
     # 1. Initialize the backbone architecture
 
@@ -385,6 +424,8 @@ class MultiAgentLoss(nn.Module):
         
         
 def train(resume = True):
+    print(f"Using FairVision data root: {DATA_ROOT}")
+    print(f"Saving RETFound OCT weights to: {PATH}")
       # Transforms (ImageNet Stats)
     train_transform = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -492,6 +533,7 @@ def train(resume = True):
 
         if avg_auc > best_avg_auc:
             best_avg_auc = avg_auc
+            os.makedirs(os.path.dirname(PATH) or ".", exist_ok=True)
             torch.save(model.state_dict(), PATH)
             print(f"New Best Model Saved! (Avg AUC: {best_avg_auc:.4f})")
 if __name__ == "__main__":
