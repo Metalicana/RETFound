@@ -11,6 +11,7 @@ FLAIR_ROOT="${FLAIR_ROOT:-Foundation_Models/FLAIR-main}"
 FLAIR_WEIGHTS="${FLAIR_WEIGHTS:-}"
 FROM_HF="${FROM_HF:-false}"
 THRESHOLD_METRIC="${THRESHOLD_METRIC:-balanced_accuracy}"
+FAIRVISION_AMD_STAGES="${FAIRVISION_AMD_STAGES:-1}"
 PATH_PREFIX_FROM="${PATH_PREFIX_FROM:-}"
 PATH_PREFIX_TO="${PATH_PREFIX_TO:-}"
 
@@ -29,6 +30,10 @@ if [[ "${FROM_HF}" == "true" ]]; then
 fi
 
 for task in ${TASKS}; do
+  task_args=()
+  if [[ "${task}" == "amd" && ("${FAIRVISION_AMD_STAGES}" == "1" || "${FAIRVISION_AMD_STAGES}" == "true") ]]; then
+    task_args+=(--fairvision-amd-stages)
+  fi
   stem="fairvision_${task}_flair_slo"
   val_file="${PREDICTIONS_ROOT}/${stem}_val.csv"
   test_file="${PREDICTIONS_ROOT}/${stem}_test.csv"
@@ -42,6 +47,7 @@ for task in ${TASKS}; do
     --checkpoint "${checkpoint_file}" \
     --out-val "${val_file}" \
     --out-test "${test_file}" \
+    "${task_args[@]}" \
     "${COMMON_ARGS[@]}"
 
   python equi-agent/scripts/tune_thresholds.py \

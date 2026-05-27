@@ -27,6 +27,22 @@ STANDARD_COLUMNS = [
     "age_group",
     "metadata_missing_flag",
 ]
+AMD_STAGE_MAP = {
+    "normal": 0,
+    "no amd": 0,
+    "no.amd.diagnosis": 0,
+    "not.in.icd.table": 0,
+    "early amd": 1,
+    "early.dry": 1,
+    "intermediate amd": 2,
+    "intermediate.dry": 2,
+    "late amd": 3,
+    "advanced.atrophic.dry.with.subfoveal.involvement": 3,
+    "advanced.atrophic.dry.without.subfoveal.involvement": 3,
+    "wet.amd.active.choroidal.neovascularization": 3,
+    "wet.amd.inactive.choroidal.neovascularization": 3,
+    "wet.amd.inactive.scar": 3,
+}
 
 
 def repo_root() -> Path:
@@ -79,6 +95,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lora-rank", type=int, default=8)
     parser.add_argument("--logreg-c", type=float, default=0.316)
     parser.add_argument("--max-iter", type=int, default=5000)
+    parser.add_argument(
+        "--fairvision-amd-stages",
+        action="store_true",
+        help="For AMD, train a 4-class FairVision severity probe and export P(any AMD)=1-P(class 0).",
+    )
     return parser.parse_args()
 
 
@@ -114,6 +135,21 @@ def split_frame(pd, manifest, split: str, limit: int | None):
     return frame
 
 
+def normalize_to_uint8(np, image):
+    image = np.asarray(image, dtype="float32")
+    finite = np.isfinite(image)
+    if not finite.any():
+        return np.zeros(image.shape, dtype="uint8")
+    lo, hi = np.percentile(image[finite], [1.0, 99.0])
+    if hi <= lo:
+        lo = float(np.nanmin(image[finite]))
+        hi = float(np.nanmax(image[finite]))
+    if hi <= lo:
+        return np.zeros(image.shape, dtype="uint8")
+    image = np.clip((image - lo) / (hi - lo), 0.0, 1.0)
+    return (image * 255.0).astype("uint8")
+
+
 class FairVisionRetiZeroDataset:
     def __init__(self, np, Image, frame, transform):
         self.np = np
@@ -128,10 +164,7 @@ class FairVisionRetiZeroDataset:
         row = self.frame.iloc[index]
         with self.np.load(row["image_path"]) as data:
             image = data["slo_fundus"]
-        if image.max() <= 1.0:
-            image = (image * 255).astype("uint8")
-        else:
-            image = image.astype("uint8")
+        image = normalize_to_uint8(self.np, image)
         image = self.Image.fromarray(image).convert("RGB")
         return self.transform(image), int(row["y_true"]), index
 
@@ -221,10 +254,21 @@ def features_to_arrays(np, frame, features_by_index, labels_by_index):
     return np.stack(features), np.array(labels)
 
 
+def fairvision_probe_labels(np, frame, task: str, fairvision_amd_stages: bool):
+    if task == "amd" and fairvision_amd_stages:
+        raw = frame["label_raw"].astype(str).str.strip().str.lower()
+        labels = raw.map(AMD_STAGE_MAP)
+        if labels.isna().any():
+            raise ValueError(f"Unmapped AMD labels: {sorted(raw[labels.isna()].unique())}")
+        return labels.astype(int).to_numpy()
+    return frame["y_true"].astype(int).to_numpy()
+
+
 def probs_by_index(classifier, features_by_index: dict[int, object]) -> dict[int, float]:
     out = {}
     for index, feature in features_by_index.items():
-        out[index] = float(classifier.predict_proba(feature.reshape(1, -1))[0, 1])
+        probs = classifier.predict_proba(feature.reshape(1, -1))[0]
+        out[index] = float(1.0 - probs[0]) if len(probs) > 2 else float(probs[1])
     return out
 
 
@@ -304,7 +348,8 @@ def main() -> None:
     val_features, _ = extract_features(torch, tqdm, model, val_loader, device)
     test_features, _ = extract_features(torch, tqdm, model, test_loader, device)
 
-    x_train, y_train = features_to_arrays(np, train_df, train_features, train_labels_by_index)
+    x_train, _ = features_to_arrays(np, train_df, train_features, train_labels_by_index)
+    y_train = fairvision_probe_labels(np, train_df, args.task, args.fairvision_amd_stages)
     classifier = make_pipeline(
         StandardScaler(),
         LogisticRegression(
@@ -326,6 +371,7 @@ def main() -> None:
                     "task": args.task,
                     "image_size": args.image_size,
                     "pretrained_weights": str(args.pretrained_weights),
+                    "fairvision_amd_stages": args.fairvision_amd_stages,
                 },
                 handle,
             )

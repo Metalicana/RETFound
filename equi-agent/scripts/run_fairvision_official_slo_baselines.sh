@@ -46,18 +46,21 @@ python equi-agent/scripts/patch_fairvision_data_handler_hf_layout.py \
 
 run_one_task() {
   local task="$1"
-  local disease_dir script_name model_name result_dir result_dir_final perf_file pred_raw metrics_dir sort_arg
+  local disease_dir script_name model_name result_dir result_dir_final perf_file pred_raw metrics_dir sort_arg modality_slug
+
+  modality_slug="${MODALITY_TYPE}"
+  modality_slug="${modality_slug//[^A-Za-z0-9_]/_}"
 
   case "${task}" in
     amd)
       disease_dir="${STAGED_DATASET_DIR}/AMD"
       script_name="scripts/train_amd_fair.py"
-      model_name="fairvision_official_vit_slo_amd"
+      model_name="fairvision_official_vit_${modality_slug}_amd"
       ;;
     dr)
       disease_dir="${STAGED_DATASET_DIR}/DR"
       script_name="scripts/train_dr_fair.py"
-      model_name="fairvision_official_vit_slo_dr"
+      model_name="fairvision_official_vit_${modality_slug}_dr"
       ;;
     *)
       echo "Unsupported task: ${task}. Supported: amd dr" >&2
@@ -67,8 +70,8 @@ run_one_task() {
 
   result_dir="${OUT_ROOT}/${task}_${MODEL_TYPE}_${MODALITY_TYPE}_${ATTRIBUTE_TYPE}_${VIT_WEIGHTS}"
   perf_file="${task}_${MODEL_TYPE}_${MODALITY_TYPE}_${ATTRIBUTE_TYPE}.csv"
-  pred_raw="${PREDICTIONS_ROOT}/fairvision_official_${task}_vit_slo_test.csv"
-  metrics_dir="${METRICS_ROOT}/fairvision_official_${task}_vit_slo"
+  pred_raw="${PREDICTIONS_ROOT}/fairvision_official_${task}_vit_${modality_slug}_test.csv"
+  metrics_dir="${METRICS_ROOT}/fairvision_official_${task}_vit_${modality_slug}"
 
   mkdir -p "${result_dir}"
 
@@ -126,10 +129,12 @@ for task in ${TASKS}; do
   run_one_task "${task}"
 done
 
-combined="${PREDICTIONS_ROOT}/fairvision_official_vit_slo_test.csv"
+modality_slug="${MODALITY_TYPE}"
+modality_slug="${modality_slug//[^A-Za-z0-9_]/_}"
+combined="${PREDICTIONS_ROOT}/fairvision_official_vit_${modality_slug}_test.csv"
 first_task=true
 for task in ${TASKS}; do
-  task_file="${PREDICTIONS_ROOT}/fairvision_official_${task}_vit_slo_test.csv"
+  task_file="${PREDICTIONS_ROOT}/fairvision_official_${task}_vit_${modality_slug}_test.csv"
   if [[ "${first_task}" == "true" ]]; then
     head -n 1 "${task_file}" > "${combined}"
     first_task=false
@@ -139,6 +144,6 @@ done
 
 python equi-agent/scripts/evaluate_predictions.py \
   --predictions "${combined}" \
-  --out-dir "${METRICS_ROOT}/fairvision_official_vit_slo"
+  --out-dir "${METRICS_ROOT}/fairvision_official_vit_${modality_slug}"
 
-echo "FairVision official SLO baselines complete: ${combined}"
+echo "FairVision official baselines complete: ${combined}"

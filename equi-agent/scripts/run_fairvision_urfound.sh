@@ -13,6 +13,7 @@ URFOUND_WEIGHTS="${URFOUND_WEIGHTS:-}"
 URFOUND_MODEL="${URFOUND_MODEL:-vit_base_patch16}"
 THRESHOLD_METRIC="${THRESHOLD_METRIC:-balanced_accuracy}"
 MAX_ITER="${MAX_ITER:-5000}"
+FAIRVISION_AMD_STAGES="${FAIRVISION_AMD_STAGES:-1}"
 PATH_PREFIX_FROM="${PATH_PREFIX_FROM:-}"
 PATH_PREFIX_TO="${PATH_PREFIX_TO:-}"
 
@@ -41,6 +42,10 @@ if [[ -n "${PATH_PREFIX_FROM}" ]]; then
 fi
 
 for task in ${TASKS}; do
+  task_args=()
+  if [[ "${task}" == "amd" && ("${FAIRVISION_AMD_STAGES}" == "1" || "${FAIRVISION_AMD_STAGES}" == "true") ]]; then
+    task_args+=(--fairvision-amd-stages)
+  fi
   stem="fairvision_${task}_urfound_${MODALITY}"
   val_file="${PREDICTIONS_ROOT}/${stem}_val.csv"
   test_file="${PREDICTIONS_ROOT}/${stem}_test.csv"
@@ -54,6 +59,7 @@ for task in ${TASKS}; do
     --checkpoint "${checkpoint_file}" \
     --out-val "${val_file}" \
     --out-test "${test_file}" \
+    "${task_args[@]}" \
     "${COMMON_ARGS[@]}"
 
   python equi-agent/scripts/tune_thresholds.py \
