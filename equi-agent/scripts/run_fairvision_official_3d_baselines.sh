@@ -24,6 +24,8 @@ WORKERS="${WORKERS:-8}"
 BOOTSTRAP_REPEAT_TIMES="${BOOTSTRAP_REPEAT_TIMES:-100}"
 THRESHOLD="${THRESHOLD:-0.5}"
 SORT_FILES="${SORT_FILES:-false}"
+DATASET_PROPORTION="${DATASET_PROPORTION:-1.0}"
+PRETRAINED_3D="${PRETRAINED_3D:-i3d}"
 
 mkdir -p "${OUT_ROOT}" "${PREDICTIONS_ROOT}" "${METRICS_ROOT}"
 RETFOUND_ROOT="$(pwd)"
@@ -87,6 +89,8 @@ run_one_task() {
       --perf_file "${perf_file}" \
       --attribute_type "${ATTRIBUTE_TYPE}" \
       --conv_type "${CONV_TYPE}" \
+      --dataset_proportion "${DATASET_PROPORTION}" \
+      --pretrained_3d "${PRETRAINED_3D}" \
       --bootstrap_repeat_times "${BOOTSTRAP_REPEAT_TIMES}"
   )
 
