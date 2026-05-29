@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 METHODS = {
-    "exp1_standalone_oct_thresholded": {
+    "exp2_retfound_oct": {
         "method": "RETFound OCT",
         "type": "Foundation model",
         "table3_model": "RETFound OCT",
@@ -15,7 +15,7 @@ METHODS = {
         "disagreement": "No",
         "metadata": "No",
     },
-    "exp1_standalone_slo_thresholded": {
+    "exp2_mirage_slo": {
         "method": "MIRAGE SLO",
         "type": "Foundation model",
         "table3_model": "MIRAGE SLO",
@@ -295,8 +295,8 @@ def build_table3(df, pd):
     subset = df[
         df["source_dir"].isin(
             [
-                "exp1_standalone_oct_thresholded",
-                "exp1_standalone_slo_thresholded",
+                "exp2_retfound_oct",
+                "exp2_mirage_slo",
                 "exp2_flair_slo",
                 "exp2_ret_clip_slo",
                 "exp2_visionfm_slo",
@@ -383,8 +383,8 @@ def gdp_summary(df, pd):
 def build_table4(df, pd):
     table = macro_summary(df, pd)
     order = [
-        "exp1_standalone_oct_thresholded",
-        "exp1_standalone_slo_thresholded",
+        "exp2_retfound_oct",
+        "exp2_mirage_slo",
         "exp2_flair_slo",
         "exp2_ret_clip_slo",
         "exp2_visionfm_slo",
@@ -434,7 +434,8 @@ def build_table6(df, pd):
 def build_table10(df, pd):
     table = macro_summary(df, pd)
     wanted = {
-        "exp1_standalone_oct_thresholded": "Best standalone foundation model",
+        "exp2_retfound_oct": "Best standalone foundation model",
+        "exp2_mirage_slo": "MIRAGE SLO",
         "exp2_flair_slo": "FLAIR SLO",
         "exp2_ret_clip_slo": "RET-CLIP SLO",
         "exp2_visionfm_slo": "VisionFM SLO",
@@ -464,6 +465,20 @@ def build_table10(df, pd):
                 "Worst-group coverage": None,
             }
         )
+        if row["source_dir"] == "exp2_retfound_oct":
+            rows.append(
+                {
+                    "Method": "RETFound OCT",
+                    "AUROC": row["AUROC"],
+                    "F1": row["F1"],
+                    "Global ECE": row["ECE"],
+                    "Subgroup ECE": row["Subgroup ECE"],
+                    "Brier": None,
+                    "NLL": None,
+                    "Coverage at target risk": None,
+                    "Worst-group coverage": None,
+                }
+            )
     return pd.DataFrame(rows)
 
 
