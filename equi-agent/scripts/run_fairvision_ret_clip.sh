@@ -8,18 +8,13 @@ METRICS_ROOT="${METRICS_ROOT:-equi-agent/outputs/metrics}"
 PREDICTIONS_ROOT="${PREDICTIONS_ROOT:-equi-agent/outputs/predictions}"
 CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-equi-agent/outputs/checkpoints}"
 RET_CLIP_ROOT="${RET_CLIP_ROOT:-Foundation_Models/RET-CLIP-main}"
-RET_CLIP_WEIGHTS="${RET_CLIP_WEIGHTS:-}"
+RET_CLIP_WEIGHTS="${RET_CLIP_WEIGHTS:-${RET_CLIP_ROOT}/pretrained/ret_clip_vit_b_16.pt}"
 VISION_MODEL="${VISION_MODEL:-ViT-B-16}"
 TEXT_MODEL="${TEXT_MODEL:-RoBERTa-wwm-ext-base-chinese}"
 THRESHOLD_METRIC="${THRESHOLD_METRIC:-balanced_accuracy}"
 FAIRVISION_AMD_STAGES="${FAIRVISION_AMD_STAGES:-1}"
 PATH_PREFIX_FROM="${PATH_PREFIX_FROM:-}"
 PATH_PREFIX_TO="${PATH_PREFIX_TO:-}"
-
-if [[ -z "${RET_CLIP_WEIGHTS}" ]]; then
-  echo "RET_CLIP_WEIGHTS must point to the RET-CLIP pretrained checkpoint." >&2
-  exit 1
-fi
 
 COMMON_ARGS=(
   --ret-clip-root "${RET_CLIP_ROOT}"

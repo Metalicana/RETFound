@@ -26,8 +26,11 @@ if [[ "${MODALITY}" != "slo" && "${MODALITY}" != "oct" ]]; then
 fi
 
 if [[ -z "${VISIONFM_WEIGHTS}" ]]; then
-  echo "VISIONFM_WEIGHTS must point to VFM_Fundus_weights.pth for MODALITY=slo or VFM_OCT_weights.pth for MODALITY=oct." >&2
-  exit 1
+  if [[ "${MODALITY}" == "oct" ]]; then
+    VISIONFM_WEIGHTS="${VISIONFM_ROOT}/pretrain_weights/VFM_OCT_weights.pth"
+  else
+    VISIONFM_WEIGHTS="${VISIONFM_ROOT}/pretrain_weights/VFM_Fundus_weights.pth"
+  fi
 fi
 
 COMMON_ARGS=(

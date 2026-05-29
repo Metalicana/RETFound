@@ -9,7 +9,7 @@ METRICS_ROOT="${METRICS_ROOT:-equi-agent/outputs/metrics}"
 PREDICTIONS_ROOT="${PREDICTIONS_ROOT:-equi-agent/outputs/predictions}"
 CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-equi-agent/outputs/checkpoints}"
 URFOUND_ROOT="${URFOUND_ROOT:-Foundation_Models/UrFound-main}"
-URFOUND_WEIGHTS="${URFOUND_WEIGHTS:-}"
+URFOUND_WEIGHTS="${URFOUND_WEIGHTS:-${URFOUND_ROOT}/pretrained/urfound_mm.pth}"
 URFOUND_MODEL="${URFOUND_MODEL:-vit_base_patch16}"
 THRESHOLD_METRIC="${THRESHOLD_METRIC:-balanced_accuracy}"
 MAX_ITER="${MAX_ITER:-5000}"
@@ -19,11 +19,6 @@ PATH_PREFIX_TO="${PATH_PREFIX_TO:-}"
 
 if [[ "${MODALITY}" != "slo" && "${MODALITY}" != "oct" ]]; then
   echo "MODALITY must be 'slo' or 'oct'." >&2
-  exit 1
-fi
-
-if [[ -z "${URFOUND_WEIGHTS}" ]]; then
-  echo "URFOUND_WEIGHTS must point to a downloaded UrFound checkpoint." >&2
   exit 1
 fi
 

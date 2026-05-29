@@ -8,17 +8,12 @@ METRICS_ROOT="${METRICS_ROOT:-equi-agent/outputs/metrics}"
 PREDICTIONS_ROOT="${PREDICTIONS_ROOT:-equi-agent/outputs/predictions}"
 CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-equi-agent/outputs/checkpoints}"
 RETIZERO_ROOT="${RETIZERO_ROOT:-Foundation_Models/RetiZero-main}"
-RETIZERO_WEIGHTS="${RETIZERO_WEIGHTS:-}"
+RETIZERO_WEIGHTS="${RETIZERO_WEIGHTS:-${RETIZERO_ROOT}/pretrained/RetiZero.pth}"
 THRESHOLD_METRIC="${THRESHOLD_METRIC:-balanced_accuracy}"
 MAX_ITER="${MAX_ITER:-5000}"
 FAIRVISION_AMD_STAGES="${FAIRVISION_AMD_STAGES:-1}"
 PATH_PREFIX_FROM="${PATH_PREFIX_FROM:-}"
 PATH_PREFIX_TO="${PATH_PREFIX_TO:-}"
-
-if [[ -z "${RETIZERO_WEIGHTS}" ]]; then
-  echo "RETIZERO_WEIGHTS must point to the downloaded RetiZero.pth checkpoint." >&2
-  exit 1
-fi
 
 COMMON_ARGS=(
   --retizero-root "${RETIZERO_ROOT}"
