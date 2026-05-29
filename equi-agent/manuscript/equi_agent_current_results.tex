@@ -579,29 +579,28 @@ UrFound OCT linear probe & OCT B-scan & 600 / 400 & 0.630 & 0.650 & 0.670 & 0.62
 
 \begin{table*}[t]
 \centering
-\caption{Longitudinal glaucoma progression prediction on Harvard-GDP. Logistic baselines and OCT-compatible foundation-model probes use the official progression forecasting split with 300 training and 200 test examples. Temporal context tests whether dynamic arbitration generalizes beyond single-image diagnosis.}
+\caption{Longitudinal glaucoma progression prediction on Harvard-GDP using the official progression forecasting split with 300 training and 200 test examples. The primary endpoint follows the Harvard-GDP training script default, \texttt{progression\_outcome\_md\_fast\_no\_p\_cut}; the pointwise no-\textit{p}-cut endpoint is reported as a less sparse sensitivity analysis. Target-specific OCT foundation-model probes should be regenerated for these endpoints before final submission.}
 \label{tab:longitudinal_glaucoma}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}llllllllll@{}}
+\begin{tabular}{@{}lllllllllll@{}}
 \toprule
-Method & Input & Temporal modeling & Fairness component & F1 $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ \\
+Endpoint & Method & Input & AUROC $\uparrow$ & F1 $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & ECE $\downarrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ \\
 \midrule
-RNFLT logistic baseline & RNFLT & No & No & 0.206 & 0.556 & 0.621 & 0.000 & 1.000 & 1.000 \\
-B-scan logistic baseline & OCT B-scan & No & No & 0.241 & 0.389 & 0.819 & 0.000 & 0.500 & 1.000 \\
-Clinical tabular logistic baseline & Metadata + visual field & No & No & 0.211 & 0.222 & 0.912 & 0.000 & 0.667 & 1.000 \\
-RNFLT + clinical logistic baseline & RNFLT + metadata + visual field & No & No & 0.195 & 0.222 & 0.896 & 0.000 & 0.360 & 1.000 \\
-B-scan + clinical logistic baseline & OCT B-scan + metadata + visual field & No & No & 0.256 & 0.278 & 0.912 & 0.000 & 0.400 & 1.000 \\
-OCT + RNFLT + clinical logistic baseline & OCT + RNFLT + metadata + visual field & No & No & 0.213 & 0.278 & 0.868 & 0.000 & 0.363 & 1.000 \\
-RETFound OCT linear probe & OCT B-scan & No & No & 0.103 & 0.111 & 0.896 & 0.000 & 1.000 & 1.000 \\
-VisionFM OCT linear probe & OCT B-scan & No & No & 0.167 & 0.278 & 0.797 & 0.000 & 1.000 & 1.000 \\
-UrFound OCT linear probe & OCT B-scan & No & No & 0.095 & 0.111 & 0.879 & 0.000 & 1.000 & 1.000 \\
-Single-visit 3D CNN & OCT & No & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Single-visit 3D ViT / Swin & OCT & No & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Temporal LSTM & Visit sequence & Yes & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Temporal Transformer & Visit sequence & Yes & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-FairDist / EqEffNet-style baseline & OCT & Optional & Yes & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-Static ensemble & OCT + model outputs & Weak & No & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
-\textbf{Equi-Agent longitudinal} & \textbf{OCT + metadata + prior visits} & \textbf{Yes} & \textbf{Yes} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} & \textbf{\tbd} \\
+\texttt{md\_fast\_no\_p\_cut} & RNFLT logistic baseline & RNFLT & 0.659 & 0.000 & 0.000 & 0.943 & 0.116 & 0.000 & 0.072 & 0.000 \\
+\texttt{md\_fast\_no\_p\_cut} & B-scan logistic baseline & OCT B-scan & 0.466 & 0.000 & 0.000 & 0.928 & 0.171 & 0.000 & \tbd & \tbd \\
+\texttt{md\_fast\_no\_p\_cut} & Clinical tabular logistic baseline & Metadata + visual field & 0.545 & 0.000 & 0.000 & 0.928 & 0.086 & 0.000 & \tbd & \tbd \\
+\texttt{md\_fast\_no\_p\_cut} & RNFLT + clinical logistic baseline & RNFLT + metadata + visual field & 0.626 & 0.000 & 0.000 & 0.923 & 0.078 & 0.000 & \tbd & \tbd \\
+\texttt{md\_fast\_no\_p\_cut} & OCT + RNFLT + clinical logistic baseline & OCT + RNFLT + metadata + visual field & 0.559 & 0.000 & 0.000 & 0.923 & 0.087 & 0.000 & \tbd & \tbd \\
+\texttt{md\_fast\_no\_p\_cut} & Equi-Agent dry-run arbitration & Model priors + metadata & 0.659 & 0.000 & 0.000 & 0.943 & 0.116 & 0.000 & \tbd & \tbd \\
+\midrule
+\texttt{td\_pointwise\_no\_p\_cut} & RNFLT logistic baseline & RNFLT & 0.733 & 0.554 & 0.600 & 0.757 & 0.182 & 0.459 & 0.245 & 0.109 \\
+\texttt{td\_pointwise\_no\_p\_cut} & B-scan logistic baseline & OCT B-scan & 0.718 & 0.550 & 0.733 & 0.600 & 0.175 & \tbd & \tbd & \tbd \\
+\texttt{td\_pointwise\_no\_p\_cut} & Clinical tabular logistic baseline & Metadata + visual field & 0.710 & 0.509 & 0.483 & 0.821 & 0.120 & \tbd & \tbd & \tbd \\
+\texttt{td\_pointwise\_no\_p\_cut} & OCT + RNFLT + clinical logistic baseline & OCT + RNFLT + metadata + visual field & 0.691 & 0.496 & 0.533 & 0.736 & 0.171 & \tbd & \tbd & \tbd \\
+\texttt{td\_pointwise\_no\_p\_cut} & Equi-Agent dry-run arbitration & Model priors + metadata & 0.733 & 0.554 & 0.600 & 0.757 & 0.182 & \tbd & \tbd & \tbd \\
+\midrule
+Target-specific OCT probes & RETFound / VisionFM / UrFound & OCT B-scan & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+Temporal deep models & 3D CNN / temporal Transformer & Visit sequence & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
 \botrule
 \end{tabular}%
 }
@@ -694,9 +693,9 @@ Harvard-GDP logistic baselines using RNFLT, B-scan, clinical metadata, and combi
 
 OCT-compatible foundation-model encoders were then evaluated on Harvard-GDP using GDP-specific linear probes. For glaucoma detection, VisionFM OCT achieved the strongest AUROC among the three OCT encoders tested (AUROC 0.796, F1 0.695), followed by RETFound OCT (AUROC 0.779, F1 0.667) and UrFound OCT (AUROC 0.687, F1 0.630). These results suggest that OCT foundation-model representations carry useful cross-sectional glaucoma signal on GDP, although subgroup error gaps remain nontrivial.
 
-Progression forecasting remained substantially harder. VisionFM OCT showed the strongest ranking performance among the OCT foundation-model probes (AUROC 0.649), but thresholded F1 remained low (0.167) with high false-negative rate. RETFound OCT and UrFound OCT were weaker for progression under the current single-center-B-scan probe setup. These findings motivate temporal modeling and arbitration over longitudinal evidence rather than relying on a single visit or single B-scan representation.
+Progression forecasting remained substantially harder, and rechecking the Harvard-GDP reference scripts showed that the earlier local progression table had used a different progression endpoint than the default GDP training configuration. The corrected primary endpoint, \texttt{progression\_outcome\_md\_fast\_no\_p\_cut}, contains only 6 positives in the 200-case test split. Under validation-selected thresholds, all corrected logistic baselines and the target-matched Equi-Agent dry-run arbitration missed all positives, producing thresholded F1 of 0.000 despite the best RNFLT ranking AUROC of 0.659. This endpoint is therefore useful as a stress test for extreme sparsity but should not be overinterpreted as a stable thresholded-performance benchmark.
 
-The longitudinal extension evaluates whether OCT foundation-model features and temporal arbitration improve progression sensitivity and subgroup reliability over these logistic and single-visit foundation-model baselines. This comparison is important because a clinically useful glaucoma progression system must detect worsening disease without amplifying subgroup-specific under-detection.
+As a less sparse sensitivity endpoint, \texttt{progression\_outcome\_td\_pointwise\_no\_p\_cut} contains 60 positives in the same 200-case test split. On this endpoint, the RNFLT logistic baseline achieved AUROC 0.733, F1 0.554, sensitivity 0.600, and specificity 0.757. The current Equi-Agent dry-run arbitration selected the same validation-best RNFLT source and therefore matched these thresholded metrics. This confirms that the corrected progression pipeline is target-consistent, but it does not yet establish added agentic benefit. Target-specific OCT foundation-model probes and live temporal arbitration must be regenerated on the corrected progression endpoints before making a final longitudinal claim.
 
 \subsection{Ablation Studies}
 \label{subsec:results_ablation}

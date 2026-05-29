@@ -8,6 +8,7 @@ PREDICTIONS_ROOT="${PREDICTIONS_ROOT:-equi-agent/outputs/predictions}"
 CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-equi-agent/outputs/checkpoints}"
 TABLES_ROOT="${TABLES_ROOT:-equi-agent/outputs/tables}"
 TASKS="${TASKS:-glaucoma_detection progression_forecasting}"
+GDP_PROGRESSION_TARGET="${GDP_PROGRESSION_TARGET:-md_fast_no_p_cut}"
 DEVICE="${DEVICE:-cuda}"
 BATCH_SIZE="${BATCH_SIZE:-32}"
 NUM_WORKERS="${NUM_WORKERS:-4}"
@@ -26,12 +27,20 @@ if [[ -n "${PATH_PREFIX_FROM}" ]]; then
 fi
 
 for task in ${TASKS}; do
-  prediction_file="${PREDICTIONS_ROOT}/gdp_${task}_retfound_oct.csv"
-  checkpoint_file="${CHECKPOINT_ROOT}/gdp_${task}_retfound_oct_linear_probe.pkl"
-  metrics_dir="${METRICS_ROOT}/exp8_gdp_${task}_retfound_oct"
+  task_suffix="${task}"
+  MANIFEST_ARGS=()
+  if [[ "${task}" == "progression_forecasting" ]]; then
+    task_suffix="${task}_${GDP_PROGRESSION_TARGET}"
+    MANIFEST_ARGS+=(--manifest-file "${MANIFEST_ROOT}/gdp_progression_forecasting_${GDP_PROGRESSION_TARGET}.csv")
+  fi
+
+  prediction_file="${PREDICTIONS_ROOT}/gdp_${task_suffix}_retfound_oct.csv"
+  checkpoint_file="${CHECKPOINT_ROOT}/gdp_${task_suffix}_retfound_oct_linear_probe.pkl"
+  metrics_dir="${METRICS_ROOT}/exp8_gdp_${task_suffix}_retfound_oct"
 
   python equi-agent/scripts/predict_gdp_retfound_oct.py \
     --task "${task}" \
+    "${MANIFEST_ARGS[@]}" \
     --mode linear-probe \
     --backbone-weights "${RETFOUND_BACKBONE_WEIGHTS}" \
     --threshold-metric "${THRESHOLD_METRIC}" \

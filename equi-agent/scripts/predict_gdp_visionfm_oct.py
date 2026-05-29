@@ -82,6 +82,15 @@ def parse_args() -> argparse.Namespace:
         )
     )
     parser.add_argument("--manifest-dir", type=Path, default=equi_agent_root() / "outputs" / "manifests")
+    parser.add_argument(
+        "--manifest-file",
+        type=Path,
+        default=None,
+        help=(
+            "Optional explicit manifest CSV. Use this for target-specific GDP progression "
+            "manifests such as gdp_progression_forecasting_md_fast_no_p_cut.csv."
+        ),
+    )
     parser.add_argument("--visionfm-root", type=Path, default=repo_root() / "Foundation_Models" / "VisionFM-main")
     parser.add_argument(
         "--task",
@@ -330,7 +339,8 @@ def main() -> None:
     if not args.pretrained_weights.exists():
         raise FileNotFoundError(f"VisionFM weights not found: {args.pretrained_weights}")
 
-    manifest = pd.read_csv(args.manifest_dir / f"gdp_{args.task}.csv")
+    manifest_path = args.manifest_file or (args.manifest_dir / f"gdp_{args.task}.csv")
+    manifest = pd.read_csv(manifest_path)
     manifest = rewrite_bscan_paths(manifest, args.path_prefix_from, args.path_prefix_to)
     train_df = split_frame(pd, manifest, "train", args.limit_train)
     test_df = split_frame(pd, manifest, "test", args.limit_test)
@@ -386,6 +396,7 @@ def main() -> None:
                     "model_name": "visionfm_oct",
                     "dataset": "harvard_gdp",
                     "task": args.task,
+                    "manifest_path": str(manifest_path),
                     "threshold": threshold,
                     "threshold_metric": args.threshold_metric,
                     "image_size": args.image_size,

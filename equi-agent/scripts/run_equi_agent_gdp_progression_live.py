@@ -92,6 +92,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--predictions-root", type=Path, default=Path("equi-agent/outputs/predictions"))
     parser.add_argument("--metrics-root", type=Path, default=Path("equi-agent/outputs/metrics"))
     parser.add_argument("--out-dir", type=Path, default=Path("equi-agent/outputs/equi_agent_gdp_progression_live"))
+    parser.add_argument(
+        "--prediction-prefix",
+        default=os.getenv("GDP_AGENT_PREDICTION_PREFIX", "gdp_progression_forecasting"),
+        help=(
+            "Prediction filename prefix before _<model>.csv. Use "
+            "gdp_progression_forecasting_md_fast_no_p_cut for the original "
+            "Harvard-GDP progression_outcome_md_fast_no_p_cut target."
+        ),
+    )
+    parser.add_argument(
+        "--metrics-prefix",
+        default=os.getenv("GDP_AGENT_METRICS_PREFIX", "exp8_gdp_progression_forecasting"),
+        help=(
+            "Metrics directory prefix before _<model>. Use "
+            "exp8_gdp_progression_forecasting_md_fast_no_p_cut for the original "
+            "Harvard-GDP progression_outcome_md_fast_no_p_cut target."
+        ),
+    )
     parser.add_argument("--models", nargs="+", default=DEFAULT_MODELS)
     parser.add_argument(
         "--include-classical-baselines",
@@ -137,20 +155,22 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def prediction_file(predictions_root: Path, model: str) -> Path:
-    return predictions_root / f"gdp_progression_forecasting_{model}.csv"
+def prediction_file(predictions_root: Path, prediction_prefix: str, model: str) -> Path:
+    return predictions_root / f"{prediction_prefix}_{model}.csv"
 
 
 def key_for(row: dict[str, str]) -> tuple[str, str, str, str, str]:
     return tuple(row.get(col, "") for col in CASE_KEY)
 
 
-def load_predictions(predictions_root: Path, models: list[str]) -> tuple[dict[str, dict[tuple, dict]], list[dict], list[dict]]:
+def load_predictions(
+    predictions_root: Path, prediction_prefix: str, models: list[str]
+) -> tuple[dict[str, dict[tuple, dict]], list[dict], list[dict]]:
     by_model: dict[str, dict[tuple, dict]] = {}
     loaded_files = []
     missing_files = []
     for model in models:
-        path = prediction_file(predictions_root, model)
+        path = prediction_file(predictions_root, prediction_prefix, model)
         if not path.exists():
             missing_files.append({"model": model, "path": str(path), "reason": "missing"})
             continue
@@ -206,27 +226,29 @@ def case_metadata(rows_by_model: dict[str, dict]) -> dict[str, Any]:
     }
 
 
-def aggregate_path(metrics_root: Path, model: str) -> Path:
+def aggregate_path(metrics_root: Path, metrics_prefix: str, prediction_prefix: str, model: str) -> Path:
     return (
         metrics_root
-        / f"exp8_gdp_progression_forecasting_{model.replace('_logreg', '')}"
-        / f"gdp_progression_forecasting_{model}_aggregate.csv"
+        / f"{metrics_prefix}_{model.replace('_logreg', '')}"
+        / f"{prediction_prefix}_{model}_aggregate.csv"
     )
 
 
-def disparity_path(metrics_root: Path, model: str) -> Path:
+def disparity_path(metrics_root: Path, metrics_prefix: str, prediction_prefix: str, model: str) -> Path:
     return (
         metrics_root
-        / f"exp8_gdp_progression_forecasting_{model.replace('_logreg', '')}"
-        / f"gdp_progression_forecasting_{model}_disparities.csv"
+        / f"{metrics_prefix}_{model.replace('_logreg', '')}"
+        / f"{prediction_prefix}_{model}_disparities.csv"
     )
 
 
-def load_model_priors(metrics_root: Path, models: list[str]) -> tuple[dict[str, dict[str, float]], list[dict]]:
+def load_model_priors(
+    metrics_root: Path, metrics_prefix: str, prediction_prefix: str, models: list[str]
+) -> tuple[dict[str, dict[str, float]], list[dict]]:
     priors: dict[str, dict[str, float]] = {}
     loaded = []
     for model in models:
-        path = aggregate_path(metrics_root, model)
+        path = aggregate_path(metrics_root, metrics_prefix, prediction_prefix, model)
         if not path.exists():
             continue
         rows = read_csv(path)
@@ -554,8 +576,8 @@ def main() -> None:
     models = list(dict.fromkeys(args.models + (CLASSICAL_MODELS if args.include_classical_baselines else [])))
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
-    by_model, loaded_files, missing_files = load_predictions(args.predictions_root, models)
-    priors, loaded_priors = load_model_priors(args.metrics_root, list(by_model))
+    by_model, loaded_files, missing_files = load_predictions(args.predictions_root, args.prediction_prefix, models)
+    priors, loaded_priors = load_model_priors(args.metrics_root, args.metrics_prefix, args.prediction_prefix, list(by_model))
     keys = select_cases(by_model, args.max_cases, args.seed_offset, args.sample_random, args.random_seed)
 
     provider = "dry_run"
@@ -690,6 +712,8 @@ def main() -> None:
         "errors": len(error_rows),
         "task": TASK,
         "models_requested": models,
+        "prediction_prefix": args.prediction_prefix,
+        "metrics_prefix": args.metrics_prefix,
         "loaded_files": loaded_files,
         "missing_files": missing_files,
         "loaded_priors": loaded_priors,

@@ -17,6 +17,8 @@ SAMPLE_RANDOM="${SAMPLE_RANDOM:-0}"
 REQUEST_SLEEP_SEC="${REQUEST_SLEEP_SEC:-0}"
 REFERENCE_STRATEGY="${REFERENCE_STRATEGY:-${GDP_AGENT_REFERENCE_STRATEGY:-weighted}}"
 LOCK_REFERENCE_PREDICTION="${LOCK_REFERENCE_PREDICTION:-${GDP_AGENT_LOCK_REFERENCE_PREDICTION:-0}}"
+PREDICTION_PREFIX="${PREDICTION_PREFIX:-${GDP_AGENT_PREDICTION_PREFIX:-gdp_progression_forecasting}}"
+METRICS_PREFIX="${METRICS_PREFIX:-${GDP_AGENT_METRICS_PREFIX:-exp8_gdp_progression_forecasting}}"
 
 args=(
   --predictions-root "$PREDICTIONS_ROOT"
@@ -30,6 +32,8 @@ args=(
   --api-version "$API_VERSION"
   --request-sleep-sec "$REQUEST_SLEEP_SEC"
   --reference-strategy "$REFERENCE_STRATEGY"
+  --prediction-prefix "$PREDICTION_PREFIX"
+  --metrics-prefix "$METRICS_PREFIX"
 )
 
 if [[ "$DRY_RUN" == "1" ]]; then
