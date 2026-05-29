@@ -219,7 +219,7 @@ def select_cases(by_model: dict[str, dict[tuple, dict]], limit: int, offset: int
         common = keys if common is None else common & keys
     if not common:
         return []
-    ordered = sorted(common, key=lambda key: (key[0], key[3]))
+    ordered = sorted(common)
     if sample_random:
         rng = random.Random(seed)
         rng.shuffle(ordered)
