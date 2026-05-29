@@ -7,6 +7,8 @@ import random
 import sys
 from pathlib import Path
 
+from torch_feature_probe import train_torch_probe, torch_probe_checkpoint, torch_probs_for_features
+
 
 STANDARD_COLUMNS = [
     "patient_id",
@@ -71,7 +73,7 @@ def require_runtime_libs(flair_root: Path):
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Train a FLAIR SLO/fundus linear probe on FairVision and emit standard predictions."
+        description="Train a FLAIR SLO/fundus FairVision probe and emit standard predictions."
     )
     parser.add_argument("--manifest-dir", type=Path, default=equi_agent_root() / "outputs" / "manifests")
     parser.add_argument("--flair-root", type=Path, default=repo_root() / "Foundation_Models" / "FLAIR-main")
@@ -109,6 +111,14 @@ def parse_args() -> argparse.Namespace:
         default=0.316,
         help="Inverse regularization strength for the balanced logistic linear probe.",
     )
+    parser.add_argument("--max-iter", type=int, default=1000)
+    parser.add_argument("--probe-kind", choices=("logreg", "torch_mlp"), default="logreg")
+    parser.add_argument("--probe-epochs", type=int, default=60)
+    parser.add_argument("--probe-lr", type=float, default=1e-3)
+    parser.add_argument("--probe-weight-decay", type=float, default=1e-4)
+    parser.add_argument("--probe-hidden-dim", type=int, default=256)
+    parser.add_argument("--probe-dropout", type=float, default=0.2)
+    parser.add_argument("--probe-batch-size", type=int, default=256)
     parser.add_argument(
         "--fairvision-amd-stages",
         action="store_true",
@@ -332,38 +342,63 @@ def main() -> None:
     model = build_flair_model(FLAIRModel, args, torch, device)
 
     train_features, train_labels_by_index = extract_features(torch, tqdm, model, train_loader, device)
-    val_features, _ = extract_features(torch, tqdm, model, val_loader, device)
+    val_features, val_labels_by_index = extract_features(torch, tqdm, model, val_loader, device)
     test_features, _ = extract_features(torch, tqdm, model, test_loader, device)
 
     x_train, _ = features_to_arrays(np, train_df, train_features, train_labels_by_index)
     y_train = fairvision_probe_labels(np, train_df, args.task, args.fairvision_amd_stages)
-    classifier = LogisticRegression(
-        random_state=args.seed,
-        C=args.logreg_c,
-        max_iter=1000,
-        class_weight="balanced",
-    )
-    classifier.fit(x_train, y_train)
+    x_val, _ = features_to_arrays(np, val_df, val_features, val_labels_by_index)
+    y_val = fairvision_probe_labels(np, val_df, args.task, args.fairvision_amd_stages)
 
-    if args.checkpoint:
-        args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
-        with args.checkpoint.open("wb") as handle:
-            pickle.dump(
-                {
-                    "classifier": classifier,
-                    "model_name": "flair_slo",
-                    "task": args.task,
-                    "image_size": args.image_size,
-                    "weights_path": str(args.weights_path) if args.weights_path else None,
-                    "from_hf": bool(args.from_hf),
-                    "fairvision_amd_stages": args.fairvision_amd_stages,
-                },
-                handle,
-            )
-        print(f"wrote_checkpoint={args.checkpoint}")
+    checkpoint_extra = {
+        "model_name": "flair_slo",
+        "task": args.task,
+        "image_size": args.image_size,
+        "weights_path": str(args.weights_path) if args.weights_path else None,
+        "from_hf": bool(args.from_hf),
+        "fairvision_amd_stages": args.fairvision_amd_stages,
+    }
+    if args.probe_kind == "torch_mlp":
+        probe = train_torch_probe(
+            np,
+            torch,
+            x_train,
+            y_train,
+            x_val,
+            y_val,
+            device=device,
+            seed=args.seed,
+            epochs=args.probe_epochs,
+            lr=args.probe_lr,
+            weight_decay=args.probe_weight_decay,
+            hidden_dim=args.probe_hidden_dim,
+            dropout=args.probe_dropout,
+            batch_size=args.probe_batch_size,
+        )
+        if args.checkpoint:
+            args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
+            torch.save(torch_probe_checkpoint(probe, checkpoint_extra), args.checkpoint)
+            print(f"wrote_checkpoint={args.checkpoint}")
+        val_probs = torch_probs_for_features(np, torch, probe, val_features, device)
+        test_probs = torch_probs_for_features(np, torch, probe, test_features, device)
+    else:
+        classifier = LogisticRegression(
+            random_state=args.seed,
+            C=args.logreg_c,
+            max_iter=args.max_iter,
+            class_weight="balanced",
+        )
+        classifier.fit(x_train, y_train)
+        if args.checkpoint:
+            args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
+            with args.checkpoint.open("wb") as handle:
+                pickle.dump({"classifier": classifier, "probe_kind": "logreg", **checkpoint_extra}, handle)
+            print(f"wrote_checkpoint={args.checkpoint}")
+        val_probs = probs_by_index(classifier, val_features)
+        test_probs = probs_by_index(classifier, test_features)
 
-    val_predictions = to_standard_predictions(pd, val_df, probs_by_index(classifier, val_features), args.task)
-    test_predictions = to_standard_predictions(pd, test_df, probs_by_index(classifier, test_features), args.task)
+    val_predictions = to_standard_predictions(pd, val_df, val_probs, args.task)
+    test_predictions = to_standard_predictions(pd, test_df, test_probs, args.task)
 
     args.out_val.parent.mkdir(parents=True, exist_ok=True)
     args.out_test.parent.mkdir(parents=True, exist_ok=True)

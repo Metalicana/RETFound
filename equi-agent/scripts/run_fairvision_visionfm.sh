@@ -16,6 +16,13 @@ PATCH_SIZE="${PATCH_SIZE:-16}"
 FEATURE_BLOCKS="${FEATURE_BLOCKS:-4}"
 THRESHOLD_METRIC="${THRESHOLD_METRIC:-balanced_accuracy}"
 MAX_ITER="${MAX_ITER:-5000}"
+PROBE_KIND="${PROBE_KIND:-torch_mlp}"
+PROBE_EPOCHS="${PROBE_EPOCHS:-60}"
+PROBE_LR="${PROBE_LR:-0.001}"
+PROBE_WEIGHT_DECAY="${PROBE_WEIGHT_DECAY:-0.0001}"
+PROBE_HIDDEN_DIM="${PROBE_HIDDEN_DIM:-256}"
+PROBE_DROPOUT="${PROBE_DROPOUT:-0.2}"
+PROBE_BATCH_SIZE="${PROBE_BATCH_SIZE:-256}"
 FAIRVISION_AMD_STAGES="${FAIRVISION_AMD_STAGES:-1}"
 PATH_PREFIX_FROM="${PATH_PREFIX_FROM:-}"
 PATH_PREFIX_TO="${PATH_PREFIX_TO:-}"
@@ -41,6 +48,13 @@ COMMON_ARGS=(
   --patch-size "${PATCH_SIZE}"
   --feature-blocks "${FEATURE_BLOCKS}"
   --max-iter "${MAX_ITER}"
+  --probe-kind "${PROBE_KIND}"
+  --probe-epochs "${PROBE_EPOCHS}"
+  --probe-lr "${PROBE_LR}"
+  --probe-weight-decay "${PROBE_WEIGHT_DECAY}"
+  --probe-hidden-dim "${PROBE_HIDDEN_DIM}"
+  --probe-dropout "${PROBE_DROPOUT}"
+  --probe-batch-size "${PROBE_BATCH_SIZE}"
   --modality "${MODALITY}"
   --batch-size "${BATCH_SIZE}"
   --device "${DEVICE}"
@@ -61,7 +75,11 @@ for task in ${TASKS}; do
   thresholded_file="${PREDICTIONS_ROOT}/${stem}_test_thresholded.csv"
   thresholds_file="${METRICS_ROOT}/thresholds_${stem}.csv"
   metrics_dir="${METRICS_ROOT}/exp2_visionfm_${MODALITY}_${task}"
-  checkpoint_file="${CHECKPOINT_ROOT}/${stem}_linear_probe.pkl"
+  if [[ "${PROBE_KIND}" == "torch_mlp" ]]; then
+    checkpoint_file="${CHECKPOINT_ROOT}/${stem}_torch_probe.pt"
+  else
+    checkpoint_file="${CHECKPOINT_ROOT}/${stem}_linear_probe.pkl"
+  fi
 
   python equi-agent/scripts/train_fairvision_visionfm.py \
     --task "${task}" \

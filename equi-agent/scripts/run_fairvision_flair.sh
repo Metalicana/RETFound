@@ -11,11 +11,29 @@ FLAIR_ROOT="${FLAIR_ROOT:-Foundation_Models/FLAIR-main}"
 FLAIR_WEIGHTS="${FLAIR_WEIGHTS:-}"
 FROM_HF="${FROM_HF:-false}"
 THRESHOLD_METRIC="${THRESHOLD_METRIC:-balanced_accuracy}"
+PROBE_KIND="${PROBE_KIND:-torch_mlp}"
+PROBE_EPOCHS="${PROBE_EPOCHS:-60}"
+PROBE_LR="${PROBE_LR:-0.001}"
+PROBE_WEIGHT_DECAY="${PROBE_WEIGHT_DECAY:-0.0001}"
+PROBE_HIDDEN_DIM="${PROBE_HIDDEN_DIM:-256}"
+PROBE_DROPOUT="${PROBE_DROPOUT:-0.2}"
+PROBE_BATCH_SIZE="${PROBE_BATCH_SIZE:-256}"
 FAIRVISION_AMD_STAGES="${FAIRVISION_AMD_STAGES:-1}"
 PATH_PREFIX_FROM="${PATH_PREFIX_FROM:-}"
 PATH_PREFIX_TO="${PATH_PREFIX_TO:-}"
 
-COMMON_ARGS=(--flair-root "${FLAIR_ROOT}" --batch-size "${BATCH_SIZE}" --device "${DEVICE}")
+COMMON_ARGS=(
+  --flair-root "${FLAIR_ROOT}"
+  --batch-size "${BATCH_SIZE}"
+  --device "${DEVICE}"
+  --probe-kind "${PROBE_KIND}"
+  --probe-epochs "${PROBE_EPOCHS}"
+  --probe-lr "${PROBE_LR}"
+  --probe-weight-decay "${PROBE_WEIGHT_DECAY}"
+  --probe-hidden-dim "${PROBE_HIDDEN_DIM}"
+  --probe-dropout "${PROBE_DROPOUT}"
+  --probe-batch-size "${PROBE_BATCH_SIZE}"
+)
 
 if [[ -n "${PATH_PREFIX_FROM}" ]]; then
   COMMON_ARGS+=(--path-prefix-from "${PATH_PREFIX_FROM}" --path-prefix-to "${PATH_PREFIX_TO}")
@@ -40,7 +58,11 @@ for task in ${TASKS}; do
   thresholded_file="${PREDICTIONS_ROOT}/${stem}_test_thresholded.csv"
   thresholds_file="${METRICS_ROOT}/thresholds_${stem}.csv"
   metrics_dir="${METRICS_ROOT}/exp2_flair_slo_${task}"
-  checkpoint_file="${CHECKPOINT_ROOT}/${stem}_linear_probe.pkl"
+  if [[ "${PROBE_KIND}" == "torch_mlp" ]]; then
+    checkpoint_file="${CHECKPOINT_ROOT}/${stem}_torch_probe.pt"
+  else
+    checkpoint_file="${CHECKPOINT_ROOT}/${stem}_linear_probe.pkl"
+  fi
 
   python equi-agent/scripts/train_fairvision_flair.py \
     --task "${task}" \
