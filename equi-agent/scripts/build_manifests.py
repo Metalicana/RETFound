@@ -168,7 +168,7 @@ def normalize_binary_label(value: object, task: str) -> int | float:
 
 def build_fairvision_task_manifest(fairvision_root: Path, task: str) -> pd.DataFrame:
     disease = FAIRVISION_TASKS[task]
-    csv_path = fairvision_root / "HarvardFairVision30k" / disease / "ReadMe" / f"data_summary_{task}.csv"
+    csv_path = fairvision_metadata_path(fairvision_root, disease, task)
     raw = pd.read_csv(csv_path)
 
     manifest = pd.DataFrame()
@@ -195,6 +195,20 @@ def build_fairvision_task_manifest(fairvision_root: Path, task: str) -> pd.DataF
     manifest["oct_key"] = "oct_bscans"
     manifest["fundus_key"] = "slo_fundus"
     return manifest
+
+
+def fairvision_metadata_path(fairvision_root: Path, disease: str, task: str) -> Path:
+    csv_name = f"data_summary_{task}.csv"
+    candidates = [
+        fairvision_root / disease / "ReadMe" / csv_name,
+        fairvision_root / disease / csv_name,
+        fairvision_root / "HarvardFairVision30k" / disease / "ReadMe" / csv_name,
+        fairvision_root / "HarvardFairVision30k" / disease / csv_name,
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    raise FileNotFoundError(f"Could not find FairVision metadata CSV for {task}. Checked: {candidates}")
 
 
 def fairvision_image_path(fairvision_root: Path, disease: str, split: str, filename: object) -> Path:
