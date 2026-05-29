@@ -143,6 +143,18 @@ METHODS = {
 }
 
 GDP_METHODS = {
+    "exp8_gdp_progression_forecasting_td_pointwise_no_p_cut_gdp_native_rnflt_tds_efficientnet": {
+        "method": "GDP-native RNFLT+TDS EfficientNet",
+        "input": "RNFLT + visual-field TDS",
+        "temporal_modeling": "Native GDP progression workflow",
+        "fairness_component": "No",
+    },
+    "exp8_gdp_progression_forecasting_equi_agent_longitudinal": {
+        "method": "Equi-Agent progression arbitration",
+        "input": "Native helper + priors",
+        "temporal_modeling": "Agentic arbitration",
+        "fairness_component": "Yes",
+    },
     "exp8_gdp_progression_rnflt": {
         "method": "RNFLT logistic baseline",
         "input": "RNFLT",

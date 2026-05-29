@@ -22,8 +22,17 @@ from smoke_equi_agent_arbitration import estimate_tokens, fnum, write_csv, write
 
 TASK = "progression_forecasting"
 DATASET = "harvard_gdp"
-CASE_KEY = ("patient_id", "eye_id", "visit_id", "image_id", "task")
-DEFAULT_MODELS = ["retfound_oct", "visionfm_oct", "urfound_oct"]
+DEFAULT_CASE_KEY = ("patient_id", "eye_id", "task")
+NATIVE_GDP_MODEL = "gdp_native_rnflt_tds_efficientnet"
+DEFAULT_MODELS = [
+    NATIVE_GDP_MODEL,
+    "rnflt_logreg",
+    "clinical_logreg",
+    "bscan_logreg",
+    "retfound_oct",
+    "visionfm_oct",
+    "urfound_oct",
+]
 CLASSICAL_MODELS = [
     "rnflt_logreg",
     "bscan_logreg",
@@ -112,6 +121,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--models", nargs="+", default=DEFAULT_MODELS)
     parser.add_argument(
+        "--case-key-columns",
+        default=os.getenv("GDP_AGENT_CASE_KEY_COLUMNS", ",".join(DEFAULT_CASE_KEY)),
+        help=(
+            "Comma-separated columns used to align prediction files. GDP progression exports "
+            "from different workflows may disagree on visit_id/image_id, so the default uses "
+            "patient_id,eye_id,task."
+        ),
+    )
+    parser.add_argument(
         "--include-classical-baselines",
         action="store_true",
         help="Also include RNFLT, B-scan, clinical, and combined logistic baselines as longitudinal evidence sources.",
@@ -159,12 +177,19 @@ def prediction_file(predictions_root: Path, prediction_prefix: str, model: str) 
     return predictions_root / f"{prediction_prefix}_{model}.csv"
 
 
-def key_for(row: dict[str, str]) -> tuple[str, str, str, str, str]:
-    return tuple(row.get(col, "") for col in CASE_KEY)
+def parse_case_key_columns(value: str) -> tuple[str, ...]:
+    cols = tuple(col.strip() for col in value.split(",") if col.strip())
+    if not cols:
+        raise ValueError("--case-key-columns must include at least one column.")
+    return cols
+
+
+def key_for(row: dict[str, str], case_key_columns: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(row.get(col, "") for col in case_key_columns)
 
 
 def load_predictions(
-    predictions_root: Path, prediction_prefix: str, models: list[str]
+    predictions_root: Path, prediction_prefix: str, models: list[str], case_key_columns: tuple[str, ...]
 ) -> tuple[dict[str, dict[tuple, dict]], list[dict], list[dict]]:
     by_model: dict[str, dict[tuple, dict]] = {}
     loaded_files = []
@@ -182,7 +207,7 @@ def load_predictions(
         if not rows:
             missing_files.append({"model": model, "path": str(path), "reason": "no test rows"})
             continue
-        by_model[model] = {key_for(row): row for row in rows}
+        by_model[model] = {key_for(row, case_key_columns): row for row in rows}
         loaded_files.append({"model": model, "path": str(path), "rows": len(rows)})
     return by_model, loaded_files, missing_files
 
@@ -348,10 +373,10 @@ def deterministic_arbitrate(
     }
 
 
-def build_evidence_packet(meta: dict[str, Any], arbitration: dict[str, Any]) -> dict[str, Any]:
+def build_evidence_packet(meta: dict[str, Any], arbitration: dict[str, Any], case_key_columns: tuple[str, ...]) -> dict[str, Any]:
     return {
         "case": {
-            "case_id": "|".join(str(meta.get(col, "")) for col in CASE_KEY),
+            "case_id": "|".join(str(meta.get(col, "")) for col in case_key_columns),
             "dataset": meta.get("dataset", ""),
             "task": "longitudinal glaucoma progression forecasting",
         },
@@ -411,7 +436,11 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
         "false-positive rate with stable reliability, trust that positive call more. If a source says NO but has a high "
         "false-negative rate, doubt that negative call and consider a sensitivity shift. If a source says NO and has a "
         "low false-negative rate with stable reliability, trust that negative call more.\n\n"
-        "Always return a diagnostic probability and binary label for the retrospective evaluation file. Escalation is "
+        "The GDP-native RNFLT+TDS EfficientNet source, when available, is the native progression helper trained with "
+        "the Harvard-GDP RNFLT/visual-field workflow. Prefer it over weak OCT B-scan transfer probes when its "
+        "validation/test reliability is stronger. OCT foundation probes are auxiliary evidence, not automatically "
+        "the primary progression model.\n\n"
+        "Always return a progression probability and binary progression label for the retrospective evaluation file. Escalation is "
         "a separate safety/referral flag for human review; it must never erase or replace the progression prediction. "
         "Return only valid JSON."
     )
@@ -419,7 +448,8 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
         "instructions": {
             "bio_profiler": "Summarize metadata only as reliability context. Do not use it as direct progression evidence.",
             "temporal_specialist": (
-                "Treat OCT foundation probes and optional RNFLT/clinical/logistic sources as longitudinal evidence streams. "
+                "Treat the GDP-native RNFLT+TDS EfficientNet source as the primary native progression model when present. "
+                "Treat OCT foundation probes and optional RNFLT/clinical/logistic sources as auxiliary longitudinal evidence. "
                 "Look for consistency across sources rather than one noisy positive."
             ),
             "equity_agent": (
@@ -431,7 +461,7 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
                 "source with the best stable track record for its current YES/NO judgment. If subgroup evidence is "
                 "unstable or unavailable, fall back to global source reliability and say so in the reasoning."
             ),
-                "orchestrator": (
+            "orchestrator": (
                 "Anchor final_probability on deterministic_reference.reference_probability. "
                 "Adjust by at most 0.15 only when the evidence strongly justifies it. "
                 "Choose calibration_action first, then apply its threshold: sensitivity_shift=0.35, neutral/escalate=0.50, precision_shift=0.65. "
@@ -573,12 +603,19 @@ def usage_dict(response: Any) -> dict[str, int]:
 
 def main() -> None:
     args = parse_args()
+    case_key_columns = parse_case_key_columns(args.case_key_columns)
     models = list(dict.fromkeys(args.models + (CLASSICAL_MODELS if args.include_classical_baselines else [])))
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
-    by_model, loaded_files, missing_files = load_predictions(args.predictions_root, args.prediction_prefix, models)
+    by_model, loaded_files, missing_files = load_predictions(args.predictions_root, args.prediction_prefix, models, case_key_columns)
     priors, loaded_priors = load_model_priors(args.metrics_root, args.metrics_prefix, args.prediction_prefix, list(by_model))
     keys = select_cases(by_model, args.max_cases, args.seed_offset, args.sample_random, args.random_seed)
+    if by_model and not keys:
+        raise RuntimeError(
+            "Loaded prediction files but found zero shared cases. "
+            f"Current join columns: {','.join(case_key_columns)}. "
+            "Try GDP_AGENT_CASE_KEY_COLUMNS=patient_id,eye_id,task or inspect identifier columns in the prediction CSVs."
+        )
 
     provider = "dry_run"
     client = None
@@ -595,7 +632,7 @@ def main() -> None:
         rows_by_model = {model: rows[key] for model, rows in by_model.items() if key in rows}
         meta = case_metadata(rows_by_model)
         arbitration = deterministic_arbitrate(rows_by_model, priors, args.reference_strategy)
-        evidence_packet = build_evidence_packet(meta, arbitration)
+        evidence_packet = build_evidence_packet(meta, arbitration, case_key_columns)
         messages = build_live_messages(evidence_packet)
 
         try:
@@ -712,6 +749,7 @@ def main() -> None:
         "errors": len(error_rows),
         "task": TASK,
         "models_requested": models,
+        "case_key_columns": list(case_key_columns),
         "prediction_prefix": args.prediction_prefix,
         "metrics_prefix": args.metrics_prefix,
         "loaded_files": loaded_files,
