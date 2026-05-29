@@ -67,6 +67,7 @@ PATH = os.environ.get(
     "RETFOUND_OCT_MODEL_WEIGHTS",
     str(EQUI_AGENT_ROOT / "weights" / "oct_model_best.pth"),
 )
+OCT_REPRESENTATION = os.environ.get("RETFOUND_OCT_REPRESENTATION", "center")
 
 
 def _env_flag(name, default=True):
@@ -78,6 +79,7 @@ def _env_flag(name, default=True):
 
 def print_dataset_diagnostics(name, dataset):
     print(f"{name} label summary: {dataset.label_summary()}")
+    print(f"{name} path summary: {dataset.path_summary()}")
     sample_count = int(os.environ.get("RETFOUND_AUDIT_SAMPLES", 2))
     if sample_count <= 0:
         return
@@ -94,10 +96,16 @@ def print_dataset_diagnostics(name, dataset):
                     for key in ("amd_condition", "dr_subtype", "glaucoma")
                     if key in data.files
                 }
+                csv_raw = {
+                    key: dataset._scalar_to_string(item["meta"].get(key, ""))
+                    for key in ("amd", "dr", "glaucoma")
+                    if key in item["meta"]
+                }
                 shape = tuple(data["oct_bscans"].shape) if "oct_bscans" in data.files else None
             print(
                 f"{name} audit {source}: file={metadata['filename']} "
-                f"oct_shape={shape} raw={raw} label={label.tolist()} groundtruth={metadata['groundtruth']}"
+                f"oct_shape={shape} npz_raw={raw} csv_raw={csv_raw} "
+                f"label={label.tolist()} groundtruth={metadata['groundtruth']}"
             )
             seen += 1
             if seen >= sample_count:
@@ -446,6 +454,7 @@ class RETFoundMultiHead(nn.Module):
 
 def get_model_oct():
 #    print("Loading RETFound ViT-Large with Separate Specialist Heads...")
+    freeze_backbone = _env_flag("RETFOUND_FREEZE_BACKBONE", True)
     
     weight_path = os.environ.get(
         "RETFOUND_OCT_BACKBONE_WEIGHTS",
@@ -463,7 +472,7 @@ def get_model_oct():
     
     # 2. FREEZE THE ENTIRE BACKBONE
     for param in backbone.parameters():
-        param.requires_grad = False
+        param.requires_grad = not freeze_backbone
     
     # 3. LOAD PRE-TRAINED WEIGHTS INTO BACKBONE
     checkpoint = torch.load(weight_path, map_location='cpu', weights_only=False)
@@ -486,6 +495,7 @@ def get_model_oct():
     for param in model.amd_head.parameters(): param.requires_grad = True
     for param in model.dr_head.parameters(): param.requires_grad = True
     for param in model.glaucoma_head.parameters(): param.requires_grad = True
+    print(f"RETFound backbone frozen: {freeze_backbone}")
 
 #    print(f"Specialists Initialized: AMD (3 nodes), DR (1 node), Glaucoma (1 node)")
     
@@ -497,17 +507,62 @@ def get_model_oct():
     
     return model
 
-class MultiAgentLoss(nn.Module):
-    def __init__(self, device):
-        super().__init__()
+def _binary_pos_weight(labels, fallback):
+    labels = np.asarray(labels, dtype="float32")
+    labels = labels[labels >= 0]
+    if labels.size == 0:
+        return fallback
+    positives = float(labels.sum())
+    negatives = float(labels.size - positives)
+    if positives <= 0.0:
+        return fallback
+    return max(negatives / positives, 1.0)
 
-        self.amd_pos_weight = torch.tensor([1.0, 1.5, 2.0]).to(device)
+
+def compute_loss_pos_weights(dataset):
+    amd_targets = [[], [], []]
+    dr_targets = []
+    glaucoma_targets = []
+
+    for item in dataset.files:
+        source = item["source"]
+        meta = item["meta"]
+        if source == "AMD":
+            severity = int(dataset.amd_map.get(dataset._scalar_to_string(meta.get("amd", "")), 0.0))
+            amd_targets[0].append(1.0 if severity >= 1 else 0.0)
+            amd_targets[1].append(1.0 if severity >= 2 else 0.0)
+            amd_targets[2].append(1.0 if severity >= 3 else 0.0)
+        elif source == "DR":
+            severity = int(dataset.dr_map.get(dataset._scalar_to_string(meta.get("dr", "")), 0.0))
+            dr_targets.append(1.0 if severity >= 1 else 0.0)
+        elif source == "Glaucoma":
+            key = dataset._scalar_to_string(meta.get("glaucoma", ""))
+            glaucoma_targets.append(1.0 if key in {"1", "1.0", "true", "yes", "y"} else 0.0)
+
+    return {
+        "amd": [
+            _binary_pos_weight(amd_targets[0], 1.0),
+            _binary_pos_weight(amd_targets[1], 1.5),
+            _binary_pos_weight(amd_targets[2], 2.0),
+        ],
+        "dr": [_binary_pos_weight(dr_targets, 5.0)],
+        "glaucoma": [_binary_pos_weight(glaucoma_targets, 1.0)],
+    }
+
+
+class MultiAgentLoss(nn.Module):
+    def __init__(self, device, pos_weights=None):
+        super().__init__()
+        pos_weights = pos_weights or {"amd": [1.0, 1.5, 2.0], "dr": [5.0], "glaucoma": [1.0]}
+
+        self.amd_pos_weight = torch.tensor(pos_weights["amd"], dtype=torch.float32).to(device)
         self.bce_amd = nn.BCEWithLogitsLoss(pos_weight=self.amd_pos_weight)
         
-        self.dr_pos_weight = torch.tensor([5.0])
+        self.dr_pos_weight = torch.tensor(pos_weights["dr"], dtype=torch.float32)
         self.bce_dr = nn.BCEWithLogitsLoss(pos_weight=self.dr_pos_weight.to(DEVICE))
         
-        self.bce_standard = nn.BCEWithLogitsLoss()
+        self.glaucoma_pos_weight = torch.tensor(pos_weights["glaucoma"], dtype=torch.float32).to(device)
+        self.bce_standard = nn.BCEWithLogitsLoss(pos_weight=self.glaucoma_pos_weight)
 
     def forward(self, outputs, targets):
         # targets: [Batch, 5] -> [AMD1, AMD2, AMD3, DR, Glaucoma]
@@ -542,6 +597,7 @@ def train(resume = True):
     print(f"Using FairVision data root: {DATA_ROOT}")
     print(f"Saving RETFound OCT weights to: {PATH}")
     print(f"Resume existing RETFound OCT checkpoint: {resume}")
+    print(f"OCT representation: {OCT_REPRESENTATION}")
       # Transforms (ImageNet Stats)
     train_transform = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -557,8 +613,20 @@ def train(resume = True):
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    train_ds = FairVisionNPZ(DATA_ROOT, split='Training', transform=train_transform)
-    val_ds = FairVisionNPZ(DATA_ROOT, split='Validation', transform=val_transform)
+    train_ds = FairVisionNPZ(
+        DATA_ROOT,
+        split='Training',
+        transform=train_transform,
+        image_kind="oct",
+        oct_representation=OCT_REPRESENTATION,
+    )
+    val_ds = FairVisionNPZ(
+        DATA_ROOT,
+        split='Validation',
+        transform=val_transform,
+        image_kind="oct",
+        oct_representation=OCT_REPRESENTATION,
+    )
     if len(train_ds) == 0 or len(val_ds) == 0:
         raise RuntimeError(
             f"FairVision splits are empty: train={len(train_ds)} val={len(val_ds)}. "
@@ -594,7 +662,9 @@ def train(resume = True):
         lr=LR, 
         weight_decay=0.05
     )
-    criterion = MultiAgentLoss(DEVICE)
+    pos_weights = compute_loss_pos_weights(train_ds)
+    print(f"Loss pos_weight values: {pos_weights}")
+    criterion = MultiAgentLoss(DEVICE, pos_weights=pos_weights)
     
     best_avg_auc = 0.0
 

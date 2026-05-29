@@ -189,12 +189,25 @@ def build_fairvision_task_manifest(fairvision_root: Path, task: str) -> pd.DataF
     manifest["age_group"] = manifest["age"].map(age_to_group)
     manifest["metadata_missing_flag"] = metadata_missing_flag(manifest)
     manifest["image_path"] = manifest.apply(
-        lambda row: str(fairvision_root / split_folder(row["split"]) / row["filename"]),
+        lambda row: str(fairvision_image_path(fairvision_root, disease, row["split"], row["filename"])),
         axis=1,
     )
     manifest["oct_key"] = "oct_bscans"
     manifest["fundus_key"] = "slo_fundus"
     return manifest
+
+
+def fairvision_image_path(fairvision_root: Path, disease: str, split: str, filename: object) -> Path:
+    folder = split_folder(split)
+    candidates = [
+        fairvision_root / disease / folder / str(filename),
+        fairvision_root / folder / disease / str(filename),
+        fairvision_root / folder / str(filename),
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    return candidates[0]
 
 
 def build_gdp_detection_manifest(gdp_root: Path) -> pd.DataFrame:

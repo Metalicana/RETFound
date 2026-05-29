@@ -29,6 +29,7 @@ from VisionAgent.fairvision_npz import FairVisionNPZ
 
 def print_dataset_diagnostics(name, dataset):
     print(f"{name} label summary: {dataset.label_summary()}")
+    print(f"{name} path summary: {dataset.path_summary()}")
     sample_count = int(os.environ.get("MIRAGE_AUDIT_SAMPLES", 2))
     if sample_count <= 0:
         return
@@ -44,10 +45,16 @@ def print_dataset_diagnostics(name, dataset):
                     for key in ("amd_condition", "dr_subtype", "glaucoma")
                     if key in data.files
                 }
+                csv_raw = {
+                    key: dataset._scalar_to_string(item["meta"].get(key, ""))
+                    for key in ("amd", "dr", "glaucoma")
+                    if key in item["meta"]
+                }
                 shape = tuple(data["slo_fundus"].shape) if "slo_fundus" in data.files else None
             print(
                 f"{name} audit {source}: file={metadata['filename']} "
-                f"slo_shape={shape} raw={raw} label={label.tolist()} groundtruth={metadata['groundtruth']}"
+                f"slo_shape={shape} npz_raw={raw} csv_raw={csv_raw} "
+                f"label={label.tolist()} groundtruth={metadata['groundtruth']}"
             )
             seen += 1
             if seen >= sample_count:

@@ -11,15 +11,29 @@ from torch.utils.data import Dataset
 
 
 class FairVisionNPZ(Dataset):
-    def __init__(self, root_dir, split="Training", transform=None, image_kind="oct"):
+    def __init__(
+        self,
+        root_dir,
+        split="Training",
+        transform=None,
+        image_kind="oct",
+        oct_representation="center",
+    ):
         self.files = []
         self.transform = transform
         self.image_kind = image_kind
+        self.oct_representation = oct_representation
+        self.strict_alignment = self._env_flag("FAIRVISION_STRICT_ALIGNMENT", True)
         self.sources = ["AMD", "DR", "Glaucoma"]
         self.root_dir = Path(root_dir).expanduser()
         self.split_folder = self._normalize_split(split)
         self.csv_base_path = self._metadata_root()
         self.image_base_path = self._image_root()
+        self.required_npz_keys = {
+            "AMD": "amd_condition",
+            "DR": "dr_subtype",
+            "Glaucoma": "glaucoma",
+        }
 
         self.amd_map = {
             "not.in.icd.table": 0.0,
@@ -59,6 +73,8 @@ class FairVisionNPZ(Dataset):
                 continue
             self._append_legacy_files(source)
         print(f"Found {len(self.files)} images with metadata for {self.split_folder}.")
+        self._print_path_diagnostics()
+        self._validate_alignment()
 
     def label_summary(self):
         summary = {}
@@ -110,6 +126,112 @@ class FairVisionNPZ(Dataset):
         if not values:
             return 0.0
         return float(sum(values) / len(values))
+
+    @staticmethod
+    def _env_flag(name, default=True):
+        value = os.environ.get(name)
+        if value is None:
+            return default
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+    def path_summary(self):
+        paths = [item["path"] for item in self.files]
+        filenames = [Path(item["path"]).name for item in self.files]
+        by_source = {
+            source: len({item["path"] for item in self.files if item["source"] == source})
+            for source in self.sources
+        }
+        path_sources = {}
+        filename_sources = {}
+        for item in self.files:
+            path_sources.setdefault(item["path"], set()).add(item["source"])
+            filename_sources.setdefault(Path(item["path"]).name, set()).add(item["source"])
+        reused_paths = {
+            Path(path).name: sorted(sources)
+            for path, sources in path_sources.items()
+            if len(sources) > 1
+        }
+        reused_filenames = {
+            filename: sorted(sources)
+            for filename, sources in filename_sources.items()
+            if len(sources) > 1
+        }
+        return {
+            "rows": len(paths),
+            "unique_paths": len(set(paths)),
+            "unique_filenames": len(set(filenames)),
+            "unique_paths_by_source": by_source,
+            "paths_reused_across_sources": len(reused_paths),
+            "filenames_reused_across_sources": len(reused_filenames),
+            "reused_path_examples": dict(list(sorted(reused_paths.items()))[:5]),
+            "reused_filename_examples": dict(list(sorted(reused_filenames.items()))[:5]),
+        }
+
+    def _print_path_diagnostics(self):
+        if os.environ.get("FAIRVISION_PATH_DIAGNOSTICS", "1").strip().lower() in {"0", "false", "no"}:
+            return
+        summary = self.path_summary()
+        print(
+            f"{self.split_folder} path summary: rows={summary['rows']} "
+            f"unique_paths={summary['unique_paths']} unique_filenames={summary['unique_filenames']} "
+            f"unique_paths_by_source={summary['unique_paths_by_source']}"
+        )
+        if summary["paths_reused_across_sources"]:
+            print(
+                f"{self.split_folder} paths reused across disease CSVs: "
+                f"{summary['paths_reused_across_sources']} examples={summary['reused_path_examples']}"
+            )
+        elif summary["filenames_reused_across_sources"]:
+            print(
+                f"{self.split_folder} filenames reused across disease CSVs: "
+                f"{summary['filenames_reused_across_sources']} examples={summary['reused_filename_examples']}"
+            )
+
+    def _validate_alignment(self):
+        if not self.strict_alignment:
+            return
+
+        summary = self.path_summary()
+        if summary["paths_reused_across_sources"]:
+            raise RuntimeError(
+                f"FairVision layout is ambiguous for split={self.split_folder}: "
+                f"{summary['paths_reused_across_sources']} NPZ paths are reused across disease CSVs. "
+                f"Examples: {summary['reused_path_examples']}. "
+                "AMD, DR, and Glaucoma use overlapping filenames for different cases, so the data must be "
+                "stored in disease-specific split folders such as AMD/Training/data_00001.npz, "
+                "DR/Training/data_00001.npz, and Glaucoma/Training/data_00001.npz. "
+                "Set FAIRVISION_STRICT_ALIGNMENT=0 only for debugging."
+            )
+
+        missing = []
+        checked_by_source = {source: 0 for source in self.sources}
+        max_checks_per_source = int(os.environ.get("FAIRVISION_ALIGNMENT_CHECK_SAMPLES", 50))
+        for item in self.files:
+            source = item["source"]
+            if checked_by_source[source] >= max_checks_per_source:
+                continue
+            checked_by_source[source] += 1
+            required_key = self.required_npz_keys[source]
+            try:
+                with np.load(item["path"], allow_pickle=True) as data:
+                    if required_key not in data.files:
+                        missing.append((source, Path(item["path"]).name, required_key, tuple(data.files)))
+            except Exception as exc:
+                missing.append((source, Path(item["path"]).name, required_key, f"load_error={exc}"))
+            if len(missing) >= 5:
+                break
+
+        if missing:
+            examples = [
+                f"{source}/{filename} missing {required_key}; keys={keys}"
+                for source, filename, required_key, keys in missing
+            ]
+            raise RuntimeError(
+                f"FairVision NPZ/CSV alignment check failed for split={self.split_folder}. "
+                f"Examples: {examples}. "
+                "This usually means the loader is pointing an AMD or DR CSV row at a Glaucoma NPZ, "
+                "or the flat dataset lost the disease-specific folder context."
+            )
 
     def _append_records(self, source, records):
         for file_meta in records:
@@ -185,11 +307,13 @@ class FairVisionNPZ(Dataset):
 
     def _find_npz_path(self, source, split_folder, filename):
         candidates = [
-            self.image_base_path / split_folder / filename,
-            self.image_base_path / source / split_folder / filename,
-            self.root_dir / split_folder / filename,
             self.root_dir / source / split_folder / filename,
+            self.root_dir / split_folder / source / filename,
+            self.image_base_path / source / split_folder / filename,
+            self.image_base_path / split_folder / source / filename,
             self.csv_base_path / source / split_folder / filename,
+            self.root_dir / split_folder / filename,
+            self.image_base_path / split_folder / filename,
         ]
         return next((path for path in candidates if path.exists()), None)
 
@@ -267,10 +391,53 @@ class FairVisionNPZ(Dataset):
         slice_axis = min(range(3), key=lambda axis: volume.shape[axis])
         return np.take(volume, volume.shape[slice_axis] // 2, axis=slice_axis)
 
+    @staticmethod
+    def _slice_axis(volume):
+        volume = np.asarray(volume)
+        if volume.ndim != 3:
+            raise ValueError(f"Expected 3D OCT array, got shape={volume.shape}")
+        return min(range(3), key=lambda axis: volume.shape[axis])
+
+    @staticmethod
+    def _take_fractional_slice(volume, axis, fraction):
+        index = int(round((volume.shape[axis] - 1) * fraction))
+        return np.take(volume, index, axis=axis)
+
+    def _oct_array(self, volume):
+        volume = np.asarray(volume, dtype="float32")
+        if volume.ndim == 2:
+            return volume
+        axis = self._slice_axis(volume)
+        if self.oct_representation == "center":
+            return self._take_fractional_slice(volume, axis, 0.5)
+        if self.oct_representation == "mean":
+            return np.mean(volume, axis=axis)
+        if self.oct_representation == "max":
+            return np.max(volume, axis=axis)
+        if self.oct_representation == "three_slices":
+            return np.stack(
+                [
+                    self._take_fractional_slice(volume, axis, 0.25),
+                    self._take_fractional_slice(volume, axis, 0.5),
+                    self._take_fractional_slice(volume, axis, 0.75),
+                ],
+                axis=-1,
+            )
+        if self.oct_representation == "mean_max_center":
+            return np.stack(
+                [
+                    self._take_fractional_slice(volume, axis, 0.5),
+                    np.mean(volume, axis=axis),
+                    np.max(volume, axis=axis),
+                ],
+                axis=-1,
+            )
+        raise ValueError(f"Unknown OCT representation: {self.oct_representation}")
+
     def _oct_image(self, data):
-        oct_slice = self._center_slice(data["oct_bscans"])
-        oct_slice = self._normalize_to_uint8(oct_slice)
-        return Image.fromarray(oct_slice).convert("RGB")
+        image = self._oct_array(data["oct_bscans"])
+        image = self._normalize_to_uint8(image)
+        return Image.fromarray(image).convert("RGB")
 
     def _slo_image(self, data):
         fundus_img = data["slo_fundus"]
