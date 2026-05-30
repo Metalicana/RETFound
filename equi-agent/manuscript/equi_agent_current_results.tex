@@ -12,6 +12,7 @@
 \usepackage{textcomp}%
 \usepackage{manyfoot}%
 \usepackage{booktabs}%
+\usepackage{longtable}%
 \usepackage{algorithm}%
 \usepackage{algorithmicx}%
 \usepackage{algpseudocode}%
@@ -235,6 +236,8 @@ Subgroup AUROC routing & Subgroup rule-based arbitration & 0.474 & 0.585 & 0.713
 
 RETFound OCT had the best completed macro diagnostic performance among the foundation-model baselines (F1 0.678, balanced accuracy 0.797, ECE 0.054). UrFound OCT and VisionFM OCT were the next strongest OCT-compatible encoders. SLO/fundus encoders contributed useful signal for some tasks but were weaker on average, especially for DR. The subgroup columns are the central finding: even the strongest model retained large subgroup gaps, with RETFound OCT showing $\Delta$FPR 0.490 and $\Delta$FNR 0.502. Static fusion and simple reliability routing did not improve worst-group performance, indicating that averaging model probabilities is not sufficient for reliability control.
 
+Detailed demographic-stratified performance for each foundation-model baseline is reported in Appendix Table~\ref{tab:fairvision_foundation_demographic_detail}. The appendix table reports race, ethnicity, sex/gender, and age-group strata macro-averaged across AMD, DR, and glaucoma; the full intersectional table is retained in the project outputs for audit.
+
 \subsection{GDP Glaucoma and Progression Evaluation}\label{subsec:gdp_eval}
 
 GDP evaluation separates cross-sectional glaucoma detection from longitudinal progression forecasting. OCT foundation encoders transfer reasonably to cross-sectional glaucoma detection (Table~\ref{tab:gdp_glaucoma_detection_foundation}). Progression forecasting is different: the strongest current helper is the native Harvard-GDP RNFLT plus visual-field total-deviation sensitivity (TDS) EfficientNet workflow, not an OCT B-scan foundation-model probe.
@@ -331,7 +334,9 @@ All analyses use retrospective ophthalmic datasets. The final manuscript will re
 
 \begin{appendices}
 \section{Supplementary Material}\label{secA1}
-Supplementary implementation details, additional subgroup tables, and robustness analyses will be included here.
+Supplementary implementation details, additional subgroup tables, and robustness analyses will be included here. Table~\ref{tab:fairvision_foundation_demographic_detail} expands the FairVision diagnostic comparison by demographic stratum for the foundation-model baselines.
+
+\input{tables/fairvision_foundation_demographic_detail}
 \end{appendices}
 
 \bibliography{sn-bibliography}
