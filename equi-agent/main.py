@@ -21,8 +21,68 @@ import os
 import traceback
 
 OUTPUT_CSV = os.environ.get("EQUI_AGENT_OUTPUT_CSV", "ophthalmic_performance_results_apr30.csv")
+TRACE_JSONL = os.environ.get("EQUI_AGENT_TRACE_JSONL", "")
 MAX_CASES_PER_DISEASE = int(os.environ.get("EQUI_AGENT_MAX_CASES_PER_DISEASE", "100"))
 AMD_BINARY_SCORING = os.environ.get("EQUI_AGENT_AMD_BINARY_SCORING", "0") == "1"
+OMIT_MD = os.environ.get("EQUI_AGENT_OMIT_MD", "0") == "1"
+
+MD_METADATA_KEYS = {
+    "md",
+    "mean_deviation",
+    "mean deviation",
+    "visual_field_md",
+    "vf_md",
+}
+
+
+def append_trace(row):
+    if not TRACE_JSONL:
+        return
+    trace_dir = os.path.dirname(TRACE_JSONL)
+    if trace_dir:
+        os.makedirs(trace_dir, exist_ok=True)
+    with open(TRACE_JSONL, "a") as handle:
+        handle.write(json.dumps(row, default=str, sort_keys=True) + "\n")
+
+
+def case_trace(disease, index, patient_record, row, state, error=None):
+    metadata = patient_record.get("metadata", {}) if isinstance(patient_record, dict) else {}
+    vision = state.get("vision_opinion", {}) if isinstance(state, dict) else {}
+    return {
+        "disease": disease,
+        "case_index": index,
+        "filename": patient_record.get("directory", "") if isinstance(patient_record, dict) else "",
+        "metadata": metadata,
+        "result_row": row,
+        "error": error,
+        "agents": {
+            "bio_profiler": state.get("clinical_narrative", "") if isinstance(state, dict) else "",
+            "vision_agent": {
+                "summary": vision.get("summary", ""),
+                "retfound_scores": vision.get("retfound_scores", ""),
+                "mirage_scores": vision.get("mirage_scores", ""),
+                "full_report": vision.get("full_report", ""),
+            },
+            "functional_agent": state.get("functional_opinion", {}) if isinstance(state, dict) else {},
+            "equity_agent": state.get("equity_opinion", "") if isinstance(state, dict) else "",
+            "guidelines_agent": state.get("guidelines", "") if isinstance(state, dict) else "",
+            "orchestrator": state.get("final_diagnosis", {}) if isinstance(state, dict) else {},
+            "safety_agent": state.get("safety_output", "") if isinstance(state, dict) else "",
+        },
+    }
+
+
+def omit_md_from_patient_record(patient_record):
+    if not OMIT_MD:
+        return patient_record
+
+    masked_record = dict(patient_record)
+    metadata = dict(masked_record.get("metadata", {}))
+    for key in list(metadata):
+        if str(key).strip().lower() in MD_METADATA_KEYS:
+            metadata[key] = None
+    masked_record["metadata"] = metadata
+    return masked_record
 
 #Intiializing agents
 profiler = BioProfiler()
@@ -193,6 +253,7 @@ if __name__ == "__main__":
 
             try:
               patient_record = loader.load_patient(disease, test_rows.iloc[i])
+              patient_record = omit_md_from_patient_record(patient_record)
 
               age = patient_record['metadata']['age']
               gender = patient_record['metadata']['gender']
@@ -216,6 +277,7 @@ if __name__ == "__main__":
                   "Pred_AMD": pred_labels.get("AMD", -1) if pred_labels else -1,
                   "Pred_DR": pred_labels.get("DR", -1) if pred_labels else -1,
                   "Pred_GL": pred_labels.get("GL", -1) if pred_labels else -1,
+                  "MD_Omitted": int(OMIT_MD),
               }
 
               # Select correct prediction
@@ -242,6 +304,7 @@ if __name__ == "__main__":
                   row["Is_Correct"] = int(pred_for_score == truth_for_score)
 
               results.append(row)
+              append_trace(case_trace(disease, i, patient_record, row, final_state))
 
               df = pd.DataFrame(results)
               df.to_csv(OUTPUT_CSV, index=False)
@@ -267,9 +330,20 @@ if __name__ == "__main__":
                     "Pred_AMD": -1,
                     "Pred_DR": -1,
                     "Pred_GL": -1,
+                    "MD_Omitted": int(OMIT_MD),
                     "Is_Correct": -1
                   }
               results.append(row)
+              append_trace(
+                  case_trace(
+                      disease,
+                      i,
+                      patient_record,
+                      row,
+                      locals().get("final_state", {}),
+                      error=traceback.format_exc(),
+                  )
+              )
 
               df = pd.DataFrame(results)
               df.to_csv(OUTPUT_CSV, index=False)
