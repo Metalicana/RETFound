@@ -55,6 +55,8 @@ OUTPUT_FIELDS = [
     "y_prob",
     "y_pred",
     "applied_threshold",
+    "recommended_threshold",
+    "prediction_lock_active",
     "split",
     "race",
     "ethnicity",
@@ -334,6 +336,7 @@ def deterministic_arbitrate(
                 "model": model,
                 "probability": prob,
                 "binary_prediction": pred,
+                "applied_threshold": fnum(row.get("applied_threshold"), 0.5),
                 "trust_weight": weight,
                 "global_f1": prior.get("f1", 0.0) if prior else 0.0,
                 "global_auroc": prior.get("auroc", 0.5) if prior else 0.5,
@@ -348,6 +351,7 @@ def deterministic_arbitrate(
     reference_model = "weighted_ensemble"
     reference_probability = weighted_probability
     reference_prediction = int(weighted_probability >= 0.5)
+    reference_threshold = 0.5
     if model_rows and reference_strategy != "weighted":
         score_key = {
             "best_f1": "global_f1",
@@ -358,6 +362,7 @@ def deterministic_arbitrate(
         reference_model = best_row["model"]
         reference_probability = best_row["probability"]
         reference_prediction = best_row["binary_prediction"]
+        reference_threshold = best_row["applied_threshold"]
     disagreement = max(probs) - min(probs) if probs else 0.0
     close_call = abs(reference_probability - 0.5) < 0.10
     severe_split = 0 < positive_votes < len(rows_by_model)
@@ -370,6 +375,7 @@ def deterministic_arbitrate(
         "reference_model": reference_model,
         "reference_probability": reference_probability,
         "reference_prediction": reference_prediction,
+        "reference_threshold": reference_threshold,
         "weighted_prediction": int(weighted_probability >= 0.5),
         "positive_votes": positive_votes,
         "num_models": len(rows_by_model),
@@ -407,6 +413,7 @@ def build_evidence_packet(meta: dict[str, Any], arbitration: dict[str, Any], cas
                 "global_false_positive_rate": round(row["global_fpr"], 6),
                 "global_false_negative_rate": round(row["global_fnr"], 6),
                 "global_ece": round(row["global_ece"], 6),
+                "source_applied_threshold": round(row["applied_threshold"], 6),
             }
             for row in arbitration["model_rows"]
         ],
@@ -418,6 +425,7 @@ def build_evidence_packet(meta: dict[str, Any], arbitration: dict[str, Any], cas
             "reference_model": arbitration["reference_model"],
             "reference_probability": round(arbitration["reference_probability"], 6),
             "reference_prediction": arbitration["reference_prediction"],
+            "reference_threshold": round(arbitration["reference_threshold"], 6),
             "positive_votes": arbitration["positive_votes"],
             "num_models": arbitration["num_models"],
             "probability_range": round(arbitration["disagreement"], 6),
@@ -442,7 +450,9 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
         "has a high false-positive rate, doubt or down-weight that positive call. If a source says YES and has a low "
         "false-positive rate with stable reliability, trust that positive call more. If a source says NO but has a high "
         "false-negative rate, doubt that negative call and consider a sensitivity shift. If a source says NO and has a "
-        "low false-negative rate with stable reliability, trust that negative call more.\n\n"
+        "low false-negative rate with stable reliability, trust that negative call more. Do not use low false-positive "
+        "rate as evidence that a negative prediction is safe; low false-positive rate mainly supports positive calls. "
+        "For negative calls, rely on the false-negative rate, calibration, and distance from the decision boundary.\n\n"
         "The GDP-native RNFLT+TDS EfficientNet source, when available, is the native progression helper trained with "
         "the Harvard-GDP RNFLT/visual-field workflow. Prefer it over weak OCT B-scan transfer probes when its "
         "validation/test reliability is stronger. OCT foundation probes are auxiliary evidence, not automatically "
@@ -450,7 +460,8 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
         "Transparency is required. Do not give only a high-level final answer. Each internal agent must expose what "
         "it saw, what it predicted, and how it changed trust. Cite the numeric probability, binary vote, AUROC/F1, "
         "false-positive rate, false-negative rate, and ECE when available. If a number is unavailable, say unavailable; "
-        "do not invent it.\n\n"
+        "do not invent it. Keep all rationales short. Return compact JSON only, with no markdown, comments, trailing "
+        "commas, or prose outside the JSON object.\n\n"
         "Always return a progression probability and binary progression label for the retrospective evaluation file. Escalation is "
         "a separate safety/referral flag for human review; it must never erase or replace the progression prediction. "
         "Return only valid JSON."
@@ -469,16 +480,23 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
                 "probability and binary vote. Apply simple reliability logic source by source: high-FP positive "
                 "predictions are less trustworthy; low-FP positive predictions are more trustworthy; high-FN negative "
                 "predictions are less trustworthy; low-FN negative predictions are more trustworthy. Recommend one "
-                "threshold policy: sensitivity_shift, precision_shift, neutral, or escalate. Recommend the primary "
-                "source with the best stable track record for its current YES/NO judgment. If subgroup evidence is "
-                "unstable or unavailable, fall back to global source reliability and say so in the reasoning. Explicitly "
-                "state whether the concern is false-negative risk, false-positive risk, calibration risk, or minimal risk."
+                "threshold policy: sensitivity_shift, precision_shift, neutral, or escalate. Use sensitivity_shift only "
+                "when high FN risk interacts with a borderline or clinically relevant probability, roughly probability "
+                ">=0.25, close_call=true, or negative vote near the reference threshold. For very low probabilities "
+                "<0.20 with acceptable ECE, use neutral with a residual false-negative caveat rather than automatic "
+                "sensitivity_shift. For positive votes with low FPR, keep or up-weight the positive call rather than "
+                "changing the threshold only because FNR is high. Recommend the primary source with the best stable "
+                "track record for its current YES/NO judgment. If subgroup evidence is unstable or unavailable, fall "
+                "back to global reliability and say so. Explicitly state whether the concern is false-negative risk, "
+                "false-positive risk, calibration risk, or minimal risk."
             ),
             "orchestrator": (
                 "Anchor final_probability on deterministic_reference.reference_probability. "
                 "Adjust by at most 0.15 only when the evidence strongly justifies it. "
-                "Choose calibration_action first, then apply its threshold: sensitivity_shift=0.35, neutral/escalate=0.50, precision_shift=0.65. "
-                "final_prediction must equal final_probability >= applied threshold."
+                "Choose calibration_action first, then recommend a clinical review threshold: sensitivity_shift=0.35, "
+                "neutral/escalate=0.50, precision_shift=0.65. If the benchmark runner locks the reference prediction, "
+                "do not claim that the final benchmark label follows the recommended clinical threshold; instead explain "
+                "that the recommendation is a safety/triage policy while the benchmark label may remain locked to the source vote."
             ),
             "safety_agent": (
                 "Set escalate_to_human=true for close thresholds, severe source disagreement, or weak reliability. "
@@ -491,47 +509,49 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
                 "primary_model": "model/source name or ensemble",
                 "calibration_action": "sensitivity_shift, precision_shift, neutral, or escalate",
                 "escalate_to_human": "boolean",
-                "reasoning": "brief arbitration rationale",
+                "reasoning": "one sentence",
                 "agent_trace": {
                     "bio_profiler": {
-                        "reliability_context": "short summary of metadata used only for reliability",
-                        "direct_risk_from_demographics": "must be false",
+                        "reliability_context": "one sentence",
+                        "direct_risk_from_demographics": False,
                     },
                     "progression_evidence_agent": {
-                        "evidence_summary": "short summary of progression evidence",
+                        "evidence_summary": "one sentence",
                         "source_assessments": [
                             {
                                 "model": "source name",
-                                "probability": "numeric probability supplied",
-                                "binary_vote": "0 or 1 supplied",
-                                "auroc": "source AUROC or unavailable",
-                                "f1": "source F1 or unavailable",
-                                "fpr": "source false-positive rate or unavailable",
-                                "fnr": "source false-negative rate or unavailable",
-                                "ece": "source ECE or unavailable",
-                                "agent_source_prediction": "0 or 1",
+                                "probability": 0.0,
+                                "binary_vote": 0,
+                                "auroc": 0.0,
+                                "f1": 0.0,
+                                "fpr": 0.0,
+                                "fnr": 0.0,
+                                "ece": 0.0,
+                                "agent_source_prediction": 0,
                                 "trust_action": "up_weight, down_weight, keep, or escalate",
-                                "rationale": "one sentence using numeric evidence",
+                                "rationale": "one short sentence",
                             }
                         ],
                     },
                     "equity_agent": {
                         "reliability_concern": "false_negative_risk, false_positive_risk, calibration_risk, minimal_risk, or unstable_priors",
                         "threshold_policy": "sensitivity_shift, precision_shift, neutral, or escalate",
-                        "recommended_threshold": "0.35, 0.50, or 0.65",
+                        "recommended_threshold": 0.5,
                         "prior_level_used": "global, subgroup, intersectional, or unavailable",
-                        "rationale": "one sentence with numeric FP/FN/ECE evidence",
+                        "rationale": "one short sentence with numeric FP/FN/ECE evidence",
                     },
                     "orchestrator": {
                         "reference_model": "source selected before LLM adjustment",
-                        "reference_probability": "numeric deterministic reference probability",
-                        "probability_adjustment": "numeric adjustment from reference to final probability",
-                        "applied_threshold": "numeric threshold",
-                        "final_prediction_check": "explain final_probability >= threshold",
+                        "reference_probability": 0.0,
+                        "probability_adjustment": 0.0,
+                        "reference_threshold": 0.5,
+                        "recommended_threshold": 0.5,
+                        "benchmark_prediction_policy": "locked_reference_prediction or recommended_threshold_prediction",
+                        "final_prediction_check": "one sentence explaining whether final label is locked or thresholded",
                     },
                     "safety_agent": {
                         "decision": "ACCEPT or ESCALATE_TO_HUMAN",
-                        "escalation_reasons": "list of short reasons",
+                        "escalation_reasons": ["short reason"],
                         "uncertainty_level": "low, medium, or high",
                     },
                 },
@@ -640,8 +660,10 @@ def dry_run_response(arbitration: dict[str, Any]) -> tuple[dict[str, Any], str]:
                 "reference_model": arbitration["reference_model"],
                 "reference_probability": arbitration["reference_probability"],
                 "probability_adjustment": 0.0,
-                "applied_threshold": threshold_for_action(action),
-                "final_prediction_check": "Dry-run final prediction computed from reference probability and threshold.",
+                "reference_threshold": arbitration["reference_threshold"],
+                "recommended_threshold": threshold_for_action(action),
+                "benchmark_prediction_policy": "locked_reference_prediction",
+                "final_prediction_check": "Dry-run final prediction uses the source reference vote when prediction locking is active.",
             },
             "safety_agent": {
                 "decision": "ESCALATE_TO_HUMAN" if action == "escalate" else "ACCEPT",
@@ -740,6 +762,7 @@ def main() -> None:
         arbitration = deterministic_arbitrate(rows_by_model, priors, args.reference_strategy)
         evidence_packet = build_evidence_packet(meta, arbitration, case_key_columns)
         messages = build_live_messages(evidence_packet)
+        raw_text = ""
 
         try:
             if args.dry_run:
@@ -758,12 +781,16 @@ def main() -> None:
                     time.sleep(args.request_sleep_sec)
 
             action = normalize_action(parsed.get("calibration_action"))
-            applied_threshold = threshold_for_action(action)
+            recommended_threshold = threshold_for_action(action)
             final_prob = clamp_probability(parsed.get("final_probability"), arbitration["reference_probability"], args.max_probability_adjustment)
             if args.lock_reference_prediction and arbitration["reference_strategy"] != "weighted":
                 final_pred = int(arbitration["reference_prediction"])
+                applied_threshold = float(arbitration["reference_threshold"])
+                prediction_lock_active = True
             else:
+                applied_threshold = recommended_threshold
                 final_pred = int(final_prob >= applied_threshold)
+                prediction_lock_active = False
             close_to_threshold = abs(final_prob - applied_threshold) < 0.075
             severe_disagreement = arbitration["disagreement"] >= 0.25 or 0 < arbitration["positive_votes"] < arbitration["num_models"]
             escalate_to_human = bool(parsed.get("escalate_to_human")) or close_to_threshold or severe_disagreement
@@ -785,6 +812,8 @@ def main() -> None:
                     "y_prob": f"{final_prob:.6f}",
                     "y_pred": final_pred,
                     "applied_threshold": f"{applied_threshold:.2f}",
+                    "recommended_threshold": f"{recommended_threshold:.2f}",
+                    "prediction_lock_active": prediction_lock_active,
                     "split": "test",
                     "positive_votes": arbitration["positive_votes"],
                     "num_models": arbitration["num_models"],
@@ -825,6 +854,8 @@ def main() -> None:
                     "final_probability": f"{final_prob:.6f}",
                     "final_prediction": final_pred,
                     "applied_threshold": f"{applied_threshold:.2f}",
+                    "recommended_threshold": f"{recommended_threshold:.2f}",
+                    "prediction_lock_active": prediction_lock_active,
                     "primary_model": parsed.get("primary_model", ""),
                     "calibration_action": action,
                     "safety_decision": safety_decision,
@@ -840,6 +871,7 @@ def main() -> None:
                     **meta,
                     "error_type": type(exc).__name__,
                     "error": str(exc),
+                    "raw_response": raw_text,
                     "messages": messages,
                     "evidence_packet": evidence_packet,
                 }
