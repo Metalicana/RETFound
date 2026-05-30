@@ -123,7 +123,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-output-tokens", type=int, default=700)
     parser.add_argument(
         "--prompt-variant",
-        choices=["current", "visual_first", "f1_rescue"],
+        choices=["current", "visual_first", "f1_rescue", "diagnosis_tuned"],
         default=os.getenv("EQUI_AGENT_PROMPT_VARIANT", "current"),
         help="Prompt policy used by the arbitration LLM. Use micro experiments to compare variants.",
     )
@@ -345,6 +345,23 @@ def prompt_variant_guidance(variant: str) -> str:
             "near-all-positive voting as sole evidence, but do not suppress positives when multiple modalities and morphology "
             "support disease. Use precision_shift only when false-positive priors are strong and positive evidence is weak."
         )
+    if variant == "diagnosis_tuned":
+        return (
+            "PROMPT_VARIANT=diagnosis_tuned. Tune the diagnosis arbitration for balanced thresholded performance, not "
+            "for maximum positive calls. Preserve threshold consistency. For glaucoma, do not let weak multi-model "
+            "positive voting override poor specificity: require either a strong deterministic probability, a reliable "
+            "primary source with low false-positive risk, or image/functional support before calling positive. If glaucoma "
+            "evidence is mostly positive but comes from sources with high false-positive priors or poor balanced accuracy, "
+            "use precision_shift. Do not use sensitivity_shift for glaucoma when the deterministic probability is below "
+            "0.50 and only one or two models are positive; in that setting use neutral or precision_shift and escalate. "
+            "For DR, avoid dismissing positives just because DR is rare: if at least one lower-FPR OCT-compatible source "
+            "or the best-balanced SLO source votes positive, keep neutral or sensitivity_shift rather than precision_shift. "
+            "Only use precision_shift for DR when positive evidence comes mainly from high-FPR SLO sources and lower-FPR "
+            "OCT-compatible sources are negative. For AMD, keep precision_shift for weak positive calls driven by high-FP "
+            "sources, but do not force precision_shift when the deterministic probability is near 0.50-0.65 and the case "
+            "has multiple positives across OCT-compatible sources or a strong single OCT-compatible source; use neutral "
+            "and escalate instead."
+        )
     return "PROMPT_VARIANT=current. Use the default trust-calibration policy."
 
 
@@ -356,7 +373,9 @@ def task_specific_guidance(task: str) -> str:
             "Disease evidence should come from model outputs and, when attached, macular morphology such as drusen, "
             "RPE disruption, geographic atrophy, pigmentary change, or fluid. Do not use DR or glaucoma votes as AMD "
             "evidence. For AMD, near-threshold negative calls from sources with high false-negative priors should trigger "
-            "sensitivity_shift; weak positives from sources with high false-positive priors should trigger precision_shift."
+            "sensitivity_shift; weak positives from sources with high false-positive priors should trigger precision_shift. "
+            "However, do not convert every high-FPR context into precision_shift: if OCT-compatible sources agree or the "
+            "deterministic probability is moderately positive, use neutral plus escalation rather than a 0.65 threshold."
         )
     if task == "dr":
         return (
@@ -364,7 +383,10 @@ def task_specific_guidance(task: str) -> str:
             "Disease evidence should come from model outputs and, when attached, vascular morphology such as microaneurysms, "
             "hemorrhages, exudates, venous beading, or neovascular features. DR is rare in this split, so avoid calling "
             "positive from vague concern alone; however, do not suppress a validated positive model vote when the source has "
-            "acceptable false-positive behavior or when multiple sources agree. Do not use AMD or glaucoma votes as DR evidence."
+            "acceptable false-positive behavior or when multiple sources agree. Prefer sensitivity_shift for near-threshold "
+            "negative DR cases when the available sources have high false-negative priors. If lower-FPR OCT-compatible "
+            "models vote positive, do not let high-FPR SLO models alone force precision_shift. Do not use AMD or glaucoma "
+            "votes as DR evidence."
         )
     if task == "glaucoma":
         return (
@@ -372,7 +394,12 @@ def task_specific_guidance(task: str) -> str:
             "Disease evidence should come from model outputs and, when attached, optic nerve/RNFL-compatible morphology such "
             "as increased cupping, rim thinning, RNFL loss, or compatible OCT evidence. If functional visual-field evidence "
             "is unavailable, say unavailable rather than inventing it. Do not use AMD or DR votes as glaucoma evidence. "
-            "Escalate close calls because structural signs and functional impairment may be discordant."
+            "Do not call glaucoma positive from vote count alone when sources have high false-positive priors or weak balanced "
+            "accuracy. Use precision_shift for weak or discordant positive glaucoma evidence, and reserve sensitivity_shift "
+            "for borderline negative cases with at least two credible low-FP sources or attached morphology support. If only "
+            "one low-FP source is positive and the deterministic probability is below 0.50, do not lower the threshold to "
+            "0.35; keep neutral or precision_shift and escalate. Escalate close calls because structural signs and functional "
+            "impairment may be discordant."
         )
     return "CURRENT TASK: binary retinal disease diagnosis for the supplied task. Use only current-task evidence."
 
