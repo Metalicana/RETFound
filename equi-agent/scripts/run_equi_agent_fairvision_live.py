@@ -400,7 +400,9 @@ def prompt_variant_guidance(variant: str) -> str:
             "negative. For glaucoma, use the old precision discipline: prefer OCT-compatible structural sources and any "
             "available functional evidence; if visual field/function is unavailable, say unavailable and do not invent it. "
             "Weak SLO-heavy positives should not override more reliable OCT-compatible negatives, but borderline cases with "
-            "mixed credible evidence should be forced-label decisions with human escalation rather than abstention."
+            "mixed credible evidence should be forced-label decisions with human escalation rather than abstention. Keep "
+            "the JSON compact: do not duplicate the model-by-model audit outside equity_agent.model_reliability_table, "
+            "and keep all rationales to one short sentence."
         )
     return "PROMPT_VARIANT=current. Use the default trust-calibration policy."
 
@@ -493,7 +495,8 @@ def build_live_messages(
                     "If OCT/SLO images are attached, independently inspect the retinal morphology first, then compare "
                     "against raw probabilities, validation-threshold binary predictions, modality patterns, and vote "
                     "disagreement for the current task only. If no images are attached, state that the visual review is "
-                    "probability-only."
+                    "probability-only. Do not write a per-model table here; the per-model FP/FN audit belongs only in "
+                    "equity_agent.model_reliability_table."
                 ),
                 "equity_agent": (
                     "This is the explicit Equity Agent, matching the OphthalmicAgent design. Read the validation-derived "
@@ -505,7 +508,8 @@ def build_live_messages(
                     "sensitivity_shift, precision_shift, neutral, or escalate. Recommend the primary_model/source that "
                     "has the best stable track record for its current YES/NO judgment. If subgroup evidence is unstable, "
                     "fall back to global model reliability and say so in the reasoning. Always produce a per-model "
-                    "model_reliability_table that cites probability, vote, FPR, FNR, stability, and trust_action."
+                    "model_reliability_table that cites probability, vote, FPR, FNR, stability, and trust_action. Keep "
+                    "each row compact; reason should be at most 8 words."
                 ),
                 "orchestrator": (
                     "Act as the Lead Ophthalmic Orchestrator. Combine the Vision Agent's morphology review, model outputs, "
@@ -548,20 +552,7 @@ def build_live_messages(
                     },
                     "vision_agent": {
                         "visual_review_mode": "image_attached or probability_only",
-                        "evidence_summary": "short current-task image/model evidence summary",
-                        "source_assessments": [
-                            {
-                                "model": "source model name",
-                                "probability": "numeric probability supplied",
-                                "binary_vote": "0 or 1 supplied",
-                                "balanced_accuracy": "prior balanced accuracy or unavailable",
-                                "fpr": "prior false-positive rate or unavailable",
-                                "fnr": "prior false-negative rate or unavailable",
-                                "prior_unstable": "boolean",
-                                "trust_action": "up_weight, down_weight, keep, or escalate",
-                                "rationale": "one sentence using numeric evidence",
-                            }
-                        ],
+                        "evidence_summary": "one short current-task image/model evidence summary",
                     },
                     "equity_agent": {
                         "prior_level_used": "intersectional, subgroup, global, or unavailable",
@@ -578,17 +569,17 @@ def build_live_messages(
                                 "balanced_accuracy": "prior balanced accuracy",
                                 "prior_unstable": "boolean",
                                 "trust_action": "up_weight, down_weight, keep, or escalate",
-                                "reason": "short statement linking current vote to historical FP/FN rates",
+                                "reason": "8 words or fewer linking vote to FP/FN rates",
                             }
                         ],
-                        "rationale": "one sentence citing source FP/FN/prior stability evidence",
+                        "rationale": "one short sentence citing source FP/FN/prior stability evidence",
                     },
                     "orchestrator": {
                         "reference_probability": "deterministic weighted probability",
                         "probability_adjustment": "numeric adjustment from deterministic reference to final_probability",
                         "applied_threshold": "numeric threshold",
-                        "final_prediction_check": "explain final_probability >= threshold",
-                        "rationale": "one sentence explaining final arbitration",
+                        "final_prediction_check": "briefly state final_probability >= threshold or < threshold",
+                        "rationale": "one short sentence explaining final arbitration",
                     },
                     "safety_agent": {
                         "decision": "ACCEPT or ESCALATE_TO_HUMAN",
@@ -603,8 +594,7 @@ def build_live_messages(
                 "calibration_action": "sensitivity_shift, precision_shift, neutral, or escalate",
                 "escalate_to_human": "boolean",
                 "reasoning": (
-                    "brief rationale naming which model judgments were trusted or doubted because of their subgroup "
-                    "FP/FN track record"
+                    "40 words or fewer naming which model judgments were trusted or doubted because of subgroup FP/FN"
                 ),
             },
         },
