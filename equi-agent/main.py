@@ -18,6 +18,7 @@ import pandas as pd
 import json
 import re
 import os
+import traceback
 
 OUTPUT_CSV = os.environ.get("EQUI_AGENT_OUTPUT_CSV", "ophthalmic_performance_results_apr30.csv")
 MAX_CASES_PER_DISEASE = int(os.environ.get("EQUI_AGENT_MAX_CASES_PER_DISEASE", "100"))
@@ -99,7 +100,13 @@ def run_diagnostic_pipeline(patient_data):
     Patient Narrative: {final_state['clinical_narrative']}
     Functional Interpretation Agent output: {final_state['functional_opinion']['summary']}"""
 
-    final_state['guidelines'] = guidelines_agent.consult_note(note, max_results=5, diagnosis_only=True,)
+    try:
+        final_state['guidelines'] = guidelines_agent.consult_note(note, max_results=5, diagnosis_only=True,)
+    except Exception as exc:
+        final_state['guidelines'] = (
+            "Guidelines retrieval unavailable for this run; proceed using patient metadata, visual findings, "
+            f"functional interpretation, and equity audit only. Retrieval error: {type(exc).__name__}: {exc}"
+        )
     print("\n\n Guidelines Agent's Output   Ready: ")
     print(f"{final_state['guidelines']}")
 
@@ -187,13 +194,13 @@ if __name__ == "__main__":
             try:
               patient_record = loader.load_patient(disease, test_rows.iloc[i])
 
-              final_state = initialize_state(patient_record)
-              run_diagnostic_pipeline(patient_record)
-
               age = patient_record['metadata']['age']
               gender = patient_record['metadata']['gender']
               race = patient_record['metadata']['race']
               ethnicity = patient_record['metadata']['ethnicity']
+
+              final_state = initialize_state(patient_record)
+              run_diagnostic_pipeline(patient_record)
 
               pred_labels = parse_agent_labels(final_state)
               ground_truth = patient_record['stage']
@@ -246,13 +253,16 @@ if __name__ == "__main__":
             except Exception as e:
               # Catching the content filter specifically
               print(f"!!! Error at Index {i}. Skipping...")
+              print(traceback.format_exc())
+              patient_record = locals().get("patient_record", {})
+              metadata = patient_record.get("metadata", {}) if isinstance(patient_record, dict) else {}
               row = {
-                    "Filename": patient_record['directory'],
+                    "Filename": patient_record.get("directory", "") if isinstance(patient_record, dict) else "",
                     "Task_Folder": disease,
-                    "Age": age,
-                    "Gender": gender,
-                    "Race": race,
-                    "Ethnicity": ethnicity,
+                    "Age": metadata.get("age", ""),
+                    "Gender": metadata.get("gender", ""),
+                    "Race": metadata.get("race", ""),
+                    "Ethnicity": metadata.get("ethnicity", ""),
                     "Ground_Truth": -1,
                     "Pred_AMD": -1,
                     "Pred_DR": -1,
