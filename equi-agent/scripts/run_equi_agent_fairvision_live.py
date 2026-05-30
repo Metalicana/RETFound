@@ -96,6 +96,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed-offset", type=int, default=0, help="Offset into each task's shared case list.")
     parser.add_argument("--sample-random", action="store_true", help="Randomly sample common cases per task instead of taking sorted cases.")
     parser.add_argument(
+        "--case-order",
+        choices=["sorted", "source"],
+        default="sorted",
+        help=(
+            "Order for non-random, non-stratified case selection. 'sorted' preserves the existing stable case-id order; "
+            "'source' follows the first requested model's CSV row order after intersecting requested models, which is "
+            "closer to the legacy OphthalmicAgent first-N test-row protocol."
+        ),
+    )
+    parser.add_argument(
         "--sample-stratified",
         action="store_true",
         help="Randomly sample common cases per task with a controlled y_true class mix.",
@@ -654,6 +664,7 @@ def select_case_keys(
     offset: int,
     sample_random: bool,
     sample_stratified: bool,
+    case_order: str,
     seed: int,
     task: str,
     target_positive_frac: float,
@@ -674,11 +685,32 @@ def select_case_keys(
                 min_positive_frac,
                 max_positive_frac,
             )
-        return select_cases(task_predictions, limit, offset)
-    all_keys = select_cases(task_predictions, 10**12, 0)
+        return select_cases_in_order(task_predictions, limit, offset, case_order)
+    all_keys = select_cases_in_order(task_predictions, 10**12, 0, case_order)
     rng = random.Random(f"{seed}:{task}")
     rng.shuffle(all_keys)
     return all_keys[offset : offset + limit]
+
+
+def select_cases_in_order(
+    task_predictions: dict[str, dict[tuple, dict]],
+    limit: int,
+    offset: int,
+    case_order: str,
+) -> list[tuple]:
+    if case_order == "source":
+        if not task_predictions:
+            return []
+        common = None
+        for rows_by_key in task_predictions.values():
+            keys = set(rows_by_key)
+            common = keys if common is None else common & keys
+        if not common:
+            return []
+        reference_rows = next(iter(task_predictions.values()))
+        ordered = [key for key in reference_rows if key in common]
+        return ordered[offset : offset + limit]
+    return select_cases(task_predictions, limit, offset)
 
 
 def select_stratified_cases(
@@ -1010,6 +1042,7 @@ def main() -> None:
             args.seed_offset,
             args.sample_random,
             args.sample_stratified,
+            args.case_order,
             args.random_seed,
             task,
             args.target_positive_frac,

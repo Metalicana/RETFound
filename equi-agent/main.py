@@ -19,7 +19,9 @@ import json
 import re
 import os
 
-OUTPUT_CSV = "ophthalmic_performance_results_apr30.csv"
+OUTPUT_CSV = os.environ.get("EQUI_AGENT_OUTPUT_CSV", "ophthalmic_performance_results_apr30.csv")
+MAX_CASES_PER_DISEASE = int(os.environ.get("EQUI_AGENT_MAX_CASES_PER_DISEASE", "100"))
+AMD_BINARY_SCORING = os.environ.get("EQUI_AGENT_AMD_BINARY_SCORING", "0") == "1"
 
 #Intiializing agents
 profiler = BioProfiler()
@@ -180,7 +182,7 @@ if __name__ == "__main__":
       test_rows = df[df['use'] == 'test']
 
       if not test_rows.empty:
-          for i in range(100):
+          for i in range(min(MAX_CASES_PER_DISEASE, len(test_rows))):
 
             try:
               patient_record = loader.load_patient(disease, test_rows.iloc[i])
@@ -220,10 +222,17 @@ if __name__ == "__main__":
                   pred = -1
 
               # Compute correctness
-              if pred == -1 or ground_truth == -1:
+              if AMD_BINARY_SCORING and "AMD" in disease and pred != -1 and ground_truth != -1:
+                  pred_for_score = int(float(pred) > 0)
+                  truth_for_score = int(float(ground_truth) > 0)
+              else:
+                  pred_for_score = pred
+                  truth_for_score = ground_truth
+
+              if pred_for_score == -1 or truth_for_score == -1:
                   row["Is_Correct"] = -1
               else:
-                  row["Is_Correct"] = int(pred == ground_truth)
+                  row["Is_Correct"] = int(pred_for_score == truth_for_score)
 
               results.append(row)
 
