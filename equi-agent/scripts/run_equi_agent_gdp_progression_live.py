@@ -8,6 +8,7 @@ import random
 import re
 import time
 from pathlib import Path
+from collections import Counter
 from statistics import mean
 from typing import Any
 
@@ -879,10 +880,13 @@ def main() -> None:
 
     total_prompt = sum(int(row.get("prompt_tokens", 0)) for row in usage_rows)
     total_completion = sum(int(row.get("completion_tokens", 0)) for row in usage_rows)
+    error_counts = Counter(str(row.get("error_type", "")) for row in error_rows)
     summary = {
         "dry_run": args.dry_run,
         "cases": len(prediction_rows),
         "errors": len(error_rows),
+        "error_types": dict(error_counts),
+        "first_error": error_rows[0]["error"] if error_rows else "",
         "task": TASK,
         "models_requested": models,
         "case_key_columns": list(case_key_columns),

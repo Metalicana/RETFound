@@ -16,6 +16,7 @@ DRY_RUN="${DRY_RUN:-0}"
 INCLUDE_CLASSICAL_BASELINES="${INCLUDE_CLASSICAL_BASELINES:-0}"
 SAMPLE_RANDOM="${SAMPLE_RANDOM:-0}"
 REQUEST_SLEEP_SEC="${REQUEST_SLEEP_SEC:-0}"
+MAX_OUTPUT_TOKENS="${MAX_OUTPUT_TOKENS:-1400}"
 REFERENCE_STRATEGY="${REFERENCE_STRATEGY:-${GDP_AGENT_REFERENCE_STRATEGY:-weighted}}"
 LOCK_REFERENCE_PREDICTION="${LOCK_REFERENCE_PREDICTION:-${GDP_AGENT_LOCK_REFERENCE_PREDICTION:-0}}"
 PREDICTION_PREFIX="${PREDICTION_PREFIX:-${GDP_AGENT_PREDICTION_PREFIX:-gdp_progression_forecasting}}"
@@ -51,6 +52,7 @@ args=(
   --deployment "$DEPLOYMENT"
   --api-version "$API_VERSION"
   --request-sleep-sec "$REQUEST_SLEEP_SEC"
+  --max-output-tokens "$MAX_OUTPUT_TOKENS"
   --reference-strategy "$REFERENCE_STRATEGY"
   --prediction-prefix "$PREDICTION_PREFIX"
   --metrics-prefix "$METRICS_PREFIX"
@@ -75,8 +77,10 @@ fi
 
 python equi-agent/scripts/run_equi_agent_gdp_progression_live.py "${args[@]}"
 
-if [[ ! -s "$OUT_DIR/equi_agent_gdp_progression_predictions.csv" ]]; then
+prediction_rows=$(( $(wc -l < "$OUT_DIR/equi_agent_gdp_progression_predictions.csv") - 1 ))
+if [[ "$prediction_rows" -le 0 ]]; then
   echo "Equi-Agent wrote no prediction rows; skipping evaluation." >&2
+  echo "Inspect errors: $OUT_DIR/equi_agent_gdp_progression_errors.jsonl" >&2
   exit 2
 fi
 
