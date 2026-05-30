@@ -65,6 +65,7 @@ OUTPUT_FIELDS = [
     "vision_evidence_summary",
     "equity_reliability_concern",
     "equity_threshold_policy",
+    "equity_model_reliability_table",
     "orchestrator_rationale",
     "safety_reasons",
     "agent_trace_json",
@@ -123,7 +124,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-output-tokens", type=int, default=700)
     parser.add_argument(
         "--prompt-variant",
-        choices=["current", "visual_first", "f1_rescue", "diagnosis_tuned", "diagnosis_tuned_v2"],
+        choices=[
+            "current",
+            "visual_first",
+            "f1_rescue",
+            "diagnosis_tuned",
+            "diagnosis_tuned_v2",
+            "ophthalmic_agent_style",
+        ],
         default=os.getenv("EQUI_AGENT_PROMPT_VARIANT", "current"),
         help="Prompt policy used by the arbitration LLM. Use micro experiments to compare variants.",
     )
@@ -377,6 +385,23 @@ def prompt_variant_guidance(variant: str) -> str:
             "preserve precision control for high-FPR weak positives, but use neutral plus escalation for moderate "
             "OCT-supported probabilities."
         )
+    if variant == "ophthalmic_agent_style":
+        return (
+            "PROMPT_VARIANT=ophthalmic_agent_style. Mirror the legacy OphthalmicAgent hierarchy while preserving the "
+            "current structured JSON output. First, separate disease evidence from model reliability. Second, require "
+            "the Equity Agent to build a model-by-model historical FP/FN audit before recommending a threshold. Use this "
+            "semantics exactly: low FPR makes a positive vote more credible; high FPR makes a positive vote less credible; "
+            "low FNR makes a negative vote more credible; high FNR makes a negative vote less credible. Do not use low FPR "
+            "to justify a negative call, and do not use low FNR to justify a positive call. For AMD, use a pathology-signal "
+            "mindset: if multiple credible sources or OCT-compatible sources support disease, do not suppress to negative "
+            "solely because some high-FPR SLO sources are also positive; use neutral threshold plus escalation for moderate "
+            "signals. For DR, preserve sensitivity to credible positives from lower-FPR/OCT-compatible or best-balanced "
+            "sources; use precision_shift only when positives are dominated by high-FPR sources and credible sources are "
+            "negative. For glaucoma, use the old precision discipline: prefer OCT-compatible structural sources and any "
+            "available functional evidence; if visual field/function is unavailable, say unavailable and do not invent it. "
+            "Weak SLO-heavy positives should not override more reliable OCT-compatible negatives, but borderline cases with "
+            "mixed credible evidence should be forced-label decisions with human escalation rather than abstention."
+        )
     return "PROMPT_VARIANT=current. Use the default trust-calibration policy."
 
 
@@ -447,7 +472,9 @@ def build_live_messages(
         "low false-negative rate with stable reliability, trust that negative call more. Translate this model-by-model "
         "track record into a recommended threshold policy and a preferred model/source for the Orchestrator. Treat "
         "prior_unstable=true as statistical instability; treat low balanced accuracy as weak model reliability, not as "
-        "subgroup evidence.\n\n"
+        "subgroup evidence. You must expose this reasoning in agent_trace.equity_agent.model_reliability_table for every "
+        "foundation model. Historical FP/FN rates are reliability evidence, not disease evidence: low FPR supports trusting "
+        "a positive vote; low FNR supports trusting a negative vote.\n\n"
         "Always return a diagnostic probability and binary label for the retrospective evaluation file. Escalation is a "
         "separate safety/referral flag for human review; it must never erase or replace the diagnostic recommendation. "
         "Return only valid JSON. "
@@ -477,7 +504,8 @@ def build_live_messages(
                     "context has FN risk, FP risk, minimal risk, or unstable evidence. Recommend one threshold policy: "
                     "sensitivity_shift, precision_shift, neutral, or escalate. Recommend the primary_model/source that "
                     "has the best stable track record for its current YES/NO judgment. If subgroup evidence is unstable, "
-                    "fall back to global model reliability and say so in the reasoning."
+                    "fall back to global model reliability and say so in the reasoning. Always produce a per-model "
+                    "model_reliability_table that cites probability, vote, FPR, FNR, stability, and trust_action."
                 ),
                 "orchestrator": (
                     "Act as the Lead Ophthalmic Orchestrator. Combine the Vision Agent's morphology review, model outputs, "
@@ -540,6 +568,19 @@ def build_live_messages(
                         "reliability_concern": "false_negative_risk, false_positive_risk, calibration_risk, minimal_risk, or unstable_priors",
                         "threshold_policy": "sensitivity_shift, precision_shift, neutral, or escalate",
                         "recommended_threshold": "numeric threshold",
+                        "model_reliability_table": [
+                            {
+                                "model": "source model name",
+                                "probability": "numeric probability supplied",
+                                "binary_vote": "0 or 1 supplied",
+                                "fpr": "prior false-positive rate",
+                                "fnr": "prior false-negative rate",
+                                "balanced_accuracy": "prior balanced accuracy",
+                                "prior_unstable": "boolean",
+                                "trust_action": "up_weight, down_weight, keep, or escalate",
+                                "reason": "short statement linking current vote to historical FP/FN rates",
+                            }
+                        ],
                         "rationale": "one sentence citing source FP/FN/prior stability evidence",
                     },
                     "orchestrator": {
@@ -763,6 +804,7 @@ def trace_summary_fields(trace: dict[str, Any]) -> dict[str, str]:
         "vision_evidence_summary": str(vision.get("evidence_summary", "")),
         "equity_reliability_concern": str(equity.get("reliability_concern", "")),
         "equity_threshold_policy": str(equity.get("threshold_policy", "")),
+        "equity_model_reliability_table": safe_json(equity.get("model_reliability_table", [])),
         "orchestrator_rationale": str(orchestrator.get("rationale", "")),
         "safety_reasons": list_as_text(safety.get("escalation_reasons", "")),
         "agent_trace_json": safe_json(trace),
