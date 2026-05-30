@@ -62,6 +62,12 @@ OUTPUT_FIELDS = [
     "confidence",
     "calibration_action",
     "escalate_to_human",
+    "vision_evidence_summary",
+    "equity_reliability_concern",
+    "equity_threshold_policy",
+    "orchestrator_rationale",
+    "safety_reasons",
+    "agent_trace_json",
     "llm_provider",
     "llm_deployment",
     "prompt_tokens",
@@ -341,6 +347,35 @@ def prompt_variant_guidance(variant: str) -> str:
     return "PROMPT_VARIANT=current. Use the default trust-calibration policy."
 
 
+def task_specific_guidance(task: str) -> str:
+    task = task.lower()
+    if task == "amd":
+        return (
+            "CURRENT TASK: AMD diagnosis. Treat the target as binary any-AMD versus no AMD. "
+            "Disease evidence should come from model outputs and, when attached, macular morphology such as drusen, "
+            "RPE disruption, geographic atrophy, pigmentary change, or fluid. Do not use DR or glaucoma votes as AMD "
+            "evidence. For AMD, near-threshold negative calls from sources with high false-negative priors should trigger "
+            "sensitivity_shift; weak positives from sources with high false-positive priors should trigger precision_shift."
+        )
+    if task == "dr":
+        return (
+            "CURRENT TASK: diabetic retinopathy diagnosis. Treat the target as binary DR versus no DR. "
+            "Disease evidence should come from model outputs and, when attached, vascular morphology such as microaneurysms, "
+            "hemorrhages, exudates, venous beading, or neovascular features. DR is rare in this split, so avoid calling "
+            "positive from vague concern alone; however, do not suppress a validated positive model vote when the source has "
+            "acceptable false-positive behavior or when multiple sources agree. Do not use AMD or glaucoma votes as DR evidence."
+        )
+    if task == "glaucoma":
+        return (
+            "CURRENT TASK: glaucoma diagnosis. Treat the target as binary glaucoma versus no glaucoma. "
+            "Disease evidence should come from model outputs and, when attached, optic nerve/RNFL-compatible morphology such "
+            "as increased cupping, rim thinning, RNFL loss, or compatible OCT evidence. If functional visual-field evidence "
+            "is unavailable, say unavailable rather than inventing it. Do not use AMD or DR votes as glaucoma evidence. "
+            "Escalate close calls because structural signs and functional impairment may be discordant."
+        )
+    return "CURRENT TASK: binary retinal disease diagnosis for the supplied task. Use only current-task evidence."
+
+
 def build_live_messages(
     evidence_packet: dict[str, Any],
     image_payload: dict[str, Any] | None = None,
@@ -371,6 +406,8 @@ def build_live_messages(
         "Always return a diagnostic probability and binary label for the retrospective evaluation file. Escalation is a "
         "separate safety/referral flag for human review; it must never erase or replace the diagnostic recommendation. "
         "Return only valid JSON. "
+        + task_specific_guidance(str(evidence_packet.get("case", {}).get("task", "")))
+        + "\n\n"
         + prompt_variant_guidance(prompt_variant)
     )
     user = {
@@ -431,6 +468,48 @@ def build_live_messages(
                 "at the applied dynamic threshold."
             ),
             "required_json_schema": {
+                "agent_trace": {
+                    "bio_profiler": {
+                        "direct_risk_from_demographics": "must be false",
+                        "reliability_context": "short metadata summary used only for reliability-prior lookup",
+                    },
+                    "vision_agent": {
+                        "visual_review_mode": "image_attached or probability_only",
+                        "evidence_summary": "short current-task image/model evidence summary",
+                        "source_assessments": [
+                            {
+                                "model": "source model name",
+                                "probability": "numeric probability supplied",
+                                "binary_vote": "0 or 1 supplied",
+                                "balanced_accuracy": "prior balanced accuracy or unavailable",
+                                "fpr": "prior false-positive rate or unavailable",
+                                "fnr": "prior false-negative rate or unavailable",
+                                "prior_unstable": "boolean",
+                                "trust_action": "up_weight, down_weight, keep, or escalate",
+                                "rationale": "one sentence using numeric evidence",
+                            }
+                        ],
+                    },
+                    "equity_agent": {
+                        "prior_level_used": "intersectional, subgroup, global, or unavailable",
+                        "reliability_concern": "false_negative_risk, false_positive_risk, calibration_risk, minimal_risk, or unstable_priors",
+                        "threshold_policy": "sensitivity_shift, precision_shift, neutral, or escalate",
+                        "recommended_threshold": "numeric threshold",
+                        "rationale": "one sentence citing source FP/FN/prior stability evidence",
+                    },
+                    "orchestrator": {
+                        "reference_probability": "deterministic weighted probability",
+                        "probability_adjustment": "numeric adjustment from deterministic reference to final_probability",
+                        "applied_threshold": "numeric threshold",
+                        "final_prediction_check": "explain final_probability >= threshold",
+                        "rationale": "one sentence explaining final arbitration",
+                    },
+                    "safety_agent": {
+                        "decision": "ACCEPT or ESCALATE_TO_HUMAN",
+                        "uncertainty_level": "low, medium, or high",
+                        "escalation_reasons": "list of short reasons",
+                    },
+                },
                 "final_probability": "float from 0 to 1",
                 "final_prediction": "0 or 1",
                 "confidence": "low, medium, or high",
@@ -613,6 +692,38 @@ def normalize_prediction(probability: float, applied_threshold: float) -> int:
     return int(probability >= applied_threshold)
 
 
+def safe_json(value: Any) -> str:
+    return json.dumps(value if value is not None else {}, sort_keys=True)
+
+
+def list_as_text(value: Any) -> str:
+    if isinstance(value, list):
+        return "; ".join(str(item) for item in value)
+    if value is None:
+        return ""
+    return str(value)
+
+
+def parsed_agent_trace(parsed: dict[str, Any]) -> dict[str, Any]:
+    trace = parsed.get("agent_trace")
+    return trace if isinstance(trace, dict) else {}
+
+
+def trace_summary_fields(trace: dict[str, Any]) -> dict[str, str]:
+    vision = trace.get("vision_agent", {}) if isinstance(trace.get("vision_agent"), dict) else {}
+    equity = trace.get("equity_agent", {}) if isinstance(trace.get("equity_agent"), dict) else {}
+    orchestrator = trace.get("orchestrator", {}) if isinstance(trace.get("orchestrator"), dict) else {}
+    safety = trace.get("safety_agent", {}) if isinstance(trace.get("safety_agent"), dict) else {}
+    return {
+        "vision_evidence_summary": str(vision.get("evidence_summary", "")),
+        "equity_reliability_concern": str(equity.get("reliability_concern", "")),
+        "equity_threshold_policy": str(equity.get("threshold_policy", "")),
+        "orchestrator_rationale": str(orchestrator.get("rationale", "")),
+        "safety_reasons": list_as_text(safety.get("escalation_reasons", "")),
+        "agent_trace_json": safe_json(trace),
+    }
+
+
 def safety_flag_for_case(arbitration: dict[str, Any], probability: float, applied_threshold: float) -> tuple[bool, str]:
     model_rows = arbitration.get("model_rows", [])
     positive_votes = int(arbitration.get("positive_votes", 0))
@@ -645,6 +756,49 @@ def dry_run_response(
     if action == "neutral" and high_fpr:
         action = "precision_shift"
     parsed = {
+        "agent_trace": {
+            "bio_profiler": {
+                "direct_risk_from_demographics": False,
+                "reliability_context": "Dry-run metadata used only for reliability-prior lookup.",
+            },
+            "vision_agent": {
+                "visual_review_mode": "probability_only",
+                "evidence_summary": "Dry-run deterministic weighted arbitration; no LLM visual review.",
+                "source_assessments": [
+                    {
+                        "model": row.get("model", ""),
+                        "probability": row.get("prob", 0.0),
+                        "binary_vote": row.get("pred", 0),
+                        "balanced_accuracy": row.get("prior_balanced_accuracy", ""),
+                        "fpr": row.get("prior_fpr", ""),
+                        "fnr": row.get("prior_fnr", ""),
+                        "prior_unstable": row.get("prior_unstable", ""),
+                        "trust_action": "keep",
+                        "rationale": "Dry-run source assessment from validation priors.",
+                    }
+                    for row in model_rows
+                ],
+            },
+            "equity_agent": {
+                "prior_level_used": "subgroup_or_global",
+                "reliability_concern": "false_negative_risk" if high_fnr else ("false_positive_risk" if high_fpr else "minimal_risk"),
+                "threshold_policy": action,
+                "recommended_threshold": threshold_for_action(action, thresholds),
+                "rationale": "Dry-run threshold policy from validation FP/FN priors.",
+            },
+            "orchestrator": {
+                "reference_probability": arbitration["final_prob"],
+                "probability_adjustment": 0.0,
+                "applied_threshold": threshold_for_action(action, thresholds),
+                "final_prediction_check": "Dry-run prediction follows deterministic weighted output.",
+                "rationale": "Dry-run deterministic weighted arbitration.",
+            },
+            "safety_agent": {
+                "decision": arbitration["safety_decision"],
+                "uncertainty_level": "low" if arbitration["safety_decision"] == "ACCEPT" else "high",
+                "escalation_reasons": [] if arbitration["safety_decision"] == "ACCEPT" else ["deterministic safety flag"],
+            },
+        },
         "final_probability": arbitration["final_prob"],
         "final_prediction": arbitration["final_pred"],
         "confidence": "low" if arbitration["safety_decision"] != "ACCEPT" else "medium",
@@ -856,6 +1010,8 @@ def main() -> None:
                 applied_threshold = threshold_for_action(calibration_action, thresholds)
                 final_pred = normalize_prediction(final_prob, applied_threshold)
                 escalate_to_human, safety_decision = safety_flag_for_case(arbitration, final_prob, applied_threshold)
+                agent_trace = parsed_agent_trace(parsed)
+                trace_fields = trace_summary_fields(agent_trace)
                 prediction_rows.append(
                     {
                         **meta,
@@ -873,6 +1029,7 @@ def main() -> None:
                         "confidence": parsed.get("confidence", ""),
                         "calibration_action": calibration_action,
                         "escalate_to_human": escalate_to_human,
+                        **trace_fields,
                         "llm_provider": provider,
                         "llm_deployment": args.deployment,
                         "retry_count": usage.get("retry_count", 0),
@@ -896,6 +1053,7 @@ def main() -> None:
                         "messages": messages,
                         "evidence_packet": evidence_packet,
                         "parsed_response": parsed,
+                        "agent_trace": agent_trace,
                         "normalized_response": {
                             "final_probability": final_prob,
                             "final_prediction": final_pred,
@@ -948,6 +1106,31 @@ def main() -> None:
         ],
     )
     write_jsonl(args.out_dir / "equi_agent_live_raw_responses.jsonl", raw_rows)
+    write_jsonl(
+        args.out_dir / "equi_agent_live_agent_trace.jsonl",
+        [
+            {
+                **{key: row.get(key, "") for key in [
+                    "patient_id",
+                    "eye_id",
+                    "visit_id",
+                    "image_id",
+                    "dataset",
+                    "task",
+                    "y_true",
+                    "race",
+                    "ethnicity",
+                    "sex_gender",
+                    "age",
+                    "age_group",
+                ]},
+                "agent_trace": row.get("agent_trace", {}),
+                "normalized_response": row.get("normalized_response", {}),
+                "parsed_response": row.get("parsed_response", {}),
+            }
+            for row in raw_rows
+        ],
+    )
     write_jsonl(args.out_dir / "equi_agent_live_errors.jsonl", error_rows)
     write_jsonl(args.out_dir / "equi_agent_live_cases.jsonl", case_rows)
     write_jsonl(args.out_dir / "equi_agent_live_loaded_files.jsonl", loaded_files)
@@ -986,6 +1169,7 @@ def main() -> None:
         "outputs": {
             "predictions": str(args.out_dir / "equi_agent_live_predictions.csv"),
             "raw_responses": str(args.out_dir / "equi_agent_live_raw_responses.jsonl"),
+            "agent_trace": str(args.out_dir / "equi_agent_live_agent_trace.jsonl"),
             "usage": str(args.out_dir / "equi_agent_live_usage.csv"),
             "errors": str(args.out_dir / "equi_agent_live_errors.jsonl"),
         },
