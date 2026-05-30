@@ -73,6 +73,7 @@ OUTPUT_FIELDS = [
     "prompt_tokens",
     "completion_tokens",
     "total_tokens",
+    "retry_count",
 ]
 
 

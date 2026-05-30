@@ -15,6 +15,7 @@ MAX_PROBABILITY_ADJUSTMENT="${MAX_PROBABILITY_ADJUSTMENT:-0.10}"
 REQUEST_SLEEP_SEC="${REQUEST_SLEEP_SEC:-0}"
 MAX_RETRIES="${MAX_RETRIES:-2}"
 RETRY_SLEEP_SEC="${RETRY_SLEEP_SEC:-5}"
+MAX_CASES_PER_TASK="${MAX_CASES_PER_TASK:-0}"
 PROMPT_VARIANT="${PROMPT_VARIANT:-${EQUI_AGENT_PROMPT_VARIANT:-current}}"
 INCLUDE_IMAGE_TOKENS="${INCLUDE_IMAGE_TOKENS:-0}"
 MANIFESTS_ROOT="${MANIFESTS_ROOT:-equi-agent/outputs/manifests}"
@@ -33,7 +34,7 @@ COMMON_ARGS=(
   --out-dir "${OUT_DIR}"
   --tasks ${TASKS}
   --models ${MODELS}
-  --max-cases-per-task 0
+  --max-cases-per-task "${MAX_CASES_PER_TASK}"
   --temperature "${TEMPERATURE}"
   --max-output-tokens "${MAX_OUTPUT_TOKENS}"
   --deployment "${DEPLOYMENT}"
