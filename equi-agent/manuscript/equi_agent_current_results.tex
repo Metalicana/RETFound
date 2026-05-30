@@ -236,7 +236,7 @@ Subgroup AUROC routing & Subgroup rule-based arbitration & 0.474 & 0.585 & 0.713
 
 RETFound OCT had the best completed macro diagnostic performance among the foundation-model baselines (F1 0.678, balanced accuracy 0.797, ECE 0.054). UrFound OCT and VisionFM OCT were the next strongest OCT-compatible encoders. SLO/fundus encoders contributed useful signal for some tasks but were weaker on average, especially for DR. The subgroup columns are the central finding: even the strongest model retained large subgroup gaps, with RETFound OCT showing $\Delta$FPR 0.490 and $\Delta$FNR 0.502. Static fusion and simple reliability routing did not improve worst-group performance, indicating that averaging model probabilities is not sufficient for reliability control.
 
-Detailed demographic-stratified performance for each foundation-model baseline is reported in Appendix Table~\ref{tab:fairvision_foundation_demographic_detail}. The appendix table reports race, ethnicity, sex/gender, and age-group strata macro-averaged across AMD, DR, and glaucoma; the full intersectional table is retained in the project outputs for audit.
+Detailed disease-specific demographic performance for the foundation-model baselines is reported in Appendix Tables~\ref{tab:fairvision_foundation_demographic_amd}--\ref{tab:fairvision_foundation_demographic_glaucoma}. These tables show that subgroup reliability differs not only by model, but also by disease task; therefore, demographic reliability priors are computed separately for each task rather than pooled across AMD, DR, and glaucoma.
 
 \subsection{GDP Glaucoma and Progression Evaluation}\label{subsec:gdp_eval}
 
@@ -334,9 +334,13 @@ All analyses use retrospective ophthalmic datasets. The final manuscript will re
 
 \begin{appendices}
 \section{Supplementary Material}\label{secA1}
-Supplementary implementation details, additional subgroup tables, and robustness analyses will be included here. Table~\ref{tab:fairvision_foundation_demographic_detail} expands the FairVision diagnostic comparison by demographic stratum for the foundation-model baselines.
+Supplementary implementation details, additional subgroup tables, and robustness analyses will be included here.
 
-\input{tables/fairvision_foundation_demographic_detail}
+\input{tables/fairvision_foundation_demographic_amd}
+
+\input{tables/fairvision_foundation_demographic_dr}
+
+\input{tables/fairvision_foundation_demographic_glaucoma}
 \end{appendices}
 
 \bibliography{sn-bibliography}
