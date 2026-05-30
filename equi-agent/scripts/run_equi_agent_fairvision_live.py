@@ -123,7 +123,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-output-tokens", type=int, default=700)
     parser.add_argument(
         "--prompt-variant",
-        choices=["current", "visual_first", "f1_rescue", "diagnosis_tuned"],
+        choices=["current", "visual_first", "f1_rescue", "diagnosis_tuned", "diagnosis_tuned_v2"],
         default=os.getenv("EQUI_AGENT_PROMPT_VARIANT", "current"),
         help="Prompt policy used by the arbitration LLM. Use micro experiments to compare variants.",
     )
@@ -362,6 +362,21 @@ def prompt_variant_guidance(variant: str) -> str:
             "has multiple positives across OCT-compatible sources or a strong single OCT-compatible source; use neutral "
             "and escalate instead."
         )
+    if variant == "diagnosis_tuned_v2":
+        return (
+            "PROMPT_VARIANT=diagnosis_tuned_v2. Use diagnosis_tuned, with stricter glaucoma close-call handling. "
+            "Avoid both failure modes seen in prompt tuning: do not call broad weak evidence positive, but also do not "
+            "down-adjust borderline glaucoma cases into false negatives solely because SLO positives have high FPR. "
+            "For glaucoma, if deterministic_reference.weighted_probability is between 0.45 and 0.50, positive_votes is "
+            "at least 5, and OCT-compatible evidence is not unanimously strongly negative, keep final_probability at "
+            "least 0.50, use neutral threshold, and set escalate_to_human=true. If weighted_probability is below 0.45 "
+            "or positive_votes is below 5, do not rescue unless attached morphology supports glaucoma. If weighted_probability "
+            "is already above 0.50 but below 0.60, do not up-adjust above 0.52 unless at least two OCT-compatible sources "
+            "are strongly positive; keep escalation high. For DR, preserve the diagnosis_tuned improvement: rescue "
+            "lower-FPR/OCT-compatible positives and avoid precision_shift when DR evidence is mixed but credible. For AMD, "
+            "preserve precision control for high-FPR weak positives, but use neutral plus escalation for moderate "
+            "OCT-supported probabilities."
+        )
     return "PROMPT_VARIANT=current. Use the default trust-calibration policy."
 
 
@@ -398,8 +413,10 @@ def task_specific_guidance(task: str) -> str:
             "accuracy. Use precision_shift for weak or discordant positive glaucoma evidence, and reserve sensitivity_shift "
             "for borderline negative cases with at least two credible low-FP sources or attached morphology support. If only "
             "one low-FP source is positive and the deterministic probability is below 0.50, do not lower the threshold to "
-            "0.35; keep neutral or precision_shift and escalate. Escalate close calls because structural signs and functional "
-            "impairment may be discordant."
+            "0.35; keep neutral or precision_shift and escalate. For close-call cases with deterministic probability between "
+            "0.45 and 0.50 and at least five positive votes, avoid down-adjusting below the deterministic reference solely "
+            "because some SLO positives have high FPR; use neutral threshold, high uncertainty, and escalation. Escalate "
+            "close calls because structural signs and functional impairment may be discordant."
         )
     return "CURRENT TASK: binary retinal disease diagnosis for the supplied task. Use only current-task evidence."
 
