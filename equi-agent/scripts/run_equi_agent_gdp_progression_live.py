@@ -72,6 +72,12 @@ OUTPUT_FIELDS = [
     "confidence",
     "calibration_action",
     "escalate_to_human",
+    "progression_evidence_summary",
+    "equity_reliability_concern",
+    "equity_threshold_policy",
+    "orchestrator_rationale",
+    "safety_reasons",
+    "agent_trace_json",
     "llm_provider",
     "llm_deployment",
     "prompt_tokens",
@@ -440,6 +446,10 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
         "the Harvard-GDP RNFLT/visual-field workflow. Prefer it over weak OCT B-scan transfer probes when its "
         "validation/test reliability is stronger. OCT foundation probes are auxiliary evidence, not automatically "
         "the primary progression model.\n\n"
+        "Transparency is required. Do not give only a high-level final answer. Each internal agent must expose what "
+        "it saw, what it predicted, and how it changed trust. Cite the numeric probability, binary vote, AUROC/F1, "
+        "false-positive rate, false-negative rate, and ECE when available. If a number is unavailable, say unavailable; "
+        "do not invent it.\n\n"
         "Always return a progression probability and binary progression label for the retrospective evaluation file. Escalation is "
         "a separate safety/referral flag for human review; it must never erase or replace the progression prediction. "
         "Return only valid JSON."
@@ -450,7 +460,8 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
             "temporal_specialist": (
                 "Treat the GDP-native RNFLT+TDS EfficientNet source as the primary native progression model when present. "
                 "Treat OCT foundation probes and optional RNFLT/clinical/logistic sources as auxiliary longitudinal evidence. "
-                "Look for consistency across sources rather than one noisy positive."
+                "For every evidence source, report the source probability, binary vote, reliability metrics, source-level "
+                "progression call, and trust action. Look for consistency across sources rather than one noisy positive."
             ),
             "equity_agent": (
                 "Read the validation-derived FN and FP rates for each available source alongside that source's raw "
@@ -459,7 +470,8 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
                 "predictions are less trustworthy; low-FN negative predictions are more trustworthy. Recommend one "
                 "threshold policy: sensitivity_shift, precision_shift, neutral, or escalate. Recommend the primary "
                 "source with the best stable track record for its current YES/NO judgment. If subgroup evidence is "
-                "unstable or unavailable, fall back to global source reliability and say so in the reasoning."
+                "unstable or unavailable, fall back to global source reliability and say so in the reasoning. Explicitly "
+                "state whether the concern is false-negative risk, false-positive risk, calibration risk, or minimal risk."
             ),
             "orchestrator": (
                 "Anchor final_probability on deterministic_reference.reference_probability. "
@@ -479,6 +491,49 @@ def build_live_messages(evidence_packet: dict[str, Any]) -> list[dict[str, str]]
                 "calibration_action": "sensitivity_shift, precision_shift, neutral, or escalate",
                 "escalate_to_human": "boolean",
                 "reasoning": "brief arbitration rationale",
+                "agent_trace": {
+                    "bio_profiler": {
+                        "reliability_context": "short summary of metadata used only for reliability",
+                        "direct_risk_from_demographics": "must be false",
+                    },
+                    "progression_evidence_agent": {
+                        "evidence_summary": "short summary of progression evidence",
+                        "source_assessments": [
+                            {
+                                "model": "source name",
+                                "probability": "numeric probability supplied",
+                                "binary_vote": "0 or 1 supplied",
+                                "auroc": "source AUROC or unavailable",
+                                "f1": "source F1 or unavailable",
+                                "fpr": "source false-positive rate or unavailable",
+                                "fnr": "source false-negative rate or unavailable",
+                                "ece": "source ECE or unavailable",
+                                "agent_source_prediction": "0 or 1",
+                                "trust_action": "up_weight, down_weight, keep, or escalate",
+                                "rationale": "one sentence using numeric evidence",
+                            }
+                        ],
+                    },
+                    "equity_agent": {
+                        "reliability_concern": "false_negative_risk, false_positive_risk, calibration_risk, minimal_risk, or unstable_priors",
+                        "threshold_policy": "sensitivity_shift, precision_shift, neutral, or escalate",
+                        "recommended_threshold": "0.35, 0.50, or 0.65",
+                        "prior_level_used": "global, subgroup, intersectional, or unavailable",
+                        "rationale": "one sentence with numeric FP/FN/ECE evidence",
+                    },
+                    "orchestrator": {
+                        "reference_model": "source selected before LLM adjustment",
+                        "reference_probability": "numeric deterministic reference probability",
+                        "probability_adjustment": "numeric adjustment from reference to final probability",
+                        "applied_threshold": "numeric threshold",
+                        "final_prediction_check": "explain final_probability >= threshold",
+                    },
+                    "safety_agent": {
+                        "decision": "ACCEPT or ESCALATE_TO_HUMAN",
+                        "escalation_reasons": "list of short reasons",
+                        "uncertainty_level": "low, medium, or high",
+                    },
+                },
             },
         },
         "evidence_packet": evidence_packet,
@@ -518,6 +573,26 @@ def threshold_for_action(action: str) -> float:
     return 0.50
 
 
+def short_text(value: Any, max_chars: int = 500) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (dict, list)):
+        text = json.dumps(value, sort_keys=True)
+    else:
+        text = str(value)
+    text = " ".join(text.split())
+    return text[:max_chars]
+
+
+def trace_field(trace: dict[str, Any], *path: str, max_chars: int = 500) -> str:
+    current: Any = trace
+    for key in path:
+        if not isinstance(current, dict):
+            return ""
+        current = current.get(key)
+    return short_text(current, max_chars=max_chars)
+
+
 def clamp_probability(value: Any, fallback: float, max_adjustment: float) -> float:
     prob = fnum(value, fallback)
     if max_adjustment >= 0:
@@ -544,6 +619,35 @@ def dry_run_response(arbitration: dict[str, Any]) -> tuple[dict[str, Any], str]:
         "calibration_action": action,
         "escalate_to_human": action == "escalate",
         "reasoning": "Dry-run deterministic GDP progression arbitration.",
+        "agent_trace": {
+            "bio_profiler": {
+                "reliability_context": "Metadata retained only for reliability context.",
+                "direct_risk_from_demographics": False,
+            },
+            "progression_evidence_agent": {
+                "evidence_summary": "Dry-run uses deterministic source probabilities and priors.",
+                "source_assessments": arbitration["model_rows"],
+            },
+            "equity_agent": {
+                "reliability_concern": "calibration_risk" if action == "escalate" else "minimal_risk",
+                "threshold_policy": action,
+                "recommended_threshold": threshold_for_action(action),
+                "prior_level_used": "global",
+                "rationale": "Dry-run global reliability prior.",
+            },
+            "orchestrator": {
+                "reference_model": arbitration["reference_model"],
+                "reference_probability": arbitration["reference_probability"],
+                "probability_adjustment": 0.0,
+                "applied_threshold": threshold_for_action(action),
+                "final_prediction_check": "Dry-run final prediction computed from reference probability and threshold.",
+            },
+            "safety_agent": {
+                "decision": "ESCALATE_TO_HUMAN" if action == "escalate" else "ACCEPT",
+                "escalation_reasons": ["deterministic dry-run safety flag"] if action == "escalate" else [],
+                "uncertainty_level": "medium",
+            },
+        },
     }
     return parsed, json.dumps(parsed, sort_keys=True)
 
@@ -625,6 +729,7 @@ def main() -> None:
     prediction_rows = []
     usage_rows = []
     raw_rows = []
+    trace_rows = []
     error_rows = []
     case_rows = []
 
@@ -662,6 +767,15 @@ def main() -> None:
             severe_disagreement = arbitration["disagreement"] >= 0.25 or 0 < arbitration["positive_votes"] < arbitration["num_models"]
             escalate_to_human = bool(parsed.get("escalate_to_human")) or close_to_threshold or severe_disagreement
             safety_decision = "ESCALATE_TO_HUMAN" if escalate_to_human else "ACCEPT"
+            agent_trace = parsed.get("agent_trace", {})
+            if not isinstance(agent_trace, dict):
+                agent_trace = {}
+            progression_evidence = trace_field(agent_trace, "progression_evidence_agent", "evidence_summary")
+            equity_concern = trace_field(agent_trace, "equity_agent", "reliability_concern")
+            equity_policy = trace_field(agent_trace, "equity_agent", "threshold_policy")
+            orchestrator_rationale = trace_field(agent_trace, "orchestrator")
+            safety_reasons = trace_field(agent_trace, "safety_agent", "escalation_reasons")
+            agent_trace_json = json.dumps(agent_trace, sort_keys=True)
 
             prediction_rows.append(
                 {
@@ -682,6 +796,12 @@ def main() -> None:
                     "confidence": parsed.get("confidence", ""),
                     "calibration_action": action,
                     "escalate_to_human": escalate_to_human,
+                    "progression_evidence_summary": progression_evidence,
+                    "equity_reliability_concern": equity_concern,
+                    "equity_threshold_policy": equity_policy,
+                    "orchestrator_rationale": orchestrator_rationale,
+                    "safety_reasons": safety_reasons,
+                    "agent_trace_json": agent_trace_json,
                     "llm_provider": provider,
                     "llm_deployment": args.deployment,
                     **usage,
@@ -695,6 +815,21 @@ def main() -> None:
                     "evidence_packet": evidence_packet,
                     "parsed_response": parsed,
                     "raw_response": raw_text,
+                }
+            )
+            trace_rows.append(
+                {
+                    **meta,
+                    "model_name": "equi_agent_gdp_progression_live" if not args.dry_run else "equi_agent_gdp_progression_dry_run",
+                    "final_probability": f"{final_prob:.6f}",
+                    "final_prediction": final_pred,
+                    "applied_threshold": f"{applied_threshold:.2f}",
+                    "primary_model": parsed.get("primary_model", ""),
+                    "calibration_action": action,
+                    "safety_decision": safety_decision,
+                    "reasoning": parsed.get("reasoning", ""),
+                    "agent_trace": agent_trace,
+                    "evidence_packet": evidence_packet,
                 }
             )
             case_rows.append({**meta, **arbitration, "evidence_packet": evidence_packet})
@@ -735,6 +870,7 @@ def main() -> None:
         ],
     )
     write_jsonl(args.out_dir / "equi_agent_gdp_progression_raw_responses.jsonl", raw_rows)
+    write_jsonl(args.out_dir / "equi_agent_gdp_progression_agent_trace.jsonl", trace_rows)
     write_jsonl(args.out_dir / "equi_agent_gdp_progression_errors.jsonl", error_rows)
     write_jsonl(args.out_dir / "equi_agent_gdp_progression_cases.jsonl", case_rows)
     write_jsonl(args.out_dir / "equi_agent_gdp_progression_loaded_files.jsonl", loaded_files)
@@ -764,6 +900,7 @@ def main() -> None:
         "outputs": {
             "predictions": str(args.out_dir / "equi_agent_gdp_progression_predictions.csv"),
             "raw_responses": str(args.out_dir / "equi_agent_gdp_progression_raw_responses.jsonl"),
+            "agent_trace": str(args.out_dir / "equi_agent_gdp_progression_agent_trace.jsonl"),
             "usage": str(args.out_dir / "equi_agent_gdp_progression_usage.csv"),
             "errors": str(args.out_dir / "equi_agent_gdp_progression_errors.jsonl"),
         },
