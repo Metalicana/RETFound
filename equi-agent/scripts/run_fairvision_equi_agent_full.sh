@@ -16,6 +16,13 @@ REQUEST_SLEEP_SEC="${REQUEST_SLEEP_SEC:-0}"
 MAX_RETRIES="${MAX_RETRIES:-2}"
 RETRY_SLEEP_SEC="${RETRY_SLEEP_SEC:-5}"
 MAX_CASES_PER_TASK="${MAX_CASES_PER_TASK:-0}"
+SEED_OFFSET="${SEED_OFFSET:-0}"
+SAMPLE_RANDOM="${SAMPLE_RANDOM:-0}"
+SAMPLE_STRATIFIED="${SAMPLE_STRATIFIED:-0}"
+RANDOM_SEED="${RANDOM_SEED:-2026}"
+TARGET_POSITIVE_FRAC="${TARGET_POSITIVE_FRAC:-0.50}"
+MIN_POSITIVE_FRAC="${MIN_POSITIVE_FRAC:-0.15}"
+MAX_POSITIVE_FRAC="${MAX_POSITIVE_FRAC:-0.85}"
 PROMPT_VARIANT="${PROMPT_VARIANT:-${EQUI_AGENT_PROMPT_VARIANT:-current}}"
 INCLUDE_IMAGE_TOKENS="${INCLUDE_IMAGE_TOKENS:-0}"
 MANIFESTS_ROOT="${MANIFESTS_ROOT:-equi-agent/outputs/manifests}"
@@ -35,6 +42,11 @@ COMMON_ARGS=(
   --tasks ${TASKS}
   --models ${MODELS}
   --max-cases-per-task "${MAX_CASES_PER_TASK}"
+  --seed-offset "${SEED_OFFSET}"
+  --random-seed "${RANDOM_SEED}"
+  --target-positive-frac "${TARGET_POSITIVE_FRAC}"
+  --min-positive-frac "${MIN_POSITIVE_FRAC}"
+  --max-positive-frac "${MAX_POSITIVE_FRAC}"
   --temperature "${TEMPERATURE}"
   --max-output-tokens "${MAX_OUTPUT_TOKENS}"
   --deployment "${DEPLOYMENT}"
@@ -51,6 +63,14 @@ COMMON_ARGS=(
 
 if [[ "${DRY_RUN}" == "1" ]]; then
   COMMON_ARGS+=(--dry-run)
+fi
+
+if [[ "${SAMPLE_RANDOM}" == "1" ]]; then
+  COMMON_ARGS+=(--sample-random)
+fi
+
+if [[ "${SAMPLE_STRATIFIED}" == "1" ]]; then
+  COMMON_ARGS+=(--sample-stratified)
 fi
 
 if [[ "${INCLUDE_IMAGE_TOKENS}" == "1" ]]; then
