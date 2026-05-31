@@ -50,6 +50,163 @@ LABEL_METADATA_KEYS = {
 }
 
 
+def age_to_group(age):
+    try:
+        age_value = float(age)
+    except (TypeError, ValueError):
+        return "missing"
+    if age_value < 50:
+        return "younger"
+    if age_value < 70:
+        return "middle-aged"
+    return "older"
+
+
+def normalize_race(value, ethnicity=None):
+    ethnicity_text = str(ethnicity or "").strip().lower()
+    if ethnicity_text == "hispanic":
+        return "Hispanic"
+    race_text = str(value or "").strip().lower()
+    if race_text in {"white", "caucasian"}:
+        return "Caucasian"
+    if race_text == "black":
+        return "Black"
+    if race_text == "asian":
+        return "Asian"
+    if race_text == "hispanic":
+        return "Hispanic"
+    return None
+
+
+def normalize_gender(value):
+    gender_text = str(value or "").strip().lower()
+    if gender_text in {"male", "m"}:
+        return "male"
+    if gender_text in {"female", "f"}:
+        return "female"
+    return None
+
+
+def build_structured_reliability(metadata):
+    calibration = getattr(equity_agent, "calibration_summary", {}).get("models", {})
+    subgroup_context = {
+        "race": normalize_race(metadata.get("race"), metadata.get("ethnicity")),
+        "gender": normalize_gender(metadata.get("gender")),
+        "age_group": age_to_group(metadata.get("age")),
+    }
+    task_map = {
+        "AMD": "amd",
+        "DR": "diabetic_retinopathy",
+        "Glaucoma": "glaucoma",
+    }
+    report = {
+        "subgroup_context": subgroup_context,
+        "tasks": {},
+    }
+
+    for display_task, calibration_task in task_map.items():
+        task_models = {}
+        for model_name, model_calibration in calibration.items():
+            fp_values = []
+            fn_values = []
+            matched = []
+            for attr, subgroup in subgroup_context.items():
+                if not subgroup or subgroup == "missing":
+                    continue
+                fp = (
+                    model_calibration.get("false_positive", {})
+                    .get(calibration_task, {})
+                    .get(attr, {})
+                    .get(subgroup)
+                )
+                fn = (
+                    model_calibration.get("false_negative", {})
+                    .get(calibration_task, {})
+                    .get(attr, {})
+                    .get(subgroup)
+                )
+                if fp is not None:
+                    fp_values.append(float(fp))
+                if fn is not None:
+                    fn_values.append(float(fn))
+                if fp is not None or fn is not None:
+                    matched.append({"attribute": attr, "subgroup": subgroup, "fpr": fp, "fnr": fn})
+
+            fpr_mean = sum(fp_values) / len(fp_values) if fp_values else None
+            fnr_mean = sum(fn_values) / len(fn_values) if fn_values else None
+            error_sum = (
+                (fpr_mean if fpr_mean is not None else 0.0)
+                + (fnr_mean if fnr_mean is not None else 0.0)
+            )
+            task_models[model_name] = {
+                "matched_priors": matched,
+                "mean_fpr": fpr_mean,
+                "mean_fnr": fnr_mean,
+                "mean_fpr_plus_fnr": error_sum if matched else None,
+                "high_fp": fpr_mean is not None and fpr_mean > 0.15,
+                "high_fn": fnr_mean is not None and fnr_mean > 0.15,
+            }
+
+        ranked = sorted(
+            (
+                (name, values)
+                for name, values in task_models.items()
+                if values["mean_fpr_plus_fnr"] is not None
+            ),
+            key=lambda item: item[1]["mean_fpr_plus_fnr"],
+        )
+        report["tasks"][display_task] = {
+            "models": task_models,
+            "lowest_total_error_model": ranked[0][0] if ranked else None,
+            "lowest_total_error": ranked[0][1]["mean_fpr_plus_fnr"] if ranked else None,
+            "lowest_fpr_model": min(
+                task_models,
+                key=lambda name: task_models[name]["mean_fpr"]
+                if task_models[name]["mean_fpr"] is not None
+                else 999,
+            )
+            if task_models
+            else None,
+            "lowest_fnr_model": min(
+                task_models,
+                key=lambda name: task_models[name]["mean_fnr"]
+                if task_models[name]["mean_fnr"] is not None
+                else 999,
+            )
+            if task_models
+            else None,
+        }
+
+    return report
+
+
+def format_structured_reliability(report):
+    lines = ["STRUCTURED_RELIABILITY_PRIORS"]
+    context = report.get("subgroup_context", {})
+    lines.append(
+        "Subgroup context: "
+        + ", ".join(f"{key}={value}" for key, value in context.items())
+    )
+    for task, task_report in report.get("tasks", {}).items():
+        lines.append(f"{task}:")
+        for model_name, values in task_report.get("models", {}).items():
+            fpr = values.get("mean_fpr")
+            fnr = values.get("mean_fnr")
+            total = values.get("mean_fpr_plus_fnr")
+            lines.append(
+                f"  - {model_name}: mean_fpr={fpr if fpr is not None else 'NA'}, "
+                f"mean_fnr={fnr if fnr is not None else 'NA'}, "
+                f"fpr_plus_fnr={total if total is not None else 'NA'}, "
+                f"high_fp={values.get('high_fp')}, high_fn={values.get('high_fn')}"
+            )
+        lines.append(
+            f"  Recommended by priors: lowest_total_error={task_report.get('lowest_total_error_model')}, "
+            f"lowest_fpr={task_report.get('lowest_fpr_model')}, "
+            f"lowest_fnr={task_report.get('lowest_fnr_model')}"
+        )
+    return "\n".join(lines)
+
+
 def append_trace(row):
     if not TRACE_JSONL:
         return
@@ -79,6 +236,7 @@ def case_trace(disease, index, patient_record, row, state, error=None):
                 "full_report": vision.get("full_report", ""),
             },
             "functional_agent": state.get("functional_opinion", {}) if isinstance(state, dict) else {},
+            "structured_reliability": state.get("structured_reliability", {}) if isinstance(state, dict) else {},
             "equity_agent": state.get("equity_opinion", "") if isinstance(state, dict) else "",
             "guidelines_agent": state.get("guidelines", "") if isinstance(state, dict) else "",
             "orchestrator": state.get("final_diagnosis", {}) if isinstance(state, dict) else {},
@@ -154,6 +312,11 @@ def run_diagnostic_pipeline(patient_data):
 
     #EQUITY AGENT
     print("\n\n--- Sending Narrative and Visual Findings to Equity Agent ---")
+    final_state["structured_reliability"] = build_structured_reliability(final_state["metadata"])
+    final_state["structured_reliability_text"] = format_structured_reliability(final_state["structured_reliability"])
+    print("\n\nStructured Reliability Priors Ready: ")
+    print(final_state["structured_reliability_text"])
+
     equity_input = f"""
     ### PATIENT DATA
     Patient narrative: {final_state['clinical_narrative']}
@@ -237,6 +400,8 @@ def initialize_state(patient_data):
         "slo_diagnosis": None,
         "vision_opinion": {},
         "functional_opinion": {},
+        "structured_reliability": {},
+        "structured_reliability_text": "",
         "final_diagnosis": {},
         "fairness_flag": False,
         "safety_output": "",

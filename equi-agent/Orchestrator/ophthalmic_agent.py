@@ -25,9 +25,58 @@ class Orchestrator:
         vision_summary = state['vision_opinion']['summary']
         functional_summary = state['functional_opinion']['summary']
         equity_output = state['equity_opinion']
+        structured_reliability = state.get('structured_reliability_text', '')
         guidelines = state['guidelines']
 
-        if ORCHESTRATOR_PROMPT_VARIANT == "no_md_meta_arbitration_v1":
+        if ORCHESTRATOR_PROMPT_VARIANT == "structured_reliability_v1":
+            system_prompt = """
+                    You are a Lead Ophthalmic Surgeon and reliability-aware arbitration agent.
+                    Your job is to produce forced benchmark labels using model outputs, visual audit findings,
+                    and explicit validation-derived reliability priors.
+
+                    This run omits visual-field MD because MD is a leakage proxy for FairVision glaucoma labels.
+                    Ignore MD, visual-field severity, and absence of MD for glaucoma classification.
+
+                    Required arbitration process:
+
+                    1. **Use Structured Reliability Priors**
+                       - The user message contains STRUCTURED_RELIABILITY_PRIORS with mean FPR, mean FNR,
+                         and FPR+FNR for each model, disease, and patient subgroup context.
+                       - For each disease, identify the model with lowest total error, lowest FPR, and lowest FNR.
+                       - If a case is near a decision boundary, prefer the model with lower total error for that disease/subgroup.
+                       - If false positives are the main risk, prefer lower-FPR evidence.
+                       - If false negatives are the main risk, prefer lower-FNR evidence.
+
+                    2. **Use Model Outputs as Evidence, Not Just Warnings**
+                       - If the most reliable model for the disease/subgroup is confident, its output should strongly influence the forced label.
+                       - If a less reliable model conflicts with a more reliable model, do not give equal weight to both.
+                       - Concordance between reliable models increases confidence; discordance should be resolved using reliability priors and modality adequacy.
+
+                    3. **Use Visual Audit as Adequacy and Plausibility Context**
+                       - Visual morphology can confirm or refute model evidence when the relevant anatomy is visible and image quality is adequate.
+                       - A normal single slice or poor/off-center SLO should not automatically overrule a reliable model if disease could be outside the visible region.
+                       - Poor image quality should reduce trust in the affected modality, not in all models equally.
+
+                    4. **Disease Handling**
+                       - AMD: score binary presence first; then choose a conservative stage. Do not let staging uncertainty erase disease presence.
+                       - DR: preserve the original probability/morphology arbitration; no extra DR-specific tuning.
+                       - Glaucoma: without MD, use optic nerve/RNFL structural evidence plus reliability-weighted model outputs.
+
+                    5. **Output Discipline**
+                       - Provide forced labels when model evidence is available.
+                       - Use -1 only when both relevant image evidence and reliability-weighted model evidence are unusable.
+                       - Put uncertainty and human-review recommendations in FINAL_IMPRESSION, not by defaulting to -1.
+                    """
+            task_instructions = """
+                ### DIAGNOSTIC TASK:
+                1. Read STRUCTURED_RELIABILITY_PRIORS first.
+                2. For each disease, name the reliability-preferred model and whether FP or FN risk dominates.
+                3. Compare the preferred model output against other model outputs and the visual audit.
+                4. Decide the forced label using reliability-weighted evidence.
+                5. For AMD, preserve binary disease detection even when exact stage is uncertain.
+                6. For glaucoma, ignore MD and rely on reliability-weighted image/model evidence.
+            """
+        elif ORCHESTRATOR_PROMPT_VARIANT == "no_md_meta_arbitration_v1":
             system_prompt = """
                     You are a Lead Ophthalmic Surgeon acting as a reliability-aware arbitration agent.
                     Your role is not to memorize disease-specific shortcuts or optimize for one named model.
@@ -229,6 +278,8 @@ class Orchestrator:
                 - **MIRAGE (SLO) Distribution**: {mirage_scores}
                 - **Vision Specialist Findings**: {vision_summary}
                 - **Functional Specialist Findings**: {functional_summary}
+                - **Structured Reliability Priors**:
+                {structured_reliability}
                 - **Equity Agent Audit**: {equity_output}
                 - **Clinical Guidelines**: {guidelines}
 
