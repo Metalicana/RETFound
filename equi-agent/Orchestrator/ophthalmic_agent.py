@@ -27,8 +27,68 @@ class Orchestrator:
         equity_output = state['equity_opinion']
         guidelines = state['guidelines']
 
-        if ORCHESTRATOR_PROMPT_VARIANT == "no_md_amd_glaucoma_tuned":
-            system_prompt = """ 
+        if ORCHESTRATOR_PROMPT_VARIANT in {"no_md_amd_glaucoma_tuned", "no_md_amd_glaucoma_tuned_v2"}:
+            if ORCHESTRATOR_PROMPT_VARIANT == "no_md_amd_glaucoma_tuned_v2":
+                glaucoma_rules = """
+                    1. **GLAUCOMA WITHOUT MD - HIGH SPECIFICITY V2**
+                       - Diagnose glaucoma as positive only when evidence is clearly stronger than the negative alternative.
+                       - Convincing structural support means the Vision Specialist explicitly describes significant optic disc cupping, enlarged cup-to-disc ratio, neuroretinal rim thinning/notching, or localized RNFL defect.
+                       - If convincing structural support is present, output GLAUCOMA_DETECTED: 1 when either model is High Risk with confidence >= 65%.
+                       - If structural support is absent, vague, or says the disc is not assessable, require BOTH models to be High Risk AND require RETFound confidence >= 60% AND MIRAGE confidence >= 80%.
+                       - If only MIRAGE is High Risk, or only RETFound is High Risk, and the Vision Specialist does not describe convincing cupping/RNFL loss, output GLAUCOMA_DETECTED: 0.
+                       - If the optic disc is non-diagnostic and model evidence does not meet the dual high-confidence rule, output GLAUCOMA_DETECTED: 0 rather than 1 for benchmark scoring; mention uncertainty or human review in FINAL_IMPRESSION.
+                """
+                amd_rules = """
+                    2. **AMD BINARY-SENSITIVE, STAGE-CONSERVATIVE V2**
+                       - For this run AMD is scored as binary disease presence, so avoid missing true AMD when model evidence is strong.
+                       - The Total Pathology Signal is allowed to support AMD presence even when morphology is subtle or incompletely visible.
+                       - If either primary model has Total Pathology Signal >= 55%, output AMD_STAGE > 0 unless the Vision Specialist explicitly states high-quality macula-centered OCT with no drusen, no RPE granularity, no fluid, no atrophy, and no scarring.
+                       - If both models have Total Pathology Signal >= 35%, output AMD_STAGE > 0 unless both images are clearly high quality and the Vision Specialist strongly rules out AMD.
+                       - For marginal single-model RETFound signals of 35-45%, require either visible RPE/drusen evidence OR supporting MIRAGE pathology signal >= 35%; otherwise output Stage 0.
+                       - Stage assignment should remain conservative: assign Stage 3 only with visible advanced morphology OR dominant Stage 3 probability from both models; otherwise use Stage 1/2 for binary-positive but morphology-uncertain cases.
+                """
+                glaucoma_task = """
+                   - Ignore MD and visual-field severity.
+                   - Determine whether there is convincing optic-disc/RNFL structural support.
+                   - If structural support is absent, require dual high-confidence model consensus: RETFound >= 60% and MIRAGE >= 80%.
+                   - Single-model high risk without structural support should be negative for benchmark scoring.
+                """
+                amd_task = """
+                   - Decide binary AMD presence first, then choose a conservative stage.
+                   - Strong model pathology signal can support binary AMD even when morphology is subtle.
+                   - Do not assign Stage 3 without advanced morphology or dominant Stage 3 agreement from both models.
+                """
+            else:
+                glaucoma_rules = """
+                    1. **GLAUCOMA WITHOUT MD**
+                       - Diagnose glaucoma as positive only when structural or model evidence is strong.
+                       - Strong structural evidence includes Vision Specialist descriptions such as significant optic disc cupping, enlarged cup-to-disc ratio, rim thinning, or localized RNFL defect.
+                       - If structural evidence is present, a single high-risk model may support GLAUCOMA_DETECTED: 1.
+                       - If structural evidence is absent or the optic disc is not assessable, require stronger model consensus: both RETFound and MIRAGE should be High Risk, with at least one confidence >= 70%.
+                       - If only one model is High Risk and the Vision Specialist does not describe convincing cupping/RNFL loss, output GLAUCOMA_DETECTED: 0.
+                       - If both images are non-diagnostic for the optic disc and model evidence is discordant or weak, output GLAUCOMA_DETECTED: -1.
+                """
+                amd_rules = """
+                    2. **AMD MORPHOLOGY-GATED PATHOLOGY SIGNAL**
+                       - The Total Pathology Signal is a triage signal, not an automatic positive label.
+                       - If the Vision Specialist reports a smooth RPE, preserved foveal contour, no drusen, no fluid, no atrophy, and no scarring, do not assign AMD solely because a marginal pathology signal exceeds 35%.
+                       - For marginal signals (35-45%), require visible morphology consistent with Stage 1 or Stage 2 before outputting AMD_STAGE > 0.
+                       - Assign Stage 3 only when advanced morphology is visible (fluid, geographic atrophy, missing tissue, or sub-RPE scar) OR both models show dominant Stage 3/high pathology signal and the image is not adequate to refute it.
+                       - If the macula is not visible but visible retina is clear, prefer AMD_STAGE: 0 unless both models strongly agree on AMD pathology.
+                       - If model scores and morphology conflict, the Vision Specialist's physical morphology should usually override marginal model pathology signal.
+                """
+                glaucoma_task = """
+                   - Ignore MD and visual-field severity.
+                   - Determine whether there is structural optic-disc/RNFL support.
+                   - If structural support is absent, require dual high-risk model consensus with at least one confidence >= 70%.
+                """
+                amd_task = """
+                   - Sum the disease probabilities (Stages 1-3).
+                   - Decide whether the signal is marginal or strong.
+                   - Cross-reference with the Vision Specialist's Independent Stage and morphology.
+                   - Do not let a 35-45% marginal signal override a clearly normal macula.
+                """
+            system_prompt = f""" 
                     You are a Lead Ophthalmic Surgeon. You must synthesize specialist findings into final benchmark labels.
                     This run intentionally omits visual-field MD because MD is a leakage proxy for FairVision glaucoma labels.
                     Therefore, do not infer glaucoma from MD, visual-field severity, or the absence of MD.
@@ -39,39 +99,22 @@ class Orchestrator:
 
                     Disease-specific rules for this no-MD AMD/glaucoma tuning run:
 
-                    1. **GLAUCOMA WITHOUT MD**
-                       - Diagnose glaucoma as positive only when structural or model evidence is strong.
-                       - Strong structural evidence includes Vision Specialist descriptions such as significant optic disc cupping, enlarged cup-to-disc ratio, rim thinning, or localized RNFL defect.
-                       - If structural evidence is present, a single high-risk model may support GLAUCOMA_DETECTED: 1.
-                       - If structural evidence is absent or the optic disc is not assessable, require stronger model consensus: both RETFound and MIRAGE should be High Risk, with at least one confidence >= 70%.
-                       - If only one model is High Risk and the Vision Specialist does not describe convincing cupping/RNFL loss, output GLAUCOMA_DETECTED: 0.
-                       - If both images are non-diagnostic for the optic disc and model evidence is discordant or weak, output GLAUCOMA_DETECTED: -1.
+                    {glaucoma_rules}
 
-                    2. **AMD MORPHOLOGY-GATED PATHOLOGY SIGNAL**
-                       - The Total Pathology Signal is a triage signal, not an automatic positive label.
-                       - If the Vision Specialist reports a smooth RPE, preserved foveal contour, no drusen, no fluid, no atrophy, and no scarring, do not assign AMD solely because a marginal pathology signal exceeds 35%.
-                       - For marginal signals (35-45%), require visible morphology consistent with Stage 1 or Stage 2 before outputting AMD_STAGE > 0.
-                       - Assign Stage 3 only when advanced morphology is visible (fluid, geographic atrophy, missing tissue, or sub-RPE scar) OR both models show dominant Stage 3/high pathology signal and the image is not adequate to refute it.
-                       - If the macula is not visible but visible retina is clear, prefer AMD_STAGE: 0 unless both models strongly agree on AMD pathology.
-                       - If model scores and morphology conflict, the Vision Specialist's physical morphology should usually override marginal model pathology signal.
+                    {amd_rules}
 
                     3. **BENCHMARK LABELING**
                        - Preserve forced diagnostic labels for scoring whenever evidence is interpretable.
                        - Use -1 only when the relevant anatomy is not assessable and model evidence is weak or discordant.
                        - Human review and uncertainty belong in FINAL_IMPRESSION, not as a replacement for forced labels unless the output is truly indeterminate.
                     """
-            task_instructions = """
+            task_instructions = f"""
                 ### DIAGNOSTIC TASK:
                 1. **Extract Constraints**: Identify the RECOMMENDED_THRESHOLD and PRIMARY_MODEL.
                 2. **Glaucoma Check Without MD**:
-                   - Ignore MD and visual-field severity.
-                   - Determine whether there is structural optic-disc/RNFL support.
-                   - If structural support is absent, require dual high-risk model consensus with at least one confidence >= 70%.
+                {glaucoma_task}
                 3. **AMD Signal Analysis**:
-                   - Sum the disease probabilities (Stages 1-3).
-                   - Decide whether the signal is marginal or strong.
-                   - Cross-reference with the Vision Specialist's Independent Stage and morphology.
-                   - Do not let a 35-45% marginal signal override a clearly normal macula.
+                {amd_task}
                 4. **DR Check**:
                    - Use the original DR probability/threshold behavior; no new DR-specific rules are introduced in this prompt.
                 5. **Final Staging**:
