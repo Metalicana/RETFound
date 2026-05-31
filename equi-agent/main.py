@@ -24,7 +24,9 @@ OUTPUT_CSV = os.environ.get("EQUI_AGENT_OUTPUT_CSV", "ophthalmic_performance_res
 TRACE_JSONL = os.environ.get("EQUI_AGENT_TRACE_JSONL", "")
 MAX_CASES_PER_DISEASE = int(os.environ.get("EQUI_AGENT_MAX_CASES_PER_DISEASE", "100"))
 AMD_BINARY_SCORING = os.environ.get("EQUI_AGENT_AMD_BINARY_SCORING", "0") == "1"
-OMIT_MD = os.environ.get("EQUI_AGENT_OMIT_MD", "0") == "1"
+OMIT_MD = os.environ.get("EQUI_AGENT_OMIT_MD", "1") == "1"
+ALLOW_LABEL_METADATA = os.environ.get("EQUI_AGENT_ALLOW_LABEL_METADATA", "0") == "1"
+DISEASES_ENV = os.environ.get("EQUI_AGENT_DISEASES", "")
 
 MD_METADATA_KEYS = {
     "md",
@@ -32,6 +34,19 @@ MD_METADATA_KEYS = {
     "mean deviation",
     "visual_field_md",
     "vf_md",
+}
+
+LABEL_METADATA_KEYS = {
+    "glaucoma",
+    "amd",
+    "dr",
+    "amd_condition",
+    "dr_subtype",
+    "stage",
+    "label",
+    "ground_truth",
+    "y",
+    "target",
 }
 
 
@@ -72,15 +87,15 @@ def case_trace(disease, index, patient_record, row, state, error=None):
     }
 
 
-def omit_md_from_patient_record(patient_record):
-    if not OMIT_MD:
-        return patient_record
-
+def sanitize_patient_record_for_agents(patient_record):
     masked_record = dict(patient_record)
     metadata = dict(masked_record.get("metadata", {}))
     for key in list(metadata):
-        if str(key).strip().lower() in MD_METADATA_KEYS:
+        normalized_key = str(key).strip().lower()
+        if OMIT_MD and normalized_key in MD_METADATA_KEYS:
             metadata[key] = None
+        if not ALLOW_LABEL_METADATA and normalized_key in LABEL_METADATA_KEYS:
+            metadata.pop(key, None)
     masked_record["metadata"] = metadata
     return masked_record
 
@@ -238,7 +253,19 @@ if __name__ == "__main__":
     results = []
 
     BASE_PATH = os.environ.get("EQUI_AGENT_DATA_ROOT", "../Datasets/FairVision")
-    diseases = ['Glaucoma', 'AMD', 'DR']
+    disease_name_map = {
+        "glaucoma": "Glaucoma",
+        "amd": "AMD",
+        "dr": "DR",
+    }
+    if DISEASES_ENV.strip():
+        diseases = [
+            disease_name_map[name.strip().lower()]
+            for name in DISEASES_ENV.split(",")
+            if name.strip().lower() in disease_name_map
+        ]
+    else:
+        diseases = ['Glaucoma', 'AMD', 'DR']
 #    diseases = ['AMD', 'Glaucoma', 'DR']
 #    diseases = ['DR', 'AMD', 'Glaucoma']
 
@@ -253,7 +280,7 @@ if __name__ == "__main__":
 
             try:
               patient_record = loader.load_patient(disease, test_rows.iloc[i])
-              patient_record = omit_md_from_patient_record(patient_record)
+              patient_record = sanitize_patient_record_for_agents(patient_record)
 
               age = patient_record['metadata']['age']
               gender = patient_record['metadata']['gender']

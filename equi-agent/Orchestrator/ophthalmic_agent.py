@@ -8,6 +8,7 @@ load_dotenv()
 api_key = os.getenv("AZURE_OPENAI_API_KEY")
 endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
 DEPLOYMENT = "gpt-5.1"
+ORCHESTRATOR_PROMPT_VARIANT = os.environ.get("EQUI_AGENT_ORCHESTRATOR_PROMPT_VARIANT", "default")
         
 class Orchestrator:
     def __init__(self, model_client=None):
@@ -25,11 +26,59 @@ class Orchestrator:
         functional_summary = state['functional_opinion']['summary']
         equity_output = state['equity_opinion']
         guidelines = state['guidelines']
-    
-        messages = [
-            {
-                "role": "system",
-                    "content": ( """ 
+
+        if ORCHESTRATOR_PROMPT_VARIANT == "no_md_amd_glaucoma_tuned":
+            system_prompt = """ 
+                    You are a Lead Ophthalmic Surgeon. You must synthesize specialist findings into final benchmark labels.
+                    This run intentionally omits visual-field MD because MD is a leakage proxy for FairVision glaucoma labels.
+                    Therefore, do not infer glaucoma from MD, visual-field severity, or the absence of MD.
+
+                    Keep diabetic retinopathy behavior unchanged:
+                    - For DR, apply the model probabilities and Equity Agent thresholding exactly as in the original protocol.
+                    - Do not add any new DR-specific caution rules.
+
+                    Disease-specific rules for this no-MD AMD/glaucoma tuning run:
+
+                    1. **GLAUCOMA WITHOUT MD**
+                       - Diagnose glaucoma as positive only when structural or model evidence is strong.
+                       - Strong structural evidence includes Vision Specialist descriptions such as significant optic disc cupping, enlarged cup-to-disc ratio, rim thinning, or localized RNFL defect.
+                       - If structural evidence is present, a single high-risk model may support GLAUCOMA_DETECTED: 1.
+                       - If structural evidence is absent or the optic disc is not assessable, require stronger model consensus: both RETFound and MIRAGE should be High Risk, with at least one confidence >= 70%.
+                       - If only one model is High Risk and the Vision Specialist does not describe convincing cupping/RNFL loss, output GLAUCOMA_DETECTED: 0.
+                       - If both images are non-diagnostic for the optic disc and model evidence is discordant or weak, output GLAUCOMA_DETECTED: -1.
+
+                    2. **AMD MORPHOLOGY-GATED PATHOLOGY SIGNAL**
+                       - The Total Pathology Signal is a triage signal, not an automatic positive label.
+                       - If the Vision Specialist reports a smooth RPE, preserved foveal contour, no drusen, no fluid, no atrophy, and no scarring, do not assign AMD solely because a marginal pathology signal exceeds 35%.
+                       - For marginal signals (35-45%), require visible morphology consistent with Stage 1 or Stage 2 before outputting AMD_STAGE > 0.
+                       - Assign Stage 3 only when advanced morphology is visible (fluid, geographic atrophy, missing tissue, or sub-RPE scar) OR both models show dominant Stage 3/high pathology signal and the image is not adequate to refute it.
+                       - If the macula is not visible but visible retina is clear, prefer AMD_STAGE: 0 unless both models strongly agree on AMD pathology.
+                       - If model scores and morphology conflict, the Vision Specialist's physical morphology should usually override marginal model pathology signal.
+
+                    3. **BENCHMARK LABELING**
+                       - Preserve forced diagnostic labels for scoring whenever evidence is interpretable.
+                       - Use -1 only when the relevant anatomy is not assessable and model evidence is weak or discordant.
+                       - Human review and uncertainty belong in FINAL_IMPRESSION, not as a replacement for forced labels unless the output is truly indeterminate.
+                    """
+            task_instructions = """
+                ### DIAGNOSTIC TASK:
+                1. **Extract Constraints**: Identify the RECOMMENDED_THRESHOLD and PRIMARY_MODEL.
+                2. **Glaucoma Check Without MD**:
+                   - Ignore MD and visual-field severity.
+                   - Determine whether there is structural optic-disc/RNFL support.
+                   - If structural support is absent, require dual high-risk model consensus with at least one confidence >= 70%.
+                3. **AMD Signal Analysis**:
+                   - Sum the disease probabilities (Stages 1-3).
+                   - Decide whether the signal is marginal or strong.
+                   - Cross-reference with the Vision Specialist's Independent Stage and morphology.
+                   - Do not let a 35-45% marginal signal override a clearly normal macula.
+                4. **DR Check**:
+                   - Use the original DR probability/threshold behavior; no new DR-specific rules are introduced in this prompt.
+                5. **Final Staging**:
+                   - Choose the most defensible forced labels under the disease-specific rules above.
+            """
+        else:
+            system_prompt = """ 
                     You are a Lead Ophthalmic Surgeon. You must synthesize specialist findings into a final diagnosis using the following strict hierarchy:
                     
                     1. **THE GLAUCOMA "FUNCTIONAL BRAKE"** (Mandatory)
@@ -55,8 +104,21 @@ class Orchestrator:
                     - For benchmark scoring, always provide forced diagnostic labels whenever any model evidence is available.
                     - Human escalation/safety concern belongs in FINAL_IMPRESSION, not as an abstention label.
                     - Only output -1 if the Vision Specialist says "Image Unreadable" AND both AI models have confidence < 40%. """
-
-                )
+            task_instructions = """
+                ### DIAGNOSTIC TASK:
+                1. **Extract Constraints**: Identify the RECOMMENDED_THRESHOLD and PRIMARY_MODEL.
+                2. **Glaucoma Check**: Apply the "Functional Brake" (MD > -2.0 dB check).
+                3. **AMD Signal Analysis**: 
+                   - Sum the disease probabilities (Stages 1-3). 
+                   - Does this "Total Pathology Signal" exceed the threshold?
+                   - If yes, cross-reference with the Vision Specialist's "Independent Stage" and morphological descriptions.
+                4. **Final Staging**: Use the Consensus Rule to ensure intermediate cases aren't downgraded to Stage 0.
+            """
+    
+        messages = [
+            {
+                "role": "system",
+                "content": system_prompt
             },
             {
                 "role": "user",
@@ -69,15 +131,8 @@ class Orchestrator:
                 - **Functional Specialist Findings**: {functional_summary}
                 - **Equity Agent Audit**: {equity_output}
                 - **Clinical Guidelines**: {guidelines}
-                
-                ### DIAGNOSTIC TASK:
-                1. **Extract Constraints**: Identify the RECOMMENDED_THRESHOLD and PRIMARY_MODEL.
-                2. **Glaucoma Check**: Apply the "Functional Brake" (MD > -2.0 dB check).
-                3. **AMD Signal Analysis**: 
-                   - Sum the disease probabilities (Stages 1-3). 
-                   - Does this "Total Pathology Signal" exceed the threshold?
-                   - If yes, cross-reference with the Vision Specialist's "Independent Stage" and morphological descriptions.
-                4. **Final Staging**: Use the Consensus Rule to ensure intermediate cases aren't downgraded to Stage 0.
+
+                {task_instructions}
                 
                 ### OUTPUT FORMAT
                 [LABELS]
