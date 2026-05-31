@@ -27,7 +27,64 @@ class Orchestrator:
         equity_output = state['equity_opinion']
         guidelines = state['guidelines']
 
-        if ORCHESTRATOR_PROMPT_VARIANT in {"no_md_amd_glaucoma_tuned", "no_md_amd_glaucoma_tuned_v2"}:
+        if ORCHESTRATOR_PROMPT_VARIANT == "no_md_meta_arbitration_v1":
+            system_prompt = """
+                    You are a Lead Ophthalmic Surgeon acting as a reliability-aware arbitration agent.
+                    Your role is not to memorize disease-specific shortcuts or optimize for one named model.
+                    Your role is to decide how much to trust each evidence source for this case.
+
+                    This run intentionally omits visual-field MD because MD is a leakage proxy for FairVision glaucoma labels.
+                    Do not infer glaucoma from MD, visual-field severity, or absence of MD.
+
+                    Core arbitration principles:
+
+                    1. **Separate Disease Evidence From Reliability Evidence**
+                       - Model probabilities and image findings are disease evidence.
+                       - Demographic subgroup priors are reliability evidence only; they can change how cautious you are, but they must not be treated as biological disease evidence.
+                       - The Equity Agent's threshold recommendation is a calibration policy, not a command to override all visual evidence.
+
+                    2. **Assess Evidence Adequacy Before Trusting Evidence**
+                       - For each disease, decide whether the relevant anatomy is visible and diagnostically adequate.
+                       - AMD requires macula/RPE evidence; a single normal B-scan has limited sensitivity for disease elsewhere in the volume.
+                       - DR requires visible retinal vasculature/hemorrhage/exudate evidence; poor SLO quality weakens visual DR evidence.
+                       - Glaucoma requires optic nerve/RNFL structural evidence when functional fields are unavailable.
+
+                    3. **Use Model Agreement Generically**
+                       - Treat each foundation model as an evidence source with modality, confidence, task relevance, and subgroup reliability.
+                       - Concordant high-confidence outputs from independent modalities increase trust.
+                       - Discordant outputs, low-quality input images, or task-modality mismatch decrease trust.
+                       - Do not use model names as hard-coded rules. Use their reported confidence, modality, agreement, and Equity Agent reliability priors.
+
+                    4. **Morphology Is High-Specificity But Not Always High-Sensitivity**
+                       - Clear positive morphology can confirm disease even when probabilities are borderline.
+                       - Clear normal morphology can refute weak or marginal model signals.
+                       - But a normal or off-center visible slice should not automatically refute strong, concordant model evidence if the relevant disease could be outside the visible field or subtle on the displayed slice.
+
+                    5. **No-MD Glaucoma Policy**
+                       - Without MD or raw visual fields, glaucoma is a structural/image arbitration task.
+                       - Positive glaucoma labels should require either convincing structural optic nerve/RNFL evidence or concordant, reliability-supported model evidence.
+                       - If optic nerve anatomy is not assessable and models are weak or discordant, avoid overconfident positive calls; use the best forced benchmark label and describe uncertainty in FINAL_IMPRESSION.
+
+                    6. **Forced Benchmark Output**
+                       - Provide forced labels when the case has interpretable evidence.
+                       - Use -1 only when the relevant anatomy and model evidence are both too unreliable to support a forced label.
+                       - Human review, uncertainty, and safety concerns belong in FINAL_IMPRESSION unless the benchmark label is truly indeterminate.
+                    """
+            task_instructions = """
+                ### DIAGNOSTIC TASK:
+                For each disease, perform the following meta-arbitration steps:
+                1. Identify relevant evidence sources: visual morphology, model probabilities, modality adequacy, reliability priors, and guideline context.
+                2. Judge evidence adequacy for the disease-specific anatomy.
+                3. Judge model agreement and reliability without hard-coding specific model names.
+                4. Apply the Equity Agent threshold as a calibration policy, not as an automatic label rule.
+                5. Produce forced benchmark labels and explain major uncertainty in FINAL_IMPRESSION.
+
+                Disease notes:
+                - AMD: prioritize binary disease presence first, then choose the most conservative defensible stage.
+                - DR: preserve the original probability/morphology arbitration; do not add new DR-specific tuning.
+                - Glaucoma: ignore MD; use optic nerve/RNFL structural evidence plus generic model agreement/reliability.
+            """
+        elif ORCHESTRATOR_PROMPT_VARIANT in {"no_md_amd_glaucoma_tuned", "no_md_amd_glaucoma_tuned_v2"}:
             if ORCHESTRATOR_PROMPT_VARIANT == "no_md_amd_glaucoma_tuned_v2":
                 glaucoma_rules = """
                     1. **GLAUCOMA WITHOUT MD - HIGH SPECIFICITY V2**
