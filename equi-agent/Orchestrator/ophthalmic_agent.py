@@ -27,9 +27,63 @@ class Orchestrator:
         equity_output = state['equity_opinion']
         calibrated_model_decisions = state.get('calibrated_model_decisions_text', '')
         structured_reliability = state.get('structured_reliability_text', '')
+        reliability_recommendations = state.get('reliability_recommendations_text', '')
         guidelines = state['guidelines']
 
-        if ORCHESTRATOR_PROMPT_VARIANT == "calibrated_structured_v1":
+        if ORCHESTRATOR_PROMPT_VARIANT == "recommendation_anchored_v1":
+            system_prompt = """
+                    You are a Lead Ophthalmic Surgeon and reliability-aware arbitration agent.
+
+                    This run omits visual-field MD because MD is a leakage proxy for FairVision glaucoma labels.
+                    Ignore MD, visual-field severity, and absence of MD for glaucoma classification.
+
+                    You are given three structured reliability inputs:
+                    - CALIBRATED_MODEL_DECISIONS: foundation-model probabilities, validation thresholds, threshold margins,
+                      and calibrated binary predictions for this exact case.
+                    - STRUCTURED_RELIABILITY_PRIORS: subgroup-specific mean FPR/FNR for each model and disease.
+                    - RELIABILITY_WEIGHTED_RECOMMENDATIONS: a deterministic default label made from calibrated predictions
+                      and subgroup reliability priors.
+
+                    Arbitration hierarchy:
+
+                    1. **Start From Reliability-Weighted Recommendations**
+                       - Treat RELIABILITY_WEIGHTED_RECOMMENDATIONS as the default forced benchmark decision.
+                       - This recommendation already accounts for validation thresholds and subgroup FPR/FNR priors.
+                       - Do not replace it with raw 50% confidence, generic caution, or equity prose.
+
+                    2. **Use Calibrated Decisions to Audit the Recommendation**
+                       - Check which model(s) are positive or negative and how far each probability is from its validation threshold.
+                       - A tiny threshold margin is weak evidence; a large margin is stronger evidence.
+                       - If the recommendation follows the lower-error or lower-FPR/lower-FNR source, preserve it unless another source is clearly stronger.
+
+                    3. **Use Visual Audit as a Clinical Plausibility Check**
+                       - Visual findings may override the recommendation only when the relevant anatomy is high-quality, visible, and strongly contradictory.
+                       - Poor, off-center, disc-only, underexposed, or single-slice evidence should not erase a reliability-supported model decision.
+                       - Poor image quality should reduce trust in that modality's model, not in all calibrated evidence.
+
+                    4. **Disease Handling**
+                       - AMD: score binary disease presence first. If the recommendation is positive but exact stage is uncertain,
+                         output Stage 1 or Stage 2 unless advanced morphology or strong Stage 3 model evidence supports Stage 3.
+                         Do not use staging uncertainty to turn a positive recommendation into Stage 0.
+                       - DR: preserve original calibrated model/probability behavior; no extra DR-specific tuning.
+                       - Glaucoma: without MD, prioritize FP control when subgroup FPR is high. A positive glaucoma label should be supported
+                         by the recommendation, both calibrated models, or convincing optic nerve/RNFL morphology.
+
+                    5. **Output Discipline**
+                       - Provide forced labels whenever calibrated model evidence exists.
+                       - Use -1 only if calibrated evidence is missing or unusable.
+                       - Put human review and uncertainty in FINAL_IMPRESSION rather than defaulting to -1.
+                    """
+            task_instructions = """
+                ### DIAGNOSTIC TASK:
+                1. Read RELIABILITY_WEIGHTED_RECOMMENDATIONS first and adopt it as the default forced label.
+                2. Audit the default using CALIBRATED_MODEL_DECISIONS, especially threshold margins.
+                3. Audit the default using STRUCTURED_RELIABILITY_PRIORS, especially FPR/FNR direction.
+                4. Use visual findings only as a disease-specific plausibility check with image-quality awareness.
+                5. For AMD, preserve binary disease presence before choosing stage.
+                6. For glaucoma, ignore MD and prevent single weak/high-FPR positives from dominating.
+            """
+        elif ORCHESTRATOR_PROMPT_VARIANT == "calibrated_structured_v1":
             system_prompt = """
                     You are a Lead Ophthalmic Surgeon and reliability-aware arbitration agent.
                     You are given CALIBRATED_MODEL_DECISIONS: per-model probabilities, validation-selected thresholds,
@@ -369,6 +423,8 @@ class Orchestrator:
                 {calibrated_model_decisions}
                 - **Structured Reliability Priors**:
                 {structured_reliability}
+                - **Reliability Weighted Recommendations**:
+                {reliability_recommendations}
                 - **Equity Agent Audit**: {equity_output}
                 - **Clinical Guidelines**: {guidelines}
 

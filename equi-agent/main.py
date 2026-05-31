@@ -243,13 +243,78 @@ def build_calibrated_model_decisions(patient_record):
             threshold = CALIBRATED_THRESHOLDS.get((model_name, task))
             if row is None:
                 continue
+            margin = None
+            if row["y_prob"] is not None and threshold is not None:
+                margin = row["y_prob"] - threshold
             task_rows[task] = {
                 "y_prob": row["y_prob"],
                 "validation_threshold": threshold,
                 "calibrated_y_pred": row["y_pred"],
+                "threshold_margin": margin,
             }
         packet["models"][model_name] = task_rows
     return packet
+
+
+def build_reliability_recommendations(calibrated_packet, reliability_report):
+    recommendations = {}
+    task_name_map = {
+        "amd": "AMD",
+        "dr": "DR",
+        "glaucoma": "Glaucoma",
+    }
+    for task_key, display_task in task_name_map.items():
+        task_reliability = reliability_report.get("tasks", {}).get(display_task, {})
+        preferred_model = task_reliability.get("lowest_total_error_model")
+        lowest_fpr_model = task_reliability.get("lowest_fpr_model")
+        lowest_fnr_model = task_reliability.get("lowest_fnr_model")
+
+        task_model_rows = {
+            model_name: task_rows.get(task_key)
+            for model_name, task_rows in calibrated_packet.get("models", {}).items()
+            if task_rows.get(task_key) is not None
+        }
+        positive_models = [
+            name for name, values in task_model_rows.items()
+            if values.get("calibrated_y_pred") == 1
+        ]
+        negative_models = [
+            name for name, values in task_model_rows.items()
+            if values.get("calibrated_y_pred") == 0
+        ]
+
+        preferred_values = task_model_rows.get(preferred_model)
+        recommended_label = preferred_values.get("calibrated_y_pred") if preferred_values else None
+        rationale = "preferred_total_error_model"
+
+        if task_key == "glaucoma":
+            lower_fpr_values = task_model_rows.get(lowest_fpr_model)
+            if lower_fpr_values is not None:
+                recommended_label = lower_fpr_values.get("calibrated_y_pred")
+                rationale = "glaucoma_fp_control_lowest_fpr_model"
+            if len(positive_models) == len(task_model_rows) and positive_models:
+                recommended_label = 1
+                rationale = "glaucoma_all_models_positive"
+        elif task_key == "amd":
+            lower_fnr_values = task_model_rows.get(lowest_fnr_model)
+            if lower_fnr_values is not None and lower_fnr_values.get("calibrated_y_pred") == 1:
+                recommended_label = 1
+                rationale = "amd_fn_control_lowest_fnr_model_positive"
+            elif len(positive_models) >= 2:
+                recommended_label = 1
+                rationale = "amd_model_consensus_positive"
+
+        recommendations[display_task] = {
+            "recommended_binary_label": recommended_label,
+            "rationale": rationale,
+            "preferred_total_error_model": preferred_model,
+            "lowest_fpr_model": lowest_fpr_model,
+            "lowest_fnr_model": lowest_fnr_model,
+            "positive_models": positive_models,
+            "negative_models": negative_models,
+            "model_decisions": task_model_rows,
+        }
+    return recommendations
 
 
 def format_calibrated_model_decisions(packet):
@@ -261,8 +326,24 @@ def format_calibrated_model_decisions(packet):
             lines.append(
                 f"  - {task}: y_prob={values.get('y_prob')}, "
                 f"validation_threshold={values.get('validation_threshold')}, "
-                f"calibrated_y_pred={values.get('calibrated_y_pred')}"
+                f"calibrated_y_pred={values.get('calibrated_y_pred')}, "
+                f"threshold_margin={values.get('threshold_margin')}"
             )
+    return "\n".join(lines)
+
+
+def format_reliability_recommendations(recommendations):
+    lines = ["RELIABILITY_WEIGHTED_RECOMMENDATIONS"]
+    for task, values in recommendations.items():
+        lines.append(
+            f"{task}: recommended_binary_label={values.get('recommended_binary_label')}, "
+            f"rationale={values.get('rationale')}, "
+            f"preferred_total_error_model={values.get('preferred_total_error_model')}, "
+            f"lowest_fpr_model={values.get('lowest_fpr_model')}, "
+            f"lowest_fnr_model={values.get('lowest_fnr_model')}, "
+            f"positive_models={values.get('positive_models')}, "
+            f"negative_models={values.get('negative_models')}"
+        )
     return "\n".join(lines)
 
 
@@ -324,6 +405,7 @@ def case_trace(disease, index, patient_record, row, state, error=None):
             "functional_agent": state.get("functional_opinion", {}) if isinstance(state, dict) else {},
             "calibrated_model_decisions": state.get("calibrated_model_decisions", {}) if isinstance(state, dict) else {},
             "structured_reliability": state.get("structured_reliability", {}) if isinstance(state, dict) else {},
+            "reliability_recommendations": state.get("reliability_recommendations", {}) if isinstance(state, dict) else {},
             "equity_agent": state.get("equity_opinion", "") if isinstance(state, dict) else "",
             "guidelines_agent": state.get("guidelines", "") if isinstance(state, dict) else "",
             "orchestrator": state.get("final_diagnosis", {}) if isinstance(state, dict) else {},
@@ -410,6 +492,15 @@ def run_diagnostic_pipeline(patient_data):
     final_state["structured_reliability_text"] = format_structured_reliability(final_state["structured_reliability"])
     print("\n\nStructured Reliability Priors Ready: ")
     print(final_state["structured_reliability_text"])
+    final_state["reliability_recommendations"] = build_reliability_recommendations(
+        final_state["calibrated_model_decisions"],
+        final_state["structured_reliability"],
+    )
+    final_state["reliability_recommendations_text"] = format_reliability_recommendations(
+        final_state["reliability_recommendations"]
+    )
+    print("\n\nReliability Weighted Recommendations Ready: ")
+    print(final_state["reliability_recommendations_text"])
 
     equity_input = f"""
     ### PATIENT DATA
@@ -498,6 +589,8 @@ def initialize_state(patient_data):
         "calibrated_model_decisions_text": "",
         "structured_reliability": {},
         "structured_reliability_text": "",
+        "reliability_recommendations": {},
+        "reliability_recommendations_text": "",
         "final_diagnosis": {},
         "fairness_flag": False,
         "safety_output": "",
