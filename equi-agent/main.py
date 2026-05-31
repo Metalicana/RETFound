@@ -306,6 +306,7 @@ def build_reliability_recommendations(calibrated_packet, reliability_report):
                 rationale = "glaucoma_all_models_positive"
             else:
                 lower_fpr_values = task_model_rows.get(lowest_fpr_model_key)
+                lower_fnr_values = task_model_rows.get(lowest_fnr_model_key)
                 positive_margins = [
                     values.get("threshold_margin")
                     for values in task_model_rows.values()
@@ -320,6 +321,18 @@ def build_reliability_recommendations(calibrated_packet, reliability_report):
                 ):
                     recommended_label = 1
                     rationale = "glaucoma_lowest_fpr_positive_with_margin"
+                elif (
+                    lower_fnr_values is not None
+                    and lower_fpr_values is not None
+                    and lower_fnr_values.get("calibrated_y_pred") == 1
+                    and lower_fnr_values.get("threshold_margin") is not None
+                    and lower_fnr_values.get("threshold_margin") >= 0.20
+                    and lower_fpr_values.get("calibrated_y_pred") == 0
+                    and lower_fpr_values.get("threshold_margin") is not None
+                    and lower_fpr_values.get("threshold_margin") > -0.10
+                ):
+                    recommended_label = 1
+                    rationale = "glaucoma_lowest_fnr_strong_positive_lowest_fpr_borderline_negative"
                 else:
                     recommended_label = 0
                     rationale = "glaucoma_conflict_fp_control"
