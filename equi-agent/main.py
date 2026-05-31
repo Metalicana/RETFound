@@ -19,6 +19,8 @@ import json
 import re
 import os
 import traceback
+import csv
+from pathlib import Path
 
 OUTPUT_CSV = os.environ.get("EQUI_AGENT_OUTPUT_CSV", "ophthalmic_performance_results_apr30.csv")
 TRACE_JSONL = os.environ.get("EQUI_AGENT_TRACE_JSONL", "")
@@ -27,6 +29,7 @@ AMD_BINARY_SCORING = os.environ.get("EQUI_AGENT_AMD_BINARY_SCORING", "0") == "1"
 OMIT_MD = os.environ.get("EQUI_AGENT_OMIT_MD", "1") == "1"
 ALLOW_LABEL_METADATA = os.environ.get("EQUI_AGENT_ALLOW_LABEL_METADATA", "0") == "1"
 DISEASES_ENV = os.environ.get("EQUI_AGENT_DISEASES", "")
+OUTPUTS_ROOT = Path(os.environ.get("EQUI_AGENT_OUTPUTS_ROOT", "outputs"))
 
 MD_METADATA_KEYS = {
     "md",
@@ -47,6 +50,16 @@ LABEL_METADATA_KEYS = {
     "ground_truth",
     "y",
     "target",
+}
+
+PREDICTION_FILES = {
+    "retfound_oct": OUTPUTS_ROOT / "predictions" / "fairvision_oct_retfound_test_thresholded.csv",
+    "mirage_slo": OUTPUTS_ROOT / "predictions" / "fairvision_slo_mirage_test_thresholded.csv",
+}
+
+THRESHOLD_FILES = {
+    "retfound_oct": OUTPUTS_ROOT / "metrics" / "thresholds_fairvision_oct_retfound.csv",
+    "mirage_slo": OUTPUTS_ROOT / "metrics" / "thresholds_fairvision_slo_mirage.csv",
 }
 
 
@@ -180,6 +193,79 @@ def build_structured_reliability(metadata):
     return report
 
 
+def load_thresholds():
+    thresholds = {}
+    for model_name, path in THRESHOLD_FILES.items():
+        if not path.exists():
+            continue
+        with path.open(newline="") as handle:
+            for row in csv.DictReader(handle):
+                thresholds[(model_name, row["task"])] = float(row["threshold"])
+    return thresholds
+
+
+def load_prediction_index():
+    index = {}
+    for model_name, path in PREDICTION_FILES.items():
+        if not path.exists():
+            continue
+        with path.open(newline="") as handle:
+            for row in csv.DictReader(handle):
+                if row.get("split") != "test":
+                    continue
+                key = (str(row.get("image_id", "")), str(row.get("task", "")), model_name)
+                index[key] = {
+                    "model_name": model_name,
+                    "task": row.get("task", ""),
+                    "image_id": row.get("image_id", ""),
+                    "y_prob": float(row["y_prob"]) if row.get("y_prob") not in {"", None} else None,
+                    "y_pred": int(float(row["y_pred"])) if row.get("y_pred") not in {"", None} else None,
+                }
+    return index
+
+
+CALIBRATED_THRESHOLDS = load_thresholds()
+CALIBRATED_PREDICTIONS = load_prediction_index()
+
+
+def build_calibrated_model_decisions(patient_record):
+    image_id = Path(str(patient_record.get("directory", ""))).name
+    tasks = ["amd", "dr", "glaucoma"]
+    models = ["retfound_oct", "mirage_slo"]
+    packet = {
+        "image_id": image_id,
+        "models": {},
+    }
+    for model_name in models:
+        task_rows = {}
+        for task in tasks:
+            row = CALIBRATED_PREDICTIONS.get((image_id, task, model_name))
+            threshold = CALIBRATED_THRESHOLDS.get((model_name, task))
+            if row is None:
+                continue
+            task_rows[task] = {
+                "y_prob": row["y_prob"],
+                "validation_threshold": threshold,
+                "calibrated_y_pred": row["y_pred"],
+            }
+        packet["models"][model_name] = task_rows
+    return packet
+
+
+def format_calibrated_model_decisions(packet):
+    lines = ["CALIBRATED_MODEL_DECISIONS"]
+    lines.append(f"image_id={packet.get('image_id')}")
+    for model_name, task_rows in packet.get("models", {}).items():
+        lines.append(f"{model_name}:")
+        for task, values in task_rows.items():
+            lines.append(
+                f"  - {task}: y_prob={values.get('y_prob')}, "
+                f"validation_threshold={values.get('validation_threshold')}, "
+                f"calibrated_y_pred={values.get('calibrated_y_pred')}"
+            )
+    return "\n".join(lines)
+
+
 def format_structured_reliability(report):
     lines = ["STRUCTURED_RELIABILITY_PRIORS"]
     context = report.get("subgroup_context", {})
@@ -236,6 +322,7 @@ def case_trace(disease, index, patient_record, row, state, error=None):
                 "full_report": vision.get("full_report", ""),
             },
             "functional_agent": state.get("functional_opinion", {}) if isinstance(state, dict) else {},
+            "calibrated_model_decisions": state.get("calibrated_model_decisions", {}) if isinstance(state, dict) else {},
             "structured_reliability": state.get("structured_reliability", {}) if isinstance(state, dict) else {},
             "equity_agent": state.get("equity_opinion", "") if isinstance(state, dict) else "",
             "guidelines_agent": state.get("guidelines", "") if isinstance(state, dict) else "",
@@ -280,6 +367,13 @@ def run_diagnostic_pipeline(patient_data):
 
     #VISION AGENT
     print("\n\n--- Sending Visual Data to Vision Specialist ---")
+    final_state["calibrated_model_decisions"] = build_calibrated_model_decisions(patient_data)
+    final_state["calibrated_model_decisions_text"] = format_calibrated_model_decisions(
+        final_state["calibrated_model_decisions"]
+    )
+    print("\n\nCalibrated Model Decisions Ready: ")
+    print(final_state["calibrated_model_decisions_text"])
+
     final_state["vision_opinion"] = vision_agent.analyze(patient_data['oct_img'], patient_data['fundus_img'], final_state)
     print("\n\nProbabilities Ready: ")
     print("\n\nOCT DIAGNOSIS USING FINETUNED RETFOUND")
@@ -400,6 +494,8 @@ def initialize_state(patient_data):
         "slo_diagnosis": None,
         "vision_opinion": {},
         "functional_opinion": {},
+        "calibrated_model_decisions": {},
+        "calibrated_model_decisions_text": "",
         "structured_reliability": {},
         "structured_reliability_text": "",
         "final_diagnosis": {},

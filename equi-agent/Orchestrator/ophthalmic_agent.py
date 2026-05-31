@@ -25,10 +25,57 @@ class Orchestrator:
         vision_summary = state['vision_opinion']['summary']
         functional_summary = state['functional_opinion']['summary']
         equity_output = state['equity_opinion']
+        calibrated_model_decisions = state.get('calibrated_model_decisions_text', '')
         structured_reliability = state.get('structured_reliability_text', '')
         guidelines = state['guidelines']
 
-        if ORCHESTRATOR_PROMPT_VARIANT in {
+        if ORCHESTRATOR_PROMPT_VARIANT == "calibrated_structured_v1":
+            system_prompt = """
+                    You are a Lead Ophthalmic Surgeon and reliability-aware arbitration agent.
+                    You are given CALIBRATED_MODEL_DECISIONS: per-model probabilities, validation-selected thresholds,
+                    and calibrated binary predictions for this exact case. These are the same kind of thresholded
+                    model outputs used by the foundation-model baselines.
+
+                    This run omits visual-field MD because MD is a leakage proxy for FairVision glaucoma labels.
+                    Ignore MD, visual-field severity, and absence of MD for glaucoma classification.
+
+                    Arbitration hierarchy:
+
+                    1. **Start From Calibrated Model Decisions**
+                       - For each disease, begin with the calibrated_y_pred values, not raw 50% confidence or prose.
+                       - Use STRUCTURED_RELIABILITY_PRIORS to decide which calibrated model decision deserves more trust for the patient subgroup.
+                       - If one model is reliability-preferred for the disease/subgroup, its calibrated decision is the default benchmark label.
+
+                    2. **Use Visual Audit as a Modifier, Not a Replacement**
+                       - The visual audit may override a calibrated model only when the relevant anatomy is clearly visible and the morphology strongly contradicts the model decision.
+                       - If the visual audit is limited, off-center, non-diagnostic, or only a single slice, do not use it to erase a reliability-preferred calibrated positive.
+                       - Poor image quality should reduce trust in that modality's model, but it should not erase calibrated evidence from a different adequate modality.
+
+                    3. **Use Reliability Priors Directionally**
+                       - If false positives are high for a model/subgroup/disease, be cautious about that model's positive calls.
+                       - If false negatives are high, be cautious about that model's negative calls.
+                       - Prefer lower total error when choosing between conflicting calibrated decisions.
+
+                    4. **Disease Handling**
+                       - AMD: preserve binary disease presence first. If positive but exact stage is uncertain, output Stage 1 or Stage 2 rather than Stage 0.
+                       - DR: preserve original calibrated model/probability behavior; no extra DR-specific tuning.
+                       - Glaucoma: without MD, use calibrated image-model decisions plus reliability priors and optic nerve/RNFL adequacy.
+
+                    5. **Output Discipline**
+                       - Provide forced labels whenever calibrated model evidence exists.
+                       - Use -1 only if calibrated model decisions are missing or unusable and visual evidence is non-diagnostic.
+                       - Put human review and uncertainty in FINAL_IMPRESSION rather than defaulting to -1.
+                    """
+            task_instructions = """
+                ### DIAGNOSTIC TASK:
+                1. Read CALIBRATED_MODEL_DECISIONS first.
+                2. Read STRUCTURED_RELIABILITY_PRIORS second.
+                3. For each disease, choose the reliability-preferred calibrated model decision as the default.
+                4. Modify that default only if visual audit quality and morphology strongly justify it.
+                5. For AMD, output a positive stage when the reliability-preferred calibrated decision is positive unless high-quality morphology strongly refutes disease.
+                6. For glaucoma, do not use MD; resolve conflicting calibrated decisions using reliability priors and optic nerve/RNFL visual adequacy.
+            """
+        elif ORCHESTRATOR_PROMPT_VARIANT in {
             "structured_reliability_v1",
             "structured_reliability_v2",
             "structured_reliability_v3",
@@ -318,6 +365,8 @@ class Orchestrator:
                 - **MIRAGE (SLO) Distribution**: {mirage_scores}
                 - **Vision Specialist Findings**: {vision_summary}
                 - **Functional Specialist Findings**: {functional_summary}
+                - **Calibrated Model Decisions**:
+                {calibrated_model_decisions}
                 - **Structured Reliability Priors**:
                 {structured_reliability}
                 - **Equity Agent Audit**: {equity_output}
