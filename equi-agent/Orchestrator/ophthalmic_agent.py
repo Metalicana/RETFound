@@ -30,7 +30,10 @@ class Orchestrator:
         reliability_recommendations = state.get('reliability_recommendations_text', '')
         guidelines = state['guidelines']
 
-        if ORCHESTRATOR_PROMPT_VARIANT == "recommendation_anchored_v1":
+        if ORCHESTRATOR_PROMPT_VARIANT in {
+            "recommendation_anchored_v1",
+            "recommendation_anchored_v2",
+        }:
             system_prompt = """
                     You are a Lead Ophthalmic Surgeon and reliability-aware arbitration agent.
 
@@ -83,6 +86,28 @@ class Orchestrator:
                 5. For AMD, preserve binary disease presence before choosing stage.
                 6. For glaucoma, ignore MD and prevent single weak/high-FPR positives from dominating.
             """
+            if ORCHESTRATOR_PROMPT_VARIANT == "recommendation_anchored_v2":
+                system_prompt += """
+
+                    6. **Strict Glaucoma Recommendation Binding**
+                       - If RELIABILITY_WEIGHTED_RECOMMENDATIONS says Glaucoma recommended_binary_label=0
+                         with rationale glaucoma_conflict_fp_control, the default must remain GLAUCOMA_DETECTED: 0.
+                       - You may override that negative recommendation to 1 only if at least one of these is true:
+                         (a) both calibrated glaucoma models are positive;
+                         (b) the lower-FPR model is positive with threshold_margin >= 0.20 and the Vision Specialist reports
+                             unequivocal glaucomatous morphology;
+                         (c) the recommendation itself is missing or unusable.
+                       - Descriptions such as enlarged cup, possible cupping, suggestive cupping, or rim thinning are not enough
+                         to override a conflict-FP-control negative recommendation when the other calibrated model is negative.
+                       - In such cases, output GLAUCOMA_DETECTED: 0 and put glaucoma concern / human workup in FINAL_IMPRESSION.
+                """
+                task_instructions += """
+
+                Additional v2 glaucoma task:
+                - Before outputting GLAUCOMA_DETECTED: 1, check the Glaucoma recommendation.
+                - If recommendation is 0 with glaucoma_conflict_fp_control, output 0 unless the strict override criteria are met.
+                - Do not convert a conflict-FP-control recommendation into a positive label solely because the visual summary mentions cupping.
+                """
         elif ORCHESTRATOR_PROMPT_VARIANT == "calibrated_structured_v1":
             system_prompt = """
                     You are a Lead Ophthalmic Surgeon and reliability-aware arbitration agent.
