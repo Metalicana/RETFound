@@ -28,7 +28,25 @@ class Orchestrator:
         structured_reliability = state.get('structured_reliability_text', '')
         guidelines = state['guidelines']
 
-        if ORCHESTRATOR_PROMPT_VARIANT == "structured_reliability_v1":
+        if ORCHESTRATOR_PROMPT_VARIANT in {"structured_reliability_v1", "structured_reliability_v2"}:
+            if ORCHESTRATOR_PROMPT_VARIANT == "structured_reliability_v2":
+                variant_rules = """
+                    6. **Asymmetric Error Control for This Run**
+                       - First identify the dominant observed failure mode by disease:
+                         glaucoma without MD is prone to false positives; AMD is prone to false negatives for intermediate disease.
+                       - For glaucoma, use FP-control: if the lower-FPR / lower-total-error model is negative and the Vision Specialist does not describe convincing optic nerve/RNFL abnormality, do not let a less reliable positive model alone force GLAUCOMA_DETECTED: 1.
+                       - For glaucoma, a positive forced label needs either convincing structural support or agreement from the reliability-preferred evidence source.
+                       - For AMD, use FN-control: if the reliability priors show high FN risk and model evidence indicates non-trivial AMD pathology, preserve binary disease presence even when exact stage is uncertain.
+                       - For AMD, if advanced morphology is absent but disease presence is reliability-supported, prefer Stage 1 or Stage 2 over Stage 0 or Stage 3.
+                """
+                variant_task = """
+                Additional v2 task:
+                - For glaucoma, explicitly check whether a positive call is coming only from the less reliable or higher-FPR source. If yes, require structural support; otherwise favor negative for forced scoring.
+                - For AMD, explicitly check whether Stage 0 would create a likely false negative under the structured priors. If yes, output a conservative positive stage rather than Stage 0.
+                """
+            else:
+                variant_rules = ""
+                variant_task = ""
             system_prompt = """
                     You are a Lead Ophthalmic Surgeon and reliability-aware arbitration agent.
                     Your job is to produce forced benchmark labels using model outputs, visual audit findings,
@@ -66,8 +84,11 @@ class Orchestrator:
                        - Provide forced labels when model evidence is available.
                        - Use -1 only when both relevant image evidence and reliability-weighted model evidence are unusable.
                        - Put uncertainty and human-review recommendations in FINAL_IMPRESSION, not by defaulting to -1.
+
+                    {variant_rules}
                     """
-            task_instructions = """
+            system_prompt = system_prompt.format(variant_rules=variant_rules)
+            task_instructions = f"""
                 ### DIAGNOSTIC TASK:
                 1. Read STRUCTURED_RELIABILITY_PRIORS first.
                 2. For each disease, name the reliability-preferred model and whether FP or FN risk dominates.
@@ -75,6 +96,7 @@ class Orchestrator:
                 4. Decide the forced label using reliability-weighted evidence.
                 5. For AMD, preserve binary disease detection even when exact stage is uncertain.
                 6. For glaucoma, ignore MD and rely on reliability-weighted image/model evidence.
+                {variant_task}
             """
         elif ORCHESTRATOR_PROMPT_VARIANT == "no_md_meta_arbitration_v1":
             system_prompt = """
