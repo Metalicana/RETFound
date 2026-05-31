@@ -62,6 +62,13 @@ THRESHOLD_FILES = {
     "mirage_slo": OUTPUTS_ROOT / "metrics" / "thresholds_fairvision_slo_mirage.csv",
 }
 
+RELIABILITY_TO_CALIBRATED_MODEL = {
+    "retfound": "retfound_oct",
+    "mirage": "mirage_slo",
+    "retfound_oct": "retfound_oct",
+    "mirage_slo": "mirage_slo",
+}
+
 
 def age_to_group(age):
     try:
@@ -268,6 +275,9 @@ def build_reliability_recommendations(calibrated_packet, reliability_report):
         preferred_model = task_reliability.get("lowest_total_error_model")
         lowest_fpr_model = task_reliability.get("lowest_fpr_model")
         lowest_fnr_model = task_reliability.get("lowest_fnr_model")
+        preferred_model_key = RELIABILITY_TO_CALIBRATED_MODEL.get(preferred_model, preferred_model)
+        lowest_fpr_model_key = RELIABILITY_TO_CALIBRATED_MODEL.get(lowest_fpr_model, lowest_fpr_model)
+        lowest_fnr_model_key = RELIABILITY_TO_CALIBRATED_MODEL.get(lowest_fnr_model, lowest_fnr_model)
 
         task_model_rows = {
             model_name: task_rows.get(task_key)
@@ -283,33 +293,70 @@ def build_reliability_recommendations(calibrated_packet, reliability_report):
             if values.get("calibrated_y_pred") == 0
         ]
 
-        preferred_values = task_model_rows.get(preferred_model)
+        preferred_values = task_model_rows.get(preferred_model_key)
         recommended_label = preferred_values.get("calibrated_y_pred") if preferred_values else None
         rationale = "preferred_total_error_model"
 
         if task_key == "glaucoma":
-            lower_fpr_values = task_model_rows.get(lowest_fpr_model)
-            if lower_fpr_values is not None:
-                recommended_label = lower_fpr_values.get("calibrated_y_pred")
-                rationale = "glaucoma_fp_control_lowest_fpr_model"
-            if len(positive_models) == len(task_model_rows) and positive_models:
+            if positive_models == [] and negative_models:
+                recommended_label = 0
+                rationale = "glaucoma_all_models_negative"
+            elif len(positive_models) == len(task_model_rows) and positive_models:
                 recommended_label = 1
                 rationale = "glaucoma_all_models_positive"
+            else:
+                lower_fpr_values = task_model_rows.get(lowest_fpr_model_key)
+                positive_margins = [
+                    values.get("threshold_margin")
+                    for values in task_model_rows.values()
+                    if values.get("calibrated_y_pred") == 1 and values.get("threshold_margin") is not None
+                ]
+                max_positive_margin = max(positive_margins) if positive_margins else None
+                if (
+                    lower_fpr_values is not None
+                    and lower_fpr_values.get("calibrated_y_pred") == 1
+                    and max_positive_margin is not None
+                    and max_positive_margin >= 0.15
+                ):
+                    recommended_label = 1
+                    rationale = "glaucoma_lowest_fpr_positive_with_margin"
+                else:
+                    recommended_label = 0
+                    rationale = "glaucoma_conflict_fp_control"
         elif task_key == "amd":
-            lower_fnr_values = task_model_rows.get(lowest_fnr_model)
+            lower_fnr_values = task_model_rows.get(lowest_fnr_model_key)
             if lower_fnr_values is not None and lower_fnr_values.get("calibrated_y_pred") == 1:
                 recommended_label = 1
                 rationale = "amd_fn_control_lowest_fnr_model_positive"
             elif len(positive_models) >= 2:
                 recommended_label = 1
                 rationale = "amd_model_consensus_positive"
+            elif positive_models:
+                recommended_label = 1
+                rationale = "amd_single_model_positive_fn_control"
+            elif negative_models:
+                recommended_label = 0
+                rationale = "amd_all_models_negative"
+        else:
+            if preferred_values is not None:
+                recommended_label = preferred_values.get("calibrated_y_pred")
+                rationale = "preferred_total_error_model"
+            elif len(positive_models) == len(task_model_rows) and positive_models:
+                recommended_label = 1
+                rationale = "all_models_positive"
+            elif negative_models:
+                recommended_label = 0
+                rationale = "default_negative"
 
         recommendations[display_task] = {
             "recommended_binary_label": recommended_label,
             "rationale": rationale,
             "preferred_total_error_model": preferred_model,
+            "preferred_total_error_model_key": preferred_model_key,
             "lowest_fpr_model": lowest_fpr_model,
+            "lowest_fpr_model_key": lowest_fpr_model_key,
             "lowest_fnr_model": lowest_fnr_model,
+            "lowest_fnr_model_key": lowest_fnr_model_key,
             "positive_models": positive_models,
             "negative_models": negative_models,
             "model_decisions": task_model_rows,
