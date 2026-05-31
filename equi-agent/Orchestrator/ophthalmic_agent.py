@@ -33,6 +33,7 @@ class Orchestrator:
         if ORCHESTRATOR_PROMPT_VARIANT in {
             "recommendation_anchored_v1",
             "recommendation_anchored_v2",
+            "recommendation_anchored_v3",
         }:
             system_prompt = """
                     You are a Lead Ophthalmic Surgeon and reliability-aware arbitration agent.
@@ -86,7 +87,7 @@ class Orchestrator:
                 5. For AMD, preserve binary disease presence before choosing stage.
                 6. For glaucoma, ignore MD and prevent single weak/high-FPR positives from dominating.
             """
-            if ORCHESTRATOR_PROMPT_VARIANT == "recommendation_anchored_v2":
+            if ORCHESTRATOR_PROMPT_VARIANT in {"recommendation_anchored_v2", "recommendation_anchored_v3"}:
                 system_prompt += """
 
                     6. **Strict Glaucoma Recommendation Binding**
@@ -107,6 +108,29 @@ class Orchestrator:
                 - Before outputting GLAUCOMA_DETECTED: 1, check the Glaucoma recommendation.
                 - If recommendation is 0 with glaucoma_conflict_fp_control, output 0 unless the strict override criteria are met.
                 - Do not convert a conflict-FP-control recommendation into a positive label solely because the visual summary mentions cupping.
+                """
+            if ORCHESTRATOR_PROMPT_VARIANT == "recommendation_anchored_v3":
+                system_prompt += """
+
+                    7. **Borderline Glaucoma Positive Audit**
+                       - If RELIABILITY_WEIGHTED_RECOMMENDATIONS says Glaucoma recommended_binary_label=1, audit whether the positive
+                         is high-margin or borderline.
+                       - Treat a positive recommendation as borderline when either:
+                         (a) rationale is glaucoma_all_models_positive but the lower-FPR model threshold_margin is < 0.10; or
+                         (b) rationale is glaucoma_lowest_fpr_positive_with_margin but the lower-FPR model threshold_margin is < 0.20; or
+                         (c) the positive model margins are small and the other modality is negative or non-diagnostic.
+                       - A borderline positive may remain GLAUCOMA_DETECTED: 1 only if the Vision Specialist explicitly reports convincing
+                         glaucomatous structure: deep optic cup/excavation, enlarged cup-to-disc ratio with rim thinning/notching, or RNFL defect.
+                       - If the Vision Specialist says physiological cup, intact rim, no clear cupping, noisy/non-diagnostic disc, or only vague
+                         glaucoma risk, output GLAUCOMA_DETECTED: 0 and put the workup recommendation in FINAL_IMPRESSION.
+                       - Do not apply this borderline audit to AMD or DR.
+                """
+                task_instructions += """
+
+                Additional v3 glaucoma task:
+                - If Glaucoma recommendation is positive, classify it as high-margin or borderline using the threshold margins.
+                - For borderline positive recommendations, require explicit structural support before outputting 1.
+                - If structural support is absent, physiological, vague, or non-diagnostic, output 0 while recommending human glaucoma workup.
                 """
         elif ORCHESTRATOR_PROMPT_VARIANT == "calibrated_structured_v1":
             system_prompt = """
