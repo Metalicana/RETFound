@@ -28,8 +28,26 @@ class Orchestrator:
         structured_reliability = state.get('structured_reliability_text', '')
         guidelines = state['guidelines']
 
-        if ORCHESTRATOR_PROMPT_VARIANT in {"structured_reliability_v1", "structured_reliability_v2"}:
-            if ORCHESTRATOR_PROMPT_VARIANT == "structured_reliability_v2":
+        if ORCHESTRATOR_PROMPT_VARIANT in {
+            "structured_reliability_v1",
+            "structured_reliability_v2",
+            "structured_reliability_v3",
+        }:
+            if ORCHESTRATOR_PROMPT_VARIANT == "structured_reliability_v3":
+                variant_rules = """
+                    6. **Narrow Reliability-Guided Corrections for This Run**
+                       - Do not broadly increase sensitivity or precision. Make only narrow corrections when the structured priors and model outputs point to a likely arbitration error.
+                       - AMD stage-2 rescue: if AMD priors show high FN risk, the visual audit is not able to rule out disease across the whole macula/volume, and model evidence suggests disease presence, avoid a Stage 0 label. Use Stage 2 as the conservative positive label when exact stage is uncertain and advanced morphology is absent.
+                       - Do not convert AMD Stage 0 to positive when both OCT and SLO/fundus are high-quality, macula-centered/adequate, and the Vision Specialist explicitly reports no drusen, no RPE granularity, no fluid, no atrophy, and no scarring.
+                       - Glaucoma FP control: if the model with lower FPR or lower total subgroup error is Low Risk/negative and the Vision Specialist does not report convincing optic nerve/RNFL abnormality, do not let a conflicting higher-FPR model alone force a positive glaucoma label.
+                       - Do not reduce glaucoma sensitivity when both reliability-preferred evidence and another model support High Risk, or when the Vision Specialist reports convincing cupping/RNFL abnormality.
+                """
+                variant_task = """
+                Additional v3 task:
+                - For AMD, before outputting Stage 0, ask: could this be a false negative under the structured priors because the visible image is incomplete or model evidence is reliability-supported? If yes, output Stage 2 rather than Stage 0.
+                - For glaucoma, before outputting positive, ask: is this positive driven only by a higher-FPR or non-preferred model without structural support? If yes, output 0.
+                """
+            elif ORCHESTRATOR_PROMPT_VARIANT == "structured_reliability_v2":
                 variant_rules = """
                     6. **Asymmetric Error Control for This Run**
                        - First identify the dominant observed failure mode by disease:
