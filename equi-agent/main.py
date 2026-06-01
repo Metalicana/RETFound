@@ -30,6 +30,13 @@ OMIT_MD = os.environ.get("EQUI_AGENT_OMIT_MD", "1") == "1"
 ALLOW_LABEL_METADATA = os.environ.get("EQUI_AGENT_ALLOW_LABEL_METADATA", "0") == "1"
 DISEASES_ENV = os.environ.get("EQUI_AGENT_DISEASES", "")
 OUTPUTS_ROOT = Path(os.environ.get("EQUI_AGENT_OUTPUTS_ROOT", "outputs"))
+INCLUDE_MARGIN_BIN_RELIABILITY = os.environ.get("EQUI_AGENT_INCLUDE_MARGIN_BIN_RELIABILITY", "0") == "1"
+MODEL_RELIABILITY_REGISTRY_PATH = Path(
+    os.environ.get(
+        "EQUI_AGENT_MODEL_RELIABILITY_REGISTRY",
+        "outputs/registry/fairvision_model_reliability_registry.json",
+    )
+)
 
 MD_METADATA_KEYS = {
     "md",
@@ -68,6 +75,16 @@ RELIABILITY_TO_CALIBRATED_MODEL = {
     "retfound_oct": "retfound_oct",
     "mirage_slo": "mirage_slo",
 }
+
+
+def load_model_reliability_registry():
+    if not MODEL_RELIABILITY_REGISTRY_PATH.exists():
+        return {}
+    with MODEL_RELIABILITY_REGISTRY_PATH.open(encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+MODEL_RELIABILITY_REGISTRY = load_model_reliability_registry()
 
 
 def age_to_group(age):
@@ -253,14 +270,49 @@ def build_calibrated_model_decisions(patient_record):
             margin = None
             if row["y_prob"] is not None and threshold is not None:
                 margin = row["y_prob"] - threshold
+            margin_bin = (
+                lookup_margin_bin_reliability(model_name, task, margin)
+                if INCLUDE_MARGIN_BIN_RELIABILITY
+                else None
+            )
             task_rows[task] = {
                 "y_prob": row["y_prob"],
                 "validation_threshold": threshold,
                 "calibrated_y_pred": row["y_pred"],
                 "threshold_margin": margin,
+                "margin_bin_reliability": margin_bin,
             }
         packet["models"][model_name] = task_rows
     return packet
+
+
+def lookup_margin_bin_reliability(model_name, task, margin):
+    if margin is None or not MODEL_RELIABILITY_REGISTRY:
+        return None
+    bins = (
+        MODEL_RELIABILITY_REGISTRY
+        .get("models", {})
+        .get(model_name, {})
+        .get("tasks", {})
+        .get(task, {})
+        .get("margin_bins", [])
+    )
+    for bin_row in bins:
+        lower = bin_row.get("lower")
+        upper = bin_row.get("upper")
+        lower_ok = lower is None or margin >= float(lower)
+        upper_ok = upper is None or margin < float(upper)
+        if lower_ok and upper_ok:
+            return {
+                "label": bin_row.get("label"),
+                "n": bin_row.get("n"),
+                "empirical_positive_rate": bin_row.get("empirical_positive_rate"),
+                "accuracy": bin_row.get("accuracy"),
+                "precision_when_predicted_positive": bin_row.get("precision_when_predicted_positive"),
+                "npv_when_predicted_negative": bin_row.get("npv_when_predicted_negative"),
+                "source_split": bin_row.get("source_split"),
+            }
+    return None
 
 
 def build_reliability_recommendations(calibrated_packet, reliability_report):
@@ -383,12 +435,15 @@ def format_calibrated_model_decisions(packet):
     for model_name, task_rows in packet.get("models", {}).items():
         lines.append(f"{model_name}:")
         for task, values in task_rows.items():
-            lines.append(
+            line = (
                 f"  - {task}: y_prob={values.get('y_prob')}, "
                 f"validation_threshold={values.get('validation_threshold')}, "
                 f"calibrated_y_pred={values.get('calibrated_y_pred')}, "
                 f"threshold_margin={values.get('threshold_margin')}"
             )
+            if values.get("margin_bin_reliability") is not None:
+                line += f", margin_bin_reliability={values.get('margin_bin_reliability')}"
+            lines.append(line)
     return "\n".join(lines)
 
 
