@@ -101,6 +101,18 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def resolve_data_summary(path: Path) -> Path:
+    if path.exists():
+        return path
+    fallback = path.parent / "ReadMe" / path.name
+    if fallback.exists():
+        return fallback
+    raise FileNotFoundError(
+        f"Could not find GDP data summary at {path} or fallback {fallback}. "
+        "Pass --data-summary explicitly if your GDP layout is different."
+    )
+
+
 def read_csv(path: Path) -> list[dict[str, str]]:
     with path.open(newline="", encoding="utf-8") as handle:
         return list(csv.DictReader(handle))
@@ -446,6 +458,7 @@ def computed_md_rule_metrics(rows: list[dict[str, Any]], threshold: float = -2.0
 
 def main() -> None:
     args = parse_args()
+    args.data_summary = resolve_data_summary(args.data_summary)
     rows = read_csv(args.data_summary)
     selected = [
         row
