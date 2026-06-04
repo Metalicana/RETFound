@@ -5,7 +5,7 @@ import csv
 import random
 from collections import Counter
 from pathlib import Path
-from statistics import mean, median
+from statistics import mean, median, stdev
 
 
 def fnum(value: object) -> float | None:
@@ -35,7 +35,7 @@ def stratified_split(rows: list[dict], test_frac: float, seed: int) -> tuple[lis
     rng = random.Random(seed)
     by_label: dict[int, list[dict]] = {0: [], 1: []}
     for row in rows:
-        by_label[int(row["label"])] .append(row)
+        by_label[int(row["label"])].append(row)
 
     train_rows: list[dict] = []
     test_rows: list[dict] = []
@@ -119,6 +119,35 @@ def summarize_feature(rows: list[dict], feature: str) -> None:
         )
 
 
+def summarize_repeated(items: list[dict[str, float | int]], keys: list[str]) -> dict[str, dict[str, float]]:
+    out: dict[str, dict[str, float]] = {}
+    for key in keys:
+        values = [float(item[key]) for item in items]
+        out[key] = {
+            "mean": round(mean(values), 4),
+            "sd": round(stdev(values), 4) if len(values) > 1 else 0.0,
+            "min": round(min(values), 4),
+            "median": round(median(values), 4),
+            "max": round(max(values), 4),
+        }
+    return out
+
+
+def evaluate_split(
+    rows: list[dict],
+    feature: str,
+    test_frac: float,
+    seed: int,
+    objective: str,
+) -> tuple[float, dict[str, float | int], dict[str, float | int]]:
+    train_rows, test_rows = stratified_split(rows, test_frac, seed)
+    threshold, train_metrics = tune_threshold(train_rows, feature, objective)
+    y_true = [int(row["label"]) for row in test_rows]
+    y_pred = [int(float(row[feature]) >= threshold) for row in test_rows]
+    test_metrics = metrics(y_true, y_pred)
+    return threshold, train_metrics, test_metrics
+
+
 def load_labeled_rows(manifest: Path, split: str, feature: str) -> list[dict]:
     rows = []
     for row in read_csv(manifest):
@@ -148,6 +177,7 @@ def main() -> None:
     parser.add_argument("--features", nargs="+", default=["vertical_cup_to_disc_ratio", "cup_to_disc_area_ratio"])
     parser.add_argument("--test-frac", type=float, default=0.25)
     parser.add_argument("--seed", type=int, default=2026)
+    parser.add_argument("--repeats", type=int, default=1, help="Number of repeated stratified holdout splits.")
     parser.add_argument("--objective", choices=["f1", "balanced_accuracy"], default="f1")
     args = parser.parse_args()
 
@@ -160,17 +190,51 @@ def main() -> None:
             continue
         summarize_feature(rows, feature)
 
-        train_rows, test_rows = stratified_split(rows, args.test_frac, args.seed)
-        threshold, train_metrics = tune_threshold(train_rows, feature, args.objective)
-        y_true = [int(row["label"]) for row in test_rows]
-        y_pred = [int(float(row[feature]) >= threshold) for row in test_rows]
-        test_metrics = metrics(y_true, y_pred)
+        threshold, train_metrics, test_metrics = evaluate_split(
+            rows,
+            feature,
+            args.test_frac,
+            args.seed,
+            args.objective,
+        )
 
         print(f"\nthreshold={threshold:.6f} objective={args.objective}")
         print("train_tuning:", {k: round(v, 4) if isinstance(v, float) else v for k, v in train_metrics.items()})
         print("holdout:", {k: round(v, 4) if isinstance(v, float) else v for k, v in test_metrics.items()})
         print("holdout_confusion:")
         print(f"  tn={test_metrics['tn']} fp={test_metrics['fp']} fn={test_metrics['fn']} tp={test_metrics['tp']}")
+
+        if args.repeats > 1:
+            thresholds = []
+            holdouts = []
+            for offset in range(args.repeats):
+                item_threshold, _, item_metrics = evaluate_split(
+                    rows,
+                    feature,
+                    args.test_frac,
+                    args.seed + offset,
+                    args.objective,
+                )
+                thresholds.append(item_threshold)
+                holdouts.append(item_metrics)
+            print(f"\nrepeated_holdout repeats={args.repeats} seed_start={args.seed}")
+            print(
+                "threshold_summary:",
+                {
+                    "mean": round(mean(thresholds), 6),
+                    "sd": round(stdev(thresholds), 6) if len(thresholds) > 1 else 0.0,
+                    "min": round(min(thresholds), 6),
+                    "median": round(median(thresholds), 6),
+                    "max": round(max(thresholds), 6),
+                },
+            )
+            print(
+                "metric_summary:",
+                summarize_repeated(
+                    holdouts,
+                    ["accuracy", "precision", "recall", "specificity", "f1", "balanced_accuracy"],
+                ),
+            )
 
 
 if __name__ == "__main__":
