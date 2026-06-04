@@ -43,10 +43,12 @@ def image_size(path: Path) -> tuple[int | None, int | None]:
 def mask_features(path: Path) -> dict[str, Any]:
     """Compute simple cup/disc features from REFUGE-style masks.
 
-    REFUGE masks are commonly encoded as nested regions. This function is
-    deliberately data-driven: it records unique values and treats the largest
-    non-background region as disc and the smallest positive region as cup when
-    at least two foreground levels are present.
+    REFUGE masks are commonly encoded as background, optic-disc, and optic-cup
+    label values. Some mirrors use 255 as background, 128 as disc/rim, and 0 as
+    cup, so treating nonzero as foreground is wrong. This function infers the
+    background as the largest pixel class, treats every other substantial class
+    as optic-disc foreground, and treats the smaller substantial foreground
+    class as cup.
     """
     try:
         import numpy as np
@@ -56,34 +58,40 @@ def mask_features(path: Path) -> dict[str, Any]:
             arr = np.asarray(image.convert("L"))
         values, counts = np.unique(arr, return_counts=True)
         pairs = sorted((int(v), int(c)) for v, c in zip(values, counts))
-        foreground = [(v, c) for v, c in pairs if v != 0]
+        total = int(arr.size)
+        background_value, _ = max(pairs, key=lambda item: item[1])
+        min_substantial_count = max(100, int(total * 0.0001))
+        foreground = [(v, c) for v, c in pairs if v != background_value]
+        substantial_foreground = [(v, c) for v, c in foreground if c >= min_substantial_count]
         out: dict[str, Any] = {
             "mask_unique_values": ";".join(str(v) for v, _ in pairs),
             "mask_unique_counts": ";".join(f"{v}:{c}" for v, c in pairs),
             "mask_foreground_levels": len(foreground),
+            "mask_background_value": background_value,
         }
-        if not foreground:
+        if not substantial_foreground:
             out.update(
                 {
                     "disc_area_px": "",
                     "cup_area_px": "",
                     "cup_to_disc_area_ratio": "",
                     "vertical_cup_to_disc_ratio": "",
-                    "mask_feature_rule": "no_foreground",
+                    "mask_feature_rule": "no_substantial_foreground",
+                    "cup_mask_value": "",
                 }
             )
             return out
 
-        foreground_values = [v for v, _ in foreground]
+        foreground_values = [v for v, _ in substantial_foreground]
         disc_mask = np.isin(arr, foreground_values)
-        if len(foreground_values) >= 2:
-            cup_value = foreground_values[0]
+        if len(substantial_foreground) >= 2:
+            cup_value, _ = min(substantial_foreground, key=lambda item: item[1])
             cup_mask = arr == cup_value
-            rule = "cup_lowest_nonzero_disc_all_nonzero"
+            rule = "background_largest_cup_smaller_substantial_foreground"
         else:
             cup_value = foreground_values[0]
             cup_mask = arr == cup_value
-            rule = "single_foreground_level"
+            rule = "single_substantial_foreground_level"
 
         disc_area = int(disc_mask.sum())
         cup_area = int(cup_mask.sum())
@@ -117,6 +125,7 @@ def mask_features(path: Path) -> dict[str, Any]:
             "cup_to_disc_area_ratio": "",
             "vertical_cup_to_disc_ratio": "",
             "mask_feature_rule": f"error:{type(exc).__name__}",
+            "mask_background_value": "",
             "cup_mask_value": "",
         }
 
@@ -142,6 +151,7 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "mask_unique_values",
         "mask_unique_counts",
         "mask_foreground_levels",
+        "mask_background_value",
         "mask_feature_rule",
         "cup_mask_value",
     ]
