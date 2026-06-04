@@ -62,6 +62,7 @@ OUTPUT_FIELDS = [
     "few_shot_positive_rate",
     "few_shot_recommended_label",
     "few_shot_recommended_action",
+    "few_shot_action_mode",
     "primary_model",
     "confidence",
     "calibration_action",
@@ -155,6 +156,15 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=3,
         help="Number of similar validation cases to include for --prompt-variant dynamic_few_shot.",
+    )
+    parser.add_argument(
+        "--few-shot-action-mode",
+        choices=["llm", "stabilized", "recommendation"],
+        default=os.getenv("FEW_SHOT_ACTION_MODE", "stabilized"),
+        help=(
+            "For dynamic few-shot runs, choose how calibration_action is set: raw LLM output, "
+            "LLM output stabilized by nearest validation labels, or the nearest-validation recommendation itself."
+        ),
     )
     parser.add_argument("--sensitivity-threshold", type=float, default=0.35)
     parser.add_argument("--neutral-threshold", type=float, default=0.50)
@@ -1548,10 +1558,15 @@ def main() -> None:
                 )
                 calibration_action = normalize_action(parsed.get("calibration_action"))
                 if args.prompt_variant == "dynamic_few_shot":
-                    calibration_action = stabilize_dynamic_few_shot_action(
-                        calibration_action,
-                        few_shot_recommendation,
-                    )
+                    if args.few_shot_action_mode == "recommendation":
+                        calibration_action = normalize_action(
+                            few_shot_recommendation.get("recommended_action")
+                        )
+                    elif args.few_shot_action_mode == "stabilized":
+                        calibration_action = stabilize_dynamic_few_shot_action(
+                            calibration_action,
+                            few_shot_recommendation,
+                        )
                 applied_threshold = threshold_for_action(calibration_action, thresholds)
                 final_pred = normalize_prediction(final_prob, applied_threshold)
                 escalate_to_human, safety_decision = safety_flag_for_case(arbitration, final_prob, applied_threshold)
@@ -1574,6 +1589,7 @@ def main() -> None:
                         "few_shot_positive_rate": few_shot_recommendation.get("positive_rate", ""),
                         "few_shot_recommended_label": few_shot_recommendation.get("recommended_label", ""),
                         "few_shot_recommended_action": few_shot_recommendation.get("recommended_action", ""),
+                        "few_shot_action_mode": args.few_shot_action_mode if args.prompt_variant == "dynamic_few_shot" else "",
                         "primary_model": parsed.get("primary_model", ""),
                         "confidence": parsed.get("confidence", ""),
                         "calibration_action": calibration_action,
