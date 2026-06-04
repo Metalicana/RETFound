@@ -681,6 +681,86 @@ def task_specific_guidance(task: str) -> str:
     return "CURRENT TASK: binary retinal disease diagnosis for the supplied task. Use only current-task evidence."
 
 
+def build_dynamic_few_shot_messages(
+    evidence_packet: dict[str, Any],
+    thresholds: dict[str, float],
+) -> list[dict[str, Any]]:
+    """Build a compact Medprompt-style prompt.
+
+    Dynamic few-shot carries extra validation examples, so this variant uses a
+    smaller schema than the default multi-agent prompt. The runner still records
+    the same output CSV fields; missing trace fields are allowed.
+    """
+    task = str(evidence_packet.get("case", {}).get("task", ""))
+    system = (
+        "You are Equi-Agent performing reliability-aware retinal diagnosis. "
+        "Use validation examples only as calibration evidence: they show how similar validation cases behaved, "
+        "which model votes were right or wrong, and how threshold margins related to labels. "
+        "The current test label is hidden. Do not copy validation labels blindly; use examples to calibrate trust.\n\n"
+        "Use only current-task evidence. Demographics are reliability context only, never direct disease evidence. "
+        "Return exactly one compact valid JSON object. No markdown, no comments, no trailing commas. "
+        "Do not reproduce the full evidence packet; summarize only the decisive evidence.\n\n"
+        + task_specific_guidance(task)
+    )
+    user = {
+        "threshold_policy": {
+            "sensitivity_shift": thresholds["sensitivity_shift"],
+            "neutral": thresholds["neutral"],
+            "escalate": thresholds["escalate"],
+            "precision_shift": thresholds["precision_shift"],
+            "final_prediction_rule": "The runner will score final_probability against the selected calibration_action threshold.",
+        },
+        "required_output_schema": {
+            "final_probability": "float 0..1",
+            "final_prediction": "0 or 1, consistent with final_probability and selected threshold",
+            "confidence": "low, medium, or high",
+            "primary_model": "model name or ensemble",
+            "calibration_action": "sensitivity_shift, precision_shift, neutral, or escalate",
+            "escalate_to_human": "boolean",
+            "reasoning": "one short sentence, cite 1-2 nearest validation-case lessons and trusted/doubted model evidence",
+            "agent_trace": {
+                "vision_agent": {"evidence_summary": "one short sentence"},
+                "equity_agent": {
+                    "reliability_concern": "false_negative_risk, false_positive_risk, calibration_risk, minimal_risk, or unstable_priors",
+                    "threshold_policy": "same as calibration_action",
+                    "model_reliability_table": [
+                        {
+                            "model": "name",
+                            "probability": "number",
+                            "binary_vote": "0 or 1",
+                            "fpr": "number",
+                            "fnr": "number",
+                            "balanced_accuracy": "number",
+                            "prior_unstable": "boolean",
+                            "trust_action": "up_weight, down_weight, keep, or escalate",
+                            "reason": "6 words or fewer",
+                        }
+                    ],
+                    "model_reliability_table_rule": "include only the top 1-3 decisive trusted or doubted sources, not every model",
+                    "rationale": "one short sentence",
+                },
+                "orchestrator": {
+                    "reference_probability": "deterministic weighted probability",
+                    "probability_adjustment": "number",
+                    "applied_threshold": "number",
+                    "final_prediction_check": "short threshold check",
+                    "rationale": "one short sentence",
+                },
+                "safety_agent": {
+                    "decision": "ACCEPT or ESCALATE_TO_HUMAN",
+                    "uncertainty_level": "low, medium, or high",
+                    "escalation_reasons": ["short reason"],
+                },
+            },
+        },
+        "evidence_packet": evidence_packet,
+    }
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": json.dumps(user, sort_keys=True)},
+    ]
+
+
 def build_live_messages(
     evidence_packet: dict[str, Any],
     image_payload: dict[str, Any] | None = None,
@@ -688,6 +768,8 @@ def build_live_messages(
     thresholds: dict[str, float] | None = None,
 ) -> list[dict[str, Any]]:
     thresholds = thresholds or {"sensitivity_shift": 0.35, "neutral": 0.5, "escalate": 0.5, "precision_shift": 0.65}
+    if prompt_variant == "dynamic_few_shot" and image_payload is None:
+        return build_dynamic_few_shot_messages(evidence_packet, thresholds)
     system = (
         "You are Equi-Agent, a professional ophthalmologist-led clinical decision-support system for retinal disease "
         "assessment. You assist real ophthalmologists by synthesizing multimodal retinal evidence, foundation-model "
@@ -1215,7 +1297,13 @@ def live_response_with_retries(
             response = call_llm(client, deployment, messages, temperature, max_output_tokens)
             raw_text = response_text(response)
             usage = usage_dict(response)
-            parsed = json_from_text(raw_text)
+            try:
+                parsed = json_from_text(raw_text)
+            except Exception as parse_exc:
+                raise RuntimeError(
+                    f"JSON parse failed: {type(parse_exc).__name__}: {parse_exc}; "
+                    f"raw_text_start={raw_text[:700]!r}"
+                ) from parse_exc
             return parsed, usage, raw_text, attempt
         except Exception as exc:
             last_error = exc
