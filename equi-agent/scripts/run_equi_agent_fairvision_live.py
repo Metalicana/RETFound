@@ -58,6 +58,7 @@ OUTPUT_FIELDS = [
     "disagreement",
     "close_call",
     "safety_decision",
+    "few_shot_case_ids",
     "primary_model",
     "confidence",
     "calibration_action",
@@ -141,9 +142,16 @@ def parse_args() -> argparse.Namespace:
             "diagnosis_tuned",
             "diagnosis_tuned_v2",
             "ophthalmic_agent_style",
+            "dynamic_few_shot",
         ],
         default=os.getenv("EQUI_AGENT_PROMPT_VARIANT", "current"),
         help="Prompt policy used by the arbitration LLM. Use micro experiments to compare variants.",
+    )
+    parser.add_argument(
+        "--few-shot-k",
+        type=int,
+        default=3,
+        help="Number of similar validation cases to include for --prompt-variant dynamic_few_shot.",
     )
     parser.add_argument("--sensitivity-threshold", type=float, default=0.35)
     parser.add_argument("--neutral-threshold", type=float, default=0.50)
@@ -258,6 +266,211 @@ def load_manifests(manifests_root: Path, tasks: list[str]) -> tuple[dict[tuple[s
             by_image_task[(row.get("image_id", ""), task)] = row
         loaded.append({"task": task, "path": str(path), "rows": len(rows), "missing": False})
     return by_image_task, loaded
+
+
+def prediction_key_for(row: dict[str, str]) -> tuple[str, str, str, str, str]:
+    return tuple(row.get(col, "") for col in ["patient_id", "eye_id", "visit_id", "image_id", "task"])
+
+
+def validation_model_file(predictions_root: Path, task: str, model: str) -> Path | None:
+    direct = predictions_root / f"fairvision_{task}_{model}_val.csv"
+    if direct.exists():
+        return direct
+    combined = {
+        "retfound_oct": predictions_root / "fairvision_oct_retfound_val.csv",
+        "mirage_slo": predictions_root / "fairvision_slo_mirage_val.csv",
+    }.get(model)
+    if combined and combined.exists():
+        return combined
+    return None
+
+
+def load_threshold_lookup(metrics_root: Path) -> dict[tuple[str, str], float]:
+    thresholds: dict[tuple[str, str], float] = {}
+    for path in metrics_root.glob("thresholds_fairvision_*.csv"):
+        for row in read_csv(path):
+            model_name = row.get("model_name", "")
+            task = row.get("task", "")
+            threshold = row.get("threshold", "")
+            if model_name and task and threshold not in {"", None}:
+                thresholds[(model_name, task)] = fnum(threshold, 0.5)
+    return thresholds
+
+
+def load_validation_predictions(
+    predictions_root: Path,
+    tasks: list[str],
+    models: list[str],
+) -> tuple[dict[str, dict[str, dict[tuple, dict]]], list[dict[str, Any]]]:
+    by_task: dict[str, dict[str, dict[tuple, dict]]] = {task: {} for task in tasks}
+    loaded = []
+    for task in tasks:
+        for model in models:
+            path = validation_model_file(predictions_root, task, model)
+            if path is None:
+                continue
+            rows = [row for row in read_csv(path) if row.get("task") == task and row.get("split") == "val"]
+            if not rows:
+                continue
+            by_task[task][model] = {prediction_key_for(row): row for row in rows}
+            loaded.append({"task": task, "model": model, "path": str(path), "rows": len(rows)})
+    return by_task, loaded
+
+
+def compact_model_row(row: dict[str, Any], threshold_lookup: dict[tuple[str, str], float], task: str, y_true: int | None = None) -> dict[str, Any]:
+    threshold = threshold_lookup.get((str(row.get("model", "")), task), 0.5)
+    prob = fnum(row.get("prob"), 0.0)
+    pred = int(fnum(row.get("pred"), 0.0) >= 0.5)
+    compact = {
+        "model": row.get("model", ""),
+        "prob": round(prob, 3),
+        "vote": pred,
+        "margin": round(prob - threshold, 3),
+        "fpr": round(fnum(row.get("prior_fpr"), 0.0), 3),
+        "fnr": round(fnum(row.get("prior_fnr"), 0.0), 3),
+        "bal_acc": round(fnum(row.get("prior_balanced_accuracy"), 0.5), 3),
+    }
+    if y_true in {0, 1}:
+        compact["correct"] = pred == y_true
+    return compact
+
+
+def validation_entry(
+    task: str,
+    key: tuple,
+    rows_by_model: dict[str, dict],
+    subgroup_priors: dict[tuple, dict],
+    global_priors: dict[tuple, dict],
+    threshold_lookup: dict[tuple[str, str], float],
+) -> dict[str, Any]:
+    meta = case_metadata(rows_by_model)
+    y_true = int(fnum(meta.get("y_true"), 0.0))
+    arbitration = mock_arbitrate(task, rows_by_model, meta, subgroup_priors, global_priors)
+    model_rows = [
+        compact_model_row(row, threshold_lookup, task, y_true=y_true)
+        for row in arbitration.get("model_rows", [])
+    ]
+    false_positive_models = [row["model"] for row in model_rows if y_true == 0 and row["vote"] == 1]
+    false_negative_models = [row["model"] for row in model_rows if y_true == 1 and row["vote"] == 0]
+    correct_models = [row["model"] for row in model_rows if row.get("correct")]
+    return {
+        "key": key,
+        "case_id": "|".join(str(item) for item in key),
+        "task": task,
+        "true_label": y_true,
+        "weighted_probability": round(arbitration["final_prob"], 3),
+        "weighted_prediction": int(arbitration["final_pred"]),
+        "positive_votes": int(arbitration["positive_votes"]),
+        "num_models": int(arbitration["num_models"]),
+        "weighted_reference_correct": int(arbitration["final_pred"]) == y_true,
+        "model_rows": model_rows,
+        "lesson": {
+            "correct_models": correct_models,
+            "false_positive_models": false_positive_models,
+            "false_negative_models": false_negative_models,
+        },
+    }
+
+
+def build_validation_example_index(
+    validation_by_task: dict[str, dict[str, dict[tuple, dict]]],
+    tasks: list[str],
+    subgroup_priors: dict[tuple, dict],
+    global_priors: dict[tuple, dict],
+    threshold_lookup: dict[tuple[str, str], float],
+) -> dict[str, list[dict[str, Any]]]:
+    index: dict[str, list[dict[str, Any]]] = {task: [] for task in tasks}
+    for task in tasks:
+        task_predictions = validation_by_task.get(task, {})
+        common: set[tuple] | None = None
+        for rows_by_key in task_predictions.values():
+            keys = set(rows_by_key)
+            common = keys if common is None else common & keys
+        if not common:
+            continue
+        for key in sorted(common, key=lambda item: (item[0], item[3])):
+            rows_by_model = {
+                model: rows_by_key[key]
+                for model, rows_by_key in task_predictions.items()
+                if key in rows_by_key
+            }
+            meta = case_metadata(rows_by_model)
+            if int(fnum(meta.get("y_true"), -1.0)) not in {0, 1}:
+                continue
+            index[task].append(
+                validation_entry(task, key, rows_by_model, subgroup_priors, global_priors, threshold_lookup)
+            )
+    return index
+
+
+def model_row_lookup(model_rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    return {str(row.get("model", "")): row for row in model_rows}
+
+
+def example_distance(
+    current_arbitration: dict[str, Any],
+    validation_case: dict[str, Any],
+    threshold_lookup: dict[tuple[str, str], float],
+    task: str,
+) -> float:
+    current_rows = model_row_lookup(current_arbitration.get("model_rows", []))
+    validation_rows = model_row_lookup(validation_case.get("model_rows", []))
+    distance = 0.0
+    matched = 0
+    for model, current in current_rows.items():
+        other = validation_rows.get(model)
+        if not other:
+            continue
+        threshold = threshold_lookup.get((model, task), 0.5)
+        current_prob = fnum(current.get("prob"), 0.0)
+        other_prob = fnum(other.get("prob"), 0.0)
+        current_vote = int(fnum(current.get("pred"), 0.0) >= 0.5)
+        other_vote = int(fnum(other.get("vote"), 0.0) >= 0.5)
+        current_margin = current_prob - threshold
+        other_margin = fnum(other.get("margin"), 0.0)
+        distance += abs(current_prob - other_prob)
+        distance += 0.35 * abs(current_margin - other_margin)
+        distance += 0.25 if current_vote != other_vote else 0.0
+        matched += 1
+    if matched:
+        distance /= matched
+    distance += 0.10 * abs(
+        int(current_arbitration.get("positive_votes", 0)) - int(validation_case.get("positive_votes", 0))
+    )
+    distance += abs(
+        fnum(current_arbitration.get("final_prob"), 0.0)
+        - fnum(validation_case.get("weighted_probability"), 0.0)
+    )
+    return distance
+
+
+def retrieve_similar_validation_cases(
+    task: str,
+    current_arbitration: dict[str, Any],
+    validation_index: dict[str, list[dict[str, Any]]],
+    threshold_lookup: dict[tuple[str, str], float],
+    k: int,
+) -> list[dict[str, Any]]:
+    if k <= 0:
+        return []
+    candidates = []
+    for case in validation_index.get(task, []):
+        distance = example_distance(current_arbitration, case, threshold_lookup, task)
+        compact_case = {
+            "case_id": case["case_id"],
+            "similarity_distance": round(distance, 4),
+            "true_label": case["true_label"],
+            "weighted_probability": case["weighted_probability"],
+            "weighted_prediction": case["weighted_prediction"],
+            "weighted_reference_correct": case["weighted_reference_correct"],
+            "positive_votes": case["positive_votes"],
+            "num_models": case["num_models"],
+            "model_rows": case["model_rows"],
+            "lesson": case["lesson"],
+        }
+        candidates.append((distance, compact_case))
+    candidates.sort(key=lambda item: item[0])
+    return [case for _, case in candidates[:k]]
 
 
 def resolve_manifest_path(path_value: str, prefix_from: str | None, prefix_to: str | None) -> Path:
@@ -413,6 +626,16 @@ def prompt_variant_guidance(variant: str) -> str:
             "mixed credible evidence should be forced-label decisions with human escalation rather than abstention. Keep "
             "the JSON compact: do not duplicate the model-by-model audit outside equity_agent.model_reliability_table, "
             "and keep all rationales to one short sentence."
+        )
+    if variant == "dynamic_few_shot":
+        return (
+            "PROMPT_VARIANT=dynamic_few_shot. Use the similar_validation_cases block as case-based calibration evidence. "
+            "These examples come only from the validation split and include their true labels for learning the arbitration "
+            "pattern; the current test label is not provided. First compare the current model probability/vote/margin pattern "
+            "to the nearest validation cases. If the nearest cases show that a model or weighted reference was repeatedly "
+            "wrong in this pattern, down-weight that source. If the nearest cases show that a model was reliable in this "
+            "pattern, up-weight it. Do not copy a validation label blindly: use the examples to calibrate trust in the "
+            "current evidence. Cite one or two nearest-case lessons in the orchestrator rationale. Keep output JSON compact."
         )
     return "PROMPT_VARIANT=current. Use the default trust-calibration policy."
 
@@ -1016,6 +1239,22 @@ def main() -> None:
 
     by_task, loaded_files, missing_files = load_predictions(args.predictions_root, args.tasks, args.models)
     subgroup_priors, global_priors = load_priors(args.metrics_root)
+    threshold_lookup = load_threshold_lookup(args.metrics_root)
+    validation_index: dict[str, list[dict[str, Any]]] = {task: [] for task in args.tasks}
+    loaded_validation_files: list[dict[str, Any]] = []
+    if args.prompt_variant == "dynamic_few_shot":
+        validation_by_task, loaded_validation_files = load_validation_predictions(
+            args.predictions_root,
+            args.tasks,
+            args.models,
+        )
+        validation_index = build_validation_example_index(
+            validation_by_task,
+            args.tasks,
+            subgroup_priors,
+            global_priors,
+            threshold_lookup,
+        )
     manifest_lookup: dict[tuple[str, str], dict[str, str]] = {}
     loaded_manifests: list[dict[str, Any]] = []
     if args.include_image_tokens:
@@ -1058,6 +1297,22 @@ def main() -> None:
             meta = case_metadata(rows_by_model)
             arbitration = mock_arbitrate(task, rows_by_model, meta, subgroup_priors, global_priors)
             evidence_packet = build_evidence_packet(meta, arbitration)
+            similar_validation_cases = []
+            if args.prompt_variant == "dynamic_few_shot":
+                similar_validation_cases = retrieve_similar_validation_cases(
+                    task,
+                    arbitration,
+                    validation_index,
+                    threshold_lookup,
+                    args.few_shot_k,
+                )
+                evidence_packet["similar_validation_cases"] = similar_validation_cases
+                evidence_packet["few_shot_protocol"] = {
+                    "source_split": "validation",
+                    "current_case_label_hidden": True,
+                    "retrieval_basis": "nearest model probability, threshold-margin, vote pattern, and weighted probability",
+                    "instruction": "Use examples to calibrate trust; do not copy labels blindly.",
+                }
             image_payload = None
             image_error = None
             if args.include_image_tokens:
@@ -1135,6 +1390,7 @@ def main() -> None:
                         "disagreement": arbitration["disagreement"],
                         "close_call": arbitration["close_call"],
                         "safety_decision": safety_decision,
+                        "few_shot_case_ids": ";".join(case.get("case_id", "") for case in similar_validation_cases),
                         "primary_model": parsed.get("primary_model", ""),
                         "confidence": parsed.get("confidence", ""),
                         "calibration_action": calibration_action,
@@ -1244,6 +1500,8 @@ def main() -> None:
     write_jsonl(args.out_dir / "equi_agent_live_errors.jsonl", error_rows)
     write_jsonl(args.out_dir / "equi_agent_live_cases.jsonl", case_rows)
     write_jsonl(args.out_dir / "equi_agent_live_loaded_files.jsonl", loaded_files)
+    if loaded_validation_files:
+        write_jsonl(args.out_dir / "equi_agent_live_loaded_validation_files.jsonl", loaded_validation_files)
     if loaded_manifests:
         write_jsonl(args.out_dir / "equi_agent_live_loaded_manifests.jsonl", loaded_manifests)
     write_jsonl(args.out_dir / "equi_agent_live_missing_files.jsonl", missing_files)
@@ -1266,6 +1524,10 @@ def main() -> None:
         "sample_stratified": args.sample_stratified,
         "target_positive_frac": args.target_positive_frac if args.sample_stratified else None,
         "loaded_files": len(loaded_files),
+        "prompt_variant": args.prompt_variant,
+        "few_shot_k": args.few_shot_k if args.prompt_variant == "dynamic_few_shot" else 0,
+        "validation_files_loaded": len(loaded_validation_files),
+        "validation_examples_by_task": {task: len(validation_index.get(task, [])) for task in args.tasks},
         "missing_files": missing_files,
         "model_prior_rows": len(model_prior_rows),
         "model_prior_hits": model_prior_hits,
