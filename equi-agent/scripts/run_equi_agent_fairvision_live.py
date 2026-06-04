@@ -59,6 +59,9 @@ OUTPUT_FIELDS = [
     "close_call",
     "safety_decision",
     "few_shot_case_ids",
+    "few_shot_positive_rate",
+    "few_shot_recommended_label",
+    "few_shot_recommended_action",
     "primary_model",
     "confidence",
     "calibration_action",
@@ -473,6 +476,79 @@ def retrieve_similar_validation_cases(
     return [case for _, case in candidates[:k]]
 
 
+def build_few_shot_recommendation(
+    similar_validation_cases: list[dict[str, Any]],
+    arbitration: dict[str, Any],
+    thresholds: dict[str, float],
+) -> dict[str, Any]:
+    """Turn nearest validation labels into an auditable local calibration prior.
+
+    This uses validation labels only. It does not inspect the current test label.
+    The recommendation is intentionally generic: if nearest validation cases with
+    similar model-vote/margin patterns are mostly positive, avoid precision-shift
+    undercalling; if they are mostly negative, avoid sensitivity-shift overcalling.
+    """
+    labels = [int(case.get("true_label")) for case in similar_validation_cases if case.get("true_label") in {0, 1}]
+    n = len(labels)
+    current_prob = fnum(arbitration.get("final_prob"), 0.0)
+    current_label = int(fnum(arbitration.get("final_pred"), 0.0) >= 0.5)
+    if n == 0:
+        return {
+            "n": 0,
+            "positive_rate": None,
+            "recommended_label": current_label,
+            "recommended_action": "neutral",
+            "rationale": "no_validation_neighbors",
+        }
+
+    positive_rate = sum(labels) / n
+    if positive_rate >= 0.75:
+        recommended_label = 1
+        recommended_action = "sensitivity_shift" if current_prob < thresholds["neutral"] else "neutral"
+        rationale = "nearest_validation_positive_majority"
+    elif positive_rate <= 0.25:
+        recommended_label = 0
+        recommended_action = "precision_shift" if current_prob >= thresholds["neutral"] else "neutral"
+        rationale = "nearest_validation_negative_majority"
+    else:
+        recommended_label = current_label
+        recommended_action = "neutral"
+        rationale = "nearest_validation_mixed"
+
+    return {
+        "n": n,
+        "positive_rate": round(positive_rate, 3),
+        "recommended_label": recommended_label,
+        "recommended_action": recommended_action,
+        "nearest_case_ids": [case.get("case_id", "") for case in similar_validation_cases],
+        "nearest_labels": labels,
+        "current_weighted_probability": round(current_prob, 6),
+        "current_weighted_prediction": current_label,
+        "rationale": rationale,
+    }
+
+
+def stabilize_dynamic_few_shot_action(
+    parsed_action: str,
+    recommendation: dict[str, Any],
+) -> str:
+    """Prevent dynamic few-shot from turning ambiguous examples into blanket threshold shifts."""
+    n = int(fnum(recommendation.get("n"), 0.0))
+    positive_rate_value = recommendation.get("positive_rate")
+    if n < 2 or positive_rate_value is None:
+        return parsed_action
+    positive_rate = fnum(positive_rate_value, 0.5)
+    recommended_action = normalize_action(recommendation.get("recommended_action"))
+
+    if positive_rate >= 0.75 and parsed_action == "precision_shift":
+        return recommended_action if recommended_action != "precision_shift" else "neutral"
+    if positive_rate <= 0.25 and parsed_action == "sensitivity_shift":
+        return recommended_action if recommended_action != "sensitivity_shift" else "neutral"
+    if 0.25 < positive_rate < 0.75 and parsed_action in {"precision_shift", "sensitivity_shift"}:
+        return "neutral"
+    return parsed_action
+
+
 def resolve_manifest_path(path_value: str, prefix_from: str | None, prefix_to: str | None) -> Path:
     path_text = str(path_value or "")
     path = Path(path_text)
@@ -698,6 +774,10 @@ def build_dynamic_few_shot_messages(
         "which model votes were right or wrong, and how threshold margins related to labels. "
         "The current test label is hidden. Do not copy validation labels blindly; use examples to calibrate trust.\n\n"
         "Use only current-task evidence. Demographics are reliability context only, never direct disease evidence. "
+        "Use evidence_packet.few_shot_recommendation as the primary local calibration prior. Choose precision_shift only "
+        "when nearest validation cases are mostly negative or the recommendation explicitly supports precision_shift. "
+        "Choose sensitivity_shift only when nearest validation cases are mostly positive or the recommendation explicitly "
+        "supports sensitivity_shift. If nearest validation cases are mixed, use neutral and explain uncertainty. "
         "Return exactly one compact valid JSON object. No markdown, no comments, no trailing commas. "
         "Do not reproduce the full evidence packet; summarize only the decisive evidence.\n\n"
         + task_specific_guidance(task)
@@ -1386,6 +1466,7 @@ def main() -> None:
             arbitration = mock_arbitrate(task, rows_by_model, meta, subgroup_priors, global_priors)
             evidence_packet = build_evidence_packet(meta, arbitration)
             similar_validation_cases = []
+            few_shot_recommendation: dict[str, Any] = {}
             if args.prompt_variant == "dynamic_few_shot":
                 similar_validation_cases = retrieve_similar_validation_cases(
                     task,
@@ -1394,7 +1475,13 @@ def main() -> None:
                     threshold_lookup,
                     args.few_shot_k,
                 )
+                few_shot_recommendation = build_few_shot_recommendation(
+                    similar_validation_cases,
+                    arbitration,
+                    thresholds,
+                )
                 evidence_packet["similar_validation_cases"] = similar_validation_cases
+                evidence_packet["few_shot_recommendation"] = few_shot_recommendation
                 evidence_packet["few_shot_protocol"] = {
                     "source_split": "validation",
                     "current_case_label_hidden": True,
@@ -1460,6 +1547,11 @@ def main() -> None:
                     args.max_probability_adjustment,
                 )
                 calibration_action = normalize_action(parsed.get("calibration_action"))
+                if args.prompt_variant == "dynamic_few_shot":
+                    calibration_action = stabilize_dynamic_few_shot_action(
+                        calibration_action,
+                        few_shot_recommendation,
+                    )
                 applied_threshold = threshold_for_action(calibration_action, thresholds)
                 final_pred = normalize_prediction(final_prob, applied_threshold)
                 escalate_to_human, safety_decision = safety_flag_for_case(arbitration, final_prob, applied_threshold)
@@ -1479,6 +1571,9 @@ def main() -> None:
                         "close_call": arbitration["close_call"],
                         "safety_decision": safety_decision,
                         "few_shot_case_ids": ";".join(case.get("case_id", "") for case in similar_validation_cases),
+                        "few_shot_positive_rate": few_shot_recommendation.get("positive_rate", ""),
+                        "few_shot_recommended_label": few_shot_recommendation.get("recommended_label", ""),
+                        "few_shot_recommended_action": few_shot_recommendation.get("recommended_action", ""),
                         "primary_model": parsed.get("primary_model", ""),
                         "confidence": parsed.get("confidence", ""),
                         "calibration_action": calibration_action,
