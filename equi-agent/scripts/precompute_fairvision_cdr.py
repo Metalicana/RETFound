@@ -328,7 +328,13 @@ def unit_to_rgb_array(gray: Any) -> Any:
 
 
 class HfSegformerSegmenter:
-    def __init__(self, model_id: str, device: str, local_files_only: bool = False):
+    def __init__(
+        self,
+        model_id: str,
+        device: str,
+        local_files_only: bool = False,
+        cache_dir: Path | None = None,
+    ):
         try:
             import torch
             from transformers import AutoImageProcessor, SegformerForSemanticSegmentation
@@ -341,8 +347,19 @@ class HfSegformerSegmenter:
         self.torch = torch
         self.model_id = model_id
         self.device = device
-        self.processor = AutoImageProcessor.from_pretrained(model_id, local_files_only=local_files_only)
-        self.model = SegformerForSemanticSegmentation.from_pretrained(model_id, local_files_only=local_files_only)
+        if cache_dir is not None:
+            cache_dir = cache_dir.expanduser().resolve()
+            cache_dir.mkdir(parents=True, exist_ok=True)
+        self.processor = AutoImageProcessor.from_pretrained(
+            model_id,
+            local_files_only=local_files_only,
+            cache_dir=str(cache_dir) if cache_dir else None,
+        )
+        self.model = SegformerForSemanticSegmentation.from_pretrained(
+            model_id,
+            local_files_only=local_files_only,
+            cache_dir=str(cache_dir) if cache_dir else None,
+        )
         self.model.to(device)
         self.model.eval()
         id2label = getattr(self.model.config, "id2label", {}) or {}
@@ -721,6 +738,12 @@ def main() -> None:
     parser.add_argument("--backend", choices=["segformer_hf", "heuristic"], default="segformer_hf")
     parser.add_argument("--model-id", default=DEFAULT_SEGFORMER_MODEL)
     parser.add_argument("--device", default="auto", help="Use auto, cpu, cuda, or mps.")
+    parser.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=Path("~/.cache/huggingface/hub"),
+        help="Explicit Hugging Face cache directory passed to from_pretrained, bypassing broken shell cache env vars.",
+    )
     parser.add_argument("--local-files-only", action="store_true", help="Do not download model files from Hugging Face.")
     parser.add_argument("--path-prefix-from", default="")
     parser.add_argument("--path-prefix-to", default="")
@@ -752,7 +775,12 @@ def main() -> None:
                 device = "cpu"
         else:
             device = args.device
-        segmenter = HfSegformerSegmenter(args.model_id, device=device, local_files_only=args.local_files_only)
+        segmenter = HfSegformerSegmenter(
+            args.model_id,
+            device=device,
+            local_files_only=args.local_files_only,
+            cache_dir=args.cache_dir,
+        )
 
     for task in args.tasks:
         manifest = manifest_file(args.manifests_root, task)
@@ -831,6 +859,7 @@ def main() -> None:
         "backend": args.backend,
         "method": HF_METHOD if args.backend == "segformer_hf" else HEURISTIC_METHOD,
         "segmentation_model_id": args.model_id if args.backend == "segformer_hf" else "",
+        "cache_dir": str(args.cache_dir.expanduser()) if args.backend == "segformer_hf" else "",
         "out_csv": str(args.out_csv),
         "tasks": args.tasks,
         "sensitivity_threshold": args.sensitivity_threshold,
