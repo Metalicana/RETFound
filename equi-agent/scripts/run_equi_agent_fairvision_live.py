@@ -58,6 +58,14 @@ OUTPUT_FIELDS = [
     "disagreement",
     "close_call",
     "safety_decision",
+    "structural_cdr_available",
+    "structural_vcdr",
+    "structural_area_cdr",
+    "structural_cdr_zone",
+    "structural_cdr_confidence",
+    "structural_cdr_quality_score",
+    "structural_cdr_escalate",
+    "structural_cdr_summary",
     "few_shot_case_ids",
     "few_shot_positive_rate",
     "few_shot_recommended_label",
@@ -175,6 +183,18 @@ def parse_args() -> argparse.Namespace:
         help="Attach OCT and SLO/Fundus images from FairVision NPZ files to the live vision-specialist prompt.",
     )
     parser.add_argument(
+        "--include-structural-cdr",
+        action="store_true",
+        default=os.getenv("INCLUDE_STRUCTURAL_CDR", "0").strip().lower() in {"1", "true", "yes", "y", "on"},
+        help="Attach precomputed zero-shot CDR structural evidence to glaucoma arbitration packets.",
+    )
+    parser.add_argument(
+        "--structural-cdr-csv",
+        type=Path,
+        default=Path(os.getenv("STRUCTURAL_CDR_CSV", "equi-agent/outputs/structural/fairvision_cdr_zero_shot.csv")),
+        help="CSV produced by precompute_fairvision_cdr.py.",
+    )
+    parser.add_argument(
         "--path-prefix-from",
         default=os.getenv("FAIRVISION_PATH_PREFIX_FROM", "/home/ab575577/RETFound"),
         help="Optional stale prefix in manifest image_path values to replace before loading NPZ files.",
@@ -279,6 +299,83 @@ def load_manifests(manifests_root: Path, tasks: list[str]) -> tuple[dict[tuple[s
             by_image_task[(row.get("image_id", ""), task)] = row
         loaded.append({"task": task, "path": str(path), "rows": len(rows), "missing": False})
     return by_image_task, loaded
+
+
+def load_structural_cdr(path: Path) -> tuple[dict[tuple[str, str], dict[str, str]], dict[str, Any]]:
+    if not path.exists():
+        raise FileNotFoundError(f"Structural CDR CSV not found: {path}")
+    rows = read_csv(path)
+    lookup: dict[tuple[str, str], dict[str, str]] = {}
+    available = 0
+    for row in rows:
+        image_id = row.get("image_id", "")
+        task = row.get("task", "")
+        if not image_id:
+            continue
+        lookup[(image_id, task)] = row
+        if str(row.get("cdr_available", "")).strip().lower() in {"1", "true", "yes", "y"}:
+            available += 1
+    return lookup, {"path": str(path), "rows": len(rows), "available": available}
+
+
+def boolish(value: object) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def structural_cdr_packet(row: dict[str, str] | None) -> dict[str, Any]:
+    if row is None:
+        return {
+            "available": False,
+            "source": "precomputed_zero_shot_slo_cdr",
+            "reason": "no_precomputed_cdr_row_for_case",
+        }
+    available = boolish(row.get("cdr_available"))
+    packet = {
+        "available": available,
+        "source": "precomputed_zero_shot_slo_cdr",
+        "method": row.get("method", ""),
+        "measurement_source": "SLO/Fundus image; no MD or visual-field evidence used",
+        "vertical_cup_to_disc_ratio": fnum(row.get("vertical_cup_to_disc_ratio"), -1.0) if row.get("vertical_cup_to_disc_ratio") else None,
+        "cup_to_disc_area_ratio": fnum(row.get("cup_to_disc_area_ratio"), -1.0) if row.get("cup_to_disc_area_ratio") else None,
+        "cdr_zone": row.get("cdr_zone", ""),
+        "measurement_confidence": row.get("measurement_confidence", ""),
+        "segmentation_quality_score": fnum(row.get("segmentation_quality_score"), 0.0),
+        "structural_escalate_to_human": boolish(row.get("structural_escalate_to_human")),
+        "quality_reasons": row.get("quality_reasons", ""),
+        "summary": row.get("structural_agent_summary", ""),
+        "threshold_interpretation": {
+            "vCDR < 0.55": "weak_or_negative structural evidence",
+            "0.55 <= vCDR < 0.62": "borderline structural evidence; escalate",
+            "vCDR >= 0.62": "strong structural evidence",
+        },
+    }
+    if not available:
+        packet["instruction"] = "Do not use this CDR estimate as decisive disease evidence; treat it as unavailable or low quality."
+    return packet
+
+
+def structural_cdr_output_fields(row: dict[str, str] | None) -> dict[str, Any]:
+    if row is None:
+        return {
+            "structural_cdr_available": "",
+            "structural_vcdr": "",
+            "structural_area_cdr": "",
+            "structural_cdr_zone": "",
+            "structural_cdr_confidence": "",
+            "structural_cdr_quality_score": "",
+            "structural_cdr_escalate": "",
+            "structural_cdr_summary": "",
+        }
+    return {
+        "structural_cdr_available": row.get("cdr_available", ""),
+        "structural_vcdr": row.get("vertical_cup_to_disc_ratio", ""),
+        "structural_area_cdr": row.get("cup_to_disc_area_ratio", ""),
+        "structural_cdr_zone": row.get("cdr_zone", ""),
+        "structural_cdr_confidence": row.get("measurement_confidence", ""),
+        "structural_cdr_quality_score": row.get("segmentation_quality_score", ""),
+        "structural_cdr_escalate": row.get("structural_escalate_to_human", ""),
+        "structural_cdr_summary": row.get("structural_agent_summary", ""),
+    }
 
 
 def prediction_key_for(row: dict[str, str]) -> tuple[str, str, str, str, str]:
@@ -755,6 +852,10 @@ def task_specific_guidance(task: str) -> str:
             "Disease evidence should come from model outputs and, when attached, optic nerve/RNFL-compatible morphology such "
             "as increased cupping, rim thinning, RNFL loss, or compatible OCT evidence. If functional visual-field evidence "
             "is unavailable, say unavailable rather than inventing it. Do not use AMD or DR votes as glaucoma evidence. "
+            "If evidence_packet.structural_glaucoma_evidence is present, treat it as an image-derived SLO cup/disc "
+            "measurement side-channel, not MD or visual-field evidence. Use it only when available and quality is adequate: "
+            "vCDR >= 0.62 is strong structural support, 0.55-0.62 is borderline and should trigger escalation, and vCDR < "
+            "0.55 is weak/negative structural support. If CDR is unavailable or low quality, say so and do not invent a value. "
             "Do not call glaucoma positive from vote count alone when sources have high false-positive priors or weak balanced "
             "accuracy. Use precision_shift for weak or discordant positive glaucoma evidence, and reserve sensitivity_shift "
             "for borderline negative cases with at least two credible low-FP sources or attached morphology support. If only "
@@ -900,7 +1001,8 @@ def build_live_messages(
                     "If OCT/SLO images are attached, independently inspect the retinal morphology first, then compare "
                     "against raw probabilities, validation-threshold binary predictions, modality patterns, and vote "
                     "disagreement for the current task only. If no images are attached, state that the visual review is "
-                    "probability-only. Do not write a per-model table here; the per-model FP/FN audit belongs only in "
+                    "probability-only. If structural_glaucoma_evidence is supplied, summarize its vCDR zone and quality "
+                    "separately from free-form visual inspection. Do not write a per-model table here; the per-model FP/FN audit belongs only in "
                     "equity_agent.model_reliability_table."
                 ),
                 "equity_agent": (
@@ -917,10 +1019,10 @@ def build_live_messages(
                     "each row compact; reason should be at most 8 words."
                 ),
                 "orchestrator": (
-                    "Act as the Lead Ophthalmic Orchestrator. Combine the Vision Agent's morphology review, model outputs, "
-                    "and the Equity Agent's FN/FP threshold recommendation. Anchor final_probability on "
+                    "Act as the Lead Ophthalmic Orchestrator. Combine the Vision Agent's morphology review, optional "
+                    "structural CDR evidence, model outputs, and the Equity Agent's FN/FP threshold recommendation. Anchor final_probability on "
                     "deterministic_reference.weighted_probability, but adjust by at most 0.10 when visual morphology, "
-                    "the Equity Agent's primary_model recommendation, or validated source disagreement strongly justify it. "
+                    "adequate structural CDR evidence, the Equity Agent's primary_model recommendation, or validated source disagreement strongly justify it. "
                     f"Choose calibration_action first, then apply its threshold: sensitivity_shift uses "
                     f"{thresholds['sensitivity_shift']:.2f}, neutral/escalate uses {thresholds['neutral']:.2f}, "
                     f"and precision_shift uses {thresholds['precision_shift']:.2f}. final_prediction must be based on "
@@ -1437,6 +1539,10 @@ def main() -> None:
     loaded_manifests: list[dict[str, Any]] = []
     if args.include_image_tokens:
         manifest_lookup, loaded_manifests = load_manifests(args.manifests_root, args.tasks)
+    structural_cdr_lookup: dict[tuple[str, str], dict[str, str]] = {}
+    structural_cdr_loaded: dict[str, Any] = {}
+    if args.include_structural_cdr:
+        structural_cdr_lookup, structural_cdr_loaded = load_structural_cdr(args.structural_cdr_csv)
 
     provider = "dry_run"
     client = None
@@ -1475,6 +1581,17 @@ def main() -> None:
             meta = case_metadata(rows_by_model)
             arbitration = mock_arbitrate(task, rows_by_model, meta, subgroup_priors, global_priors)
             evidence_packet = build_evidence_packet(meta, arbitration)
+            structural_cdr_row = None
+            if args.include_structural_cdr and task == "glaucoma":
+                image_id = str(meta.get("image_id", ""))
+                structural_cdr_row = structural_cdr_lookup.get((image_id, task)) or structural_cdr_lookup.get((image_id, ""))
+                evidence_packet["structural_glaucoma_evidence"] = structural_cdr_packet(structural_cdr_row)
+                evidence_packet["structural_glaucoma_protocol"] = {
+                    "source": "precomputed zero-shot CDR from SLO/Fundus image",
+                    "md_or_visual_field_used": False,
+                    "current_case_label_hidden": True,
+                    "instruction": "Use as structural image evidence only when available and quality is adequate.",
+                }
             similar_validation_cases = []
             few_shot_recommendation: dict[str, Any] = {}
             if args.prompt_variant == "dynamic_few_shot":
@@ -1585,6 +1702,7 @@ def main() -> None:
                         "disagreement": arbitration["disagreement"],
                         "close_call": arbitration["close_call"],
                         "safety_decision": safety_decision,
+                        **structural_cdr_output_fields(structural_cdr_row),
                         "few_shot_case_ids": ";".join(case.get("case_id", "") for case in similar_validation_cases),
                         "few_shot_positive_rate": few_shot_recommendation.get("positive_rate", ""),
                         "few_shot_recommended_label": few_shot_recommendation.get("recommended_label", ""),
@@ -1703,6 +1821,8 @@ def main() -> None:
         write_jsonl(args.out_dir / "equi_agent_live_loaded_validation_files.jsonl", loaded_validation_files)
     if loaded_manifests:
         write_jsonl(args.out_dir / "equi_agent_live_loaded_manifests.jsonl", loaded_manifests)
+    if structural_cdr_loaded:
+        write_jsonl(args.out_dir / "equi_agent_live_structural_cdr_source.jsonl", [structural_cdr_loaded])
     write_jsonl(args.out_dir / "equi_agent_live_missing_files.jsonl", missing_files)
 
     model_prior_rows = [
@@ -1727,6 +1847,8 @@ def main() -> None:
         "few_shot_k": args.few_shot_k if args.prompt_variant == "dynamic_few_shot" else 0,
         "validation_files_loaded": len(loaded_validation_files),
         "validation_examples_by_task": {task: len(validation_index.get(task, [])) for task in args.tasks},
+        "structural_cdr_enabled": args.include_structural_cdr,
+        "structural_cdr_source": structural_cdr_loaded,
         "missing_files": missing_files,
         "model_prior_rows": len(model_prior_rows),
         "model_prior_hits": model_prior_hits,

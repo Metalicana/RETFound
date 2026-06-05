@@ -28,6 +28,8 @@ PROMPT_VARIANT="${PROMPT_VARIANT:-${EQUI_AGENT_PROMPT_VARIANT:-current}}"
 FEW_SHOT_K="${FEW_SHOT_K:-3}"
 FEW_SHOT_ACTION_MODE="${FEW_SHOT_ACTION_MODE:-stabilized}"
 INCLUDE_IMAGE_TOKENS="${INCLUDE_IMAGE_TOKENS:-0}"
+INCLUDE_STRUCTURAL_CDR="${INCLUDE_STRUCTURAL_CDR:-0}"
+STRUCTURAL_CDR_CSV="${STRUCTURAL_CDR_CSV:-equi-agent/outputs/structural/fairvision_cdr_zero_shot.csv}"
 MANIFESTS_ROOT="${MANIFESTS_ROOT:-equi-agent/outputs/manifests}"
 MAX_IMAGE_SIDE="${MAX_IMAGE_SIDE:-768}"
 SENSITIVITY_THRESHOLD="${SENSITIVITY_THRESHOLD:-0.35}"
@@ -81,6 +83,13 @@ fi
 
 if [[ "${INCLUDE_IMAGE_TOKENS}" == "1" ]]; then
   COMMON_ARGS+=(--include-image-tokens)
+fi
+
+if [[ "${INCLUDE_STRUCTURAL_CDR}" == "1" ]]; then
+  COMMON_ARGS+=(
+    --include-structural-cdr
+    --structural-cdr-csv "${STRUCTURAL_CDR_CSV}"
+  )
 fi
 
 python equi-agent/scripts/run_equi_agent_fairvision_live.py "${COMMON_ARGS[@]}"
