@@ -9,7 +9,9 @@ from typing import Any
 
 
 TASKS = ["glaucoma"]
-METHOD = "zero_shot_brightness_structural_cdr_v1"
+DEFAULT_SEGFORMER_MODEL = "pamixsun/segformer_for_optic_disc_cup_segmentation"
+HF_METHOD = "segformer_refuge_disc_cup_v1"
+HEURISTIC_METHOD = "zero_shot_brightness_structural_cdr_v1"
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:
@@ -114,6 +116,123 @@ def vertical_extent(mask: Any) -> int:
     return int(rows.max() - rows.min() + 1)
 
 
+def largest_component(mask: Any) -> Any:
+    import numpy as np
+    from scipy import ndimage
+
+    labels, count = ndimage.label(mask.astype(bool))
+    if count == 0:
+        return mask.astype(bool)
+    sizes = np.bincount(labels.ravel())
+    sizes[0] = 0
+    return labels == int(sizes.argmax())
+
+
+def mask_touches_border(mask: Any, margin: int = 2) -> bool:
+    import numpy as np
+
+    rows, cols = np.where(mask)
+    if rows.size == 0:
+        return False
+    height, width = mask.shape
+    return (
+        int(rows.min()) <= margin
+        or int(cols.min()) <= margin
+        or int(rows.max()) >= height - margin - 1
+        or int(cols.max()) >= width - margin - 1
+    )
+
+
+def result_from_masks(
+    disc_mask: Any,
+    cup_mask: Any,
+    gray: Any,
+    sensitivity_threshold: float,
+    precision_threshold: float,
+    min_quality: float,
+    method: str,
+    backend: str,
+    model_id: str,
+    reasons: list[str],
+) -> dict[str, Any]:
+    import numpy as np
+
+    disc_mask = largest_component(disc_mask.astype(bool))
+    cup_mask = largest_component(cup_mask.astype(bool) & disc_mask)
+    total_area = float(gray.size)
+    disc_area = int(disc_mask.sum())
+    cup_area = int(cup_mask.sum())
+
+    if disc_area == 0:
+        reasons.append("disc_mask_empty")
+        return unavailable_result(reasons, min_quality, method=method, backend=backend, model_id=model_id)
+
+    disc_vertical = vertical_extent(disc_mask)
+    cup_vertical = vertical_extent(cup_mask)
+    vcdr = cup_vertical / disc_vertical if disc_vertical else None
+    area_cdr = cup_area / disc_area if disc_area else None
+    disc_area_frac = disc_area / total_area
+    cup_area_frac = cup_area / total_area
+    touches_border = mask_touches_border(disc_mask)
+    plausible_disc = 0.002 <= disc_area_frac <= 0.30
+    plausible_cup = cup_area == 0 or (0.0 < area_cdr <= 0.95)
+    plausible_vcdr = vcdr is not None and 0.05 <= vcdr <= 0.98
+
+    ys, xs = np.where(disc_mask)
+    disc_center_y = float(ys.mean()) if ys.size else None
+    disc_center_x = float(xs.mean()) if xs.size else None
+
+    quality = 0.0
+    quality += 0.20
+    quality += 0.25 if plausible_disc else 0.0
+    quality += 0.20 if cup_area > 0 else 0.0
+    quality += 0.15 if plausible_cup else 0.0
+    quality += 0.15 if plausible_vcdr else 0.0
+    quality += 0.05 if not touches_border else 0.0
+    quality = round(min(1.0, quality), 4)
+
+    if not plausible_disc:
+        reasons.append("implausible_disc_area")
+    if cup_area == 0:
+        reasons.append("cup_mask_empty")
+    if not plausible_cup:
+        reasons.append("implausible_cup_area")
+    if touches_border:
+        reasons.append("disc_mask_touches_image_border")
+    if quality < min_quality:
+        reasons.append("low_segmentation_quality")
+
+    zone = cdr_zone(vcdr, sensitivity_threshold, precision_threshold)
+    confidence = measurement_confidence(quality, zone)
+    return {
+        "cdr_available": int(vcdr is not None and quality >= min_quality),
+        "backend": backend,
+        "method": method,
+        "segmentation_model_id": model_id,
+        "vertical_cup_to_disc_ratio": round(vcdr, 6) if vcdr is not None else "",
+        "cup_to_disc_area_ratio": round(area_cdr, 6) if area_cdr is not None else "",
+        "disc_area_px": disc_area,
+        "cup_area_px": cup_area,
+        "disc_vertical_px": disc_vertical,
+        "cup_vertical_px": cup_vertical,
+        "disc_area_frac": round(disc_area_frac, 6),
+        "cup_area_frac": round(cup_area_frac, 6),
+        "disc_center_y": round(disc_center_y, 3) if disc_center_y is not None else "",
+        "disc_center_x": round(disc_center_x, 3) if disc_center_x is not None else "",
+        "disc_percentile_used": "",
+        "cup_percentile_used": "",
+        "segmentation_quality_score": quality,
+        "measurement_confidence": confidence,
+        "cdr_zone": zone,
+        "structural_escalate_to_human": int(zone == "borderline" or quality < min_quality),
+        "structural_agent_summary": structural_summary(vcdr, zone, quality, min_quality),
+        "quality_reasons": ";".join(reasons),
+        "_debug_gray": gray,
+        "_debug_disc_mask": disc_mask,
+        "_debug_cup_mask": cup_mask,
+    }
+
+
 def mask_bbox_touches_border(region: Any, shape: tuple[int, int], margin: int = 2) -> bool:
     min_row, min_col, max_row, max_col = region
     height, width = shape
@@ -201,7 +320,88 @@ def percentile_candidates(base: float) -> list[float]:
     return [min(95.0, max(35.0, value)) for value in values]
 
 
-def estimate_cdr(
+def unit_to_rgb_array(gray: Any) -> Any:
+    import numpy as np
+
+    image = (np.clip(gray, 0.0, 1.0) * 255).astype("uint8")
+    return np.stack([image, image, image], axis=-1)
+
+
+class HfSegformerSegmenter:
+    def __init__(self, model_id: str, device: str, local_files_only: bool = False):
+        try:
+            import torch
+            from transformers import AutoImageProcessor, SegformerForSemanticSegmentation
+        except ImportError as exc:
+            raise RuntimeError(
+                "Transformers segmentation backend requires torch and transformers. "
+                "Install project requirements or run with --backend heuristic for a non-model smoke test."
+            ) from exc
+
+        self.torch = torch
+        self.model_id = model_id
+        self.device = device
+        self.processor = AutoImageProcessor.from_pretrained(model_id, local_files_only=local_files_only)
+        self.model = SegformerForSemanticSegmentation.from_pretrained(model_id, local_files_only=local_files_only)
+        self.model.to(device)
+        self.model.eval()
+        id2label = getattr(self.model.config, "id2label", {}) or {}
+        id2label = {int(key): str(value).lower() for key, value in id2label.items()}
+        self.disc_label_ids = [label_id for label_id, label in id2label.items() if "disc" in label]
+        self.cup_label_ids = [label_id for label_id, label in id2label.items() if "cup" in label]
+        if not self.disc_label_ids or not self.cup_label_ids:
+            # Model config at the time of writing: 0 Background, 1 Optic disc, 2 Optic cup.
+            self.disc_label_ids = self.disc_label_ids or [1]
+            self.cup_label_ids = self.cup_label_ids or [2]
+
+    def predict_masks(self, image_array: Any) -> tuple[Any, Any, Any]:
+        import numpy as np
+        from torch import nn
+
+        gray = normalize_to_unit(image_array)
+        rgb = unit_to_rgb_array(gray)
+        inputs = self.processor(images=rgb, return_tensors="pt")
+        inputs = {key: value.to(self.device) for key, value in inputs.items()}
+        with self.torch.no_grad():
+            outputs = self.model(**inputs)
+        logits = outputs.logits.detach().cpu()
+        upsampled_logits = nn.functional.interpolate(
+            logits,
+            size=gray.shape,
+            mode="bilinear",
+            align_corners=False,
+        )
+        pred = upsampled_logits.argmax(dim=1)[0].numpy().astype("uint8")
+        cup_mask = np.isin(pred, self.cup_label_ids)
+        # If cup is a separate class, the anatomical disc denominator includes cup plus rim.
+        disc_mask = np.isin(pred, self.disc_label_ids) | cup_mask
+        return gray, disc_mask, cup_mask
+
+
+def estimate_cdr_hf_segformer(
+    image_array: Any,
+    segmenter: HfSegformerSegmenter,
+    sensitivity_threshold: float,
+    precision_threshold: float,
+    min_quality: float,
+) -> dict[str, Any]:
+    gray, disc_mask, cup_mask = segmenter.predict_masks(image_array)
+    reasons = [f"hf_model:{segmenter.model_id}", "disc_mask=optic_disc_or_cup", "cup_mask=optic_cup"]
+    return result_from_masks(
+        disc_mask,
+        cup_mask,
+        gray,
+        sensitivity_threshold=sensitivity_threshold,
+        precision_threshold=precision_threshold,
+        min_quality=min_quality,
+        method=HF_METHOD,
+        backend="segformer_hf",
+        model_id=segmenter.model_id,
+        reasons=reasons,
+    )
+
+
+def estimate_cdr_heuristic(
     image_array: Any,
     sensitivity_threshold: float,
     precision_threshold: float,
@@ -249,12 +449,12 @@ def estimate_cdr(
             break
     if disc_mask_local is None:
         reasons.append("disc_component_not_found")
-        return unavailable_result(reasons, min_quality)
+        return unavailable_result(reasons, min_quality, method=HEURISTIC_METHOD, backend="heuristic", model_id="")
 
     disc_pixels = roi[disc_mask_local]
     if disc_pixels.size == 0:
         reasons.append("disc_pixels_empty")
-        return unavailable_result(reasons, min_quality)
+        return unavailable_result(reasons, min_quality, method=HEURISTIC_METHOD, backend="heuristic", model_id="")
 
     cup_mask_local = None
     cup_percentile_used = None
@@ -313,7 +513,9 @@ def estimate_cdr(
     confidence = measurement_confidence(quality, zone)
     return {
         "cdr_available": int(vcdr is not None and quality >= min_quality),
-        "method": METHOD,
+        "backend": "heuristic",
+        "method": HEURISTIC_METHOD,
+        "segmentation_model_id": "",
         "vertical_cup_to_disc_ratio": round(vcdr, 6) if vcdr is not None else "",
         "cup_to_disc_area_ratio": round(area_cdr, 6) if area_cdr is not None else "",
         "disc_area_px": disc_area,
@@ -347,10 +549,18 @@ def paste_local_mask(local_mask: Any, shape: tuple[int, int], y0: int, x0: int) 
     return out
 
 
-def unavailable_result(reasons: list[str], min_quality: float) -> dict[str, Any]:
+def unavailable_result(
+    reasons: list[str],
+    min_quality: float,
+    method: str,
+    backend: str,
+    model_id: str,
+) -> dict[str, Any]:
     return {
         "cdr_available": 0,
-        "method": METHOD,
+        "backend": backend,
+        "method": method,
+        "segmentation_model_id": model_id,
         "vertical_cup_to_disc_ratio": "",
         "cup_to_disc_area_ratio": "",
         "disc_area_px": "",
@@ -445,7 +655,9 @@ def output_fieldnames() -> list[str]:
         "image_path",
         "fundus_key",
         "cdr_available",
+        "backend",
         "method",
+        "segmentation_model_id",
         "vertical_cup_to_disc_ratio",
         "cup_to_disc_area_ratio",
         "disc_area_px",
@@ -497,14 +709,19 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Precompute zero-training optic cup/disc ratio estimates from FairVision SLO/fundus images. "
-            "This is a structural evidence side-channel for glaucoma arbitration; it does not use MD or labels."
+            "Precompute optic cup/disc ratio estimates from FairVision SLO/fundus images using a model-backed "
+            "SegFormer backend by default. This is a structural evidence side-channel for glaucoma arbitration; "
+            "it does not use MD, visual fields, or labels."
         )
     )
     parser.add_argument("--manifests-root", type=Path, default=Path("equi-agent/outputs/manifests"))
     parser.add_argument("--tasks", nargs="+", default=TASKS)
-    parser.add_argument("--out-csv", type=Path, default=Path("equi-agent/outputs/structural/fairvision_cdr_zero_shot.csv"))
+    parser.add_argument("--out-csv", type=Path, default=Path("equi-agent/outputs/structural/fairvision_cdr_segformer.csv"))
     parser.add_argument("--out-summary", type=Path, default=None)
+    parser.add_argument("--backend", choices=["segformer_hf", "heuristic"], default="segformer_hf")
+    parser.add_argument("--model-id", default=DEFAULT_SEGFORMER_MODEL)
+    parser.add_argument("--device", default="auto", help="Use auto, cpu, cuda, or mps.")
+    parser.add_argument("--local-files-only", action="store_true", help="Do not download model files from Hugging Face.")
     parser.add_argument("--path-prefix-from", default="")
     parser.add_argument("--path-prefix-to", default="")
     parser.add_argument("--fundus-key", default="", help="Override manifest fundus_key; default uses row value or slo_fundus.")
@@ -522,6 +739,21 @@ def main() -> None:
 
     rows_out: list[dict[str, Any]] = []
     debug_written = 0
+    segmenter = None
+    if args.backend == "segformer_hf":
+        import torch
+
+        if args.device == "auto":
+            if torch.cuda.is_available():
+                device = "cuda"
+            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                device = "mps"
+            else:
+                device = "cpu"
+        else:
+            device = args.device
+        segmenter = HfSegformerSegmenter(args.model_id, device=device, local_files_only=args.local_files_only)
+
     for task in args.tasks:
         manifest = manifest_file(args.manifests_root, task)
         if not manifest.exists():
@@ -547,16 +779,28 @@ def main() -> None:
             try:
                 if not npz_path.exists():
                     raise FileNotFoundError(str(npz_path))
-                estimate = estimate_cdr(
-                    load_slo_array(npz_path, key),
-                    sensitivity_threshold=args.sensitivity_threshold,
-                    precision_threshold=args.precision_threshold,
-                    seed_percentile=args.seed_percentile,
-                    disc_percentile=args.disc_percentile,
-                    cup_percentile=args.cup_percentile,
-                    roi_radius_frac=args.roi_radius_frac,
-                    min_quality=args.min_quality,
-                )
+                image_array = load_slo_array(npz_path, key)
+                if args.backend == "segformer_hf":
+                    if segmenter is None:
+                        raise RuntimeError("SegFormer backend was not initialized")
+                    estimate = estimate_cdr_hf_segformer(
+                        image_array,
+                        segmenter,
+                        sensitivity_threshold=args.sensitivity_threshold,
+                        precision_threshold=args.precision_threshold,
+                        min_quality=args.min_quality,
+                    )
+                else:
+                    estimate = estimate_cdr_heuristic(
+                        image_array,
+                        sensitivity_threshold=args.sensitivity_threshold,
+                        precision_threshold=args.precision_threshold,
+                        seed_percentile=args.seed_percentile,
+                        disc_percentile=args.disc_percentile,
+                        cup_percentile=args.cup_percentile,
+                        roi_radius_frac=args.roi_radius_frac,
+                        min_quality=args.min_quality,
+                    )
                 if args.debug_dir and args.debug_limit > debug_written:
                     save_debug_overlay(
                         args.debug_dir / f"{task}_{row.get('image_id', '')}.png",
@@ -570,7 +814,13 @@ def main() -> None:
                 rows_out.append(
                     {
                         **base,
-                        **unavailable_result([f"error:{type(exc).__name__}"], args.min_quality),
+                        **unavailable_result(
+                            [f"error:{type(exc).__name__}"],
+                            args.min_quality,
+                            method=HF_METHOD if args.backend == "segformer_hf" else HEURISTIC_METHOD,
+                            backend=args.backend,
+                            model_id=args.model_id if args.backend == "segformer_hf" else "",
+                        ),
                         "error": str(exc),
                     }
                 )
@@ -578,7 +828,9 @@ def main() -> None:
     fieldnames = output_fieldnames()
     write_csv(args.out_csv, rows_out, fieldnames)
     summary = {
-        "method": METHOD,
+        "backend": args.backend,
+        "method": HF_METHOD if args.backend == "segformer_hf" else HEURISTIC_METHOD,
+        "segmentation_model_id": args.model_id if args.backend == "segformer_hf" else "",
         "out_csv": str(args.out_csv),
         "tasks": args.tasks,
         "sensitivity_threshold": args.sensitivity_threshold,

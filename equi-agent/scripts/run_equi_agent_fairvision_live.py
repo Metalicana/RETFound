@@ -59,6 +59,8 @@ OUTPUT_FIELDS = [
     "close_call",
     "safety_decision",
     "structural_cdr_available",
+    "structural_cdr_backend",
+    "structural_cdr_model",
     "structural_vcdr",
     "structural_area_cdr",
     "structural_cdr_zone",
@@ -191,7 +193,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--structural-cdr-csv",
         type=Path,
-        default=Path(os.getenv("STRUCTURAL_CDR_CSV", "equi-agent/outputs/structural/fairvision_cdr_zero_shot.csv")),
+        default=Path(os.getenv("STRUCTURAL_CDR_CSV", "equi-agent/outputs/structural/fairvision_cdr_segformer.csv")),
         help="CSV produced by precompute_fairvision_cdr.py.",
     )
     parser.add_argument(
@@ -326,14 +328,16 @@ def structural_cdr_packet(row: dict[str, str] | None) -> dict[str, Any]:
     if row is None:
         return {
             "available": False,
-            "source": "precomputed_zero_shot_slo_cdr",
+            "source": "precomputed_slo_cdr",
             "reason": "no_precomputed_cdr_row_for_case",
         }
     available = boolish(row.get("cdr_available"))
     packet = {
         "available": available,
-        "source": "precomputed_zero_shot_slo_cdr",
+        "source": "precomputed_slo_cdr",
         "method": row.get("method", ""),
+        "backend": row.get("backend", ""),
+        "segmentation_model_id": row.get("segmentation_model_id", ""),
         "measurement_source": "SLO/Fundus image; no MD or visual-field evidence used",
         "vertical_cup_to_disc_ratio": fnum(row.get("vertical_cup_to_disc_ratio"), -1.0) if row.get("vertical_cup_to_disc_ratio") else None,
         "cup_to_disc_area_ratio": fnum(row.get("cup_to_disc_area_ratio"), -1.0) if row.get("cup_to_disc_area_ratio") else None,
@@ -358,6 +362,8 @@ def structural_cdr_output_fields(row: dict[str, str] | None) -> dict[str, Any]:
     if row is None:
         return {
             "structural_cdr_available": "",
+            "structural_cdr_backend": "",
+            "structural_cdr_model": "",
             "structural_vcdr": "",
             "structural_area_cdr": "",
             "structural_cdr_zone": "",
@@ -368,6 +374,8 @@ def structural_cdr_output_fields(row: dict[str, str] | None) -> dict[str, Any]:
         }
     return {
         "structural_cdr_available": row.get("cdr_available", ""),
+        "structural_cdr_backend": row.get("backend", ""),
+        "structural_cdr_model": row.get("segmentation_model_id", ""),
         "structural_vcdr": row.get("vertical_cup_to_disc_ratio", ""),
         "structural_area_cdr": row.get("cup_to_disc_area_ratio", ""),
         "structural_cdr_zone": row.get("cdr_zone", ""),

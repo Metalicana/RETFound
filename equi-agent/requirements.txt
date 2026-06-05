@@ -12,4 +12,6 @@ torch
 torchvision
 timm
 scikit-image
+transformers
+safetensors
 einops
