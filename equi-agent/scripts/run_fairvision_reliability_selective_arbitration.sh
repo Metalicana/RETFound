@@ -16,6 +16,7 @@ CLOSE_CALL_MARGIN="${CLOSE_CALL_MARGIN:-0.08}"
 DISAGREEMENT_RATE_THRESHOLD="${DISAGREEMENT_RATE_THRESHOLD:-0.25}"
 LOW_RELIABILITY_THRESHOLD="${LOW_RELIABILITY_THRESHOLD:-0.35}"
 RUN_COUNTERFACTUALS="${RUN_COUNTERFACTUALS:-0}"
+RUN_REPORT="${RUN_REPORT:-1}"
 
 ARGS=(
   --predictions-root "${PREDICTIONS_ROOT}"
@@ -38,6 +39,11 @@ if [[ "${RUN_COUNTERFACTUALS}" == "1" ]]; then
 fi
 
 python equi-agent/scripts/run_fairvision_reliability_selective_arbitration.py "${ARGS[@]}"
+
+if [[ "${RUN_REPORT}" == "1" ]]; then
+  python equi-agent/scripts/summarize_fairvision_reliability_selective_arbitration.py \
+    --out-dir "${OUT_DIR}"
+fi
 
 echo "Reliability-conditioned selective arbitration complete."
 echo "Predictions: ${OUT_DIR}/selective_arbitration_predictions.csv"
