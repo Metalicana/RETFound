@@ -761,7 +761,7 @@ def summarize_method(df: pd.DataFrame, method: str, args: argparse.Namespace) ->
     return rows
 
 
-def risk_coverage_curve(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
+def risk_coverage_curve(df: pd.DataFrame, args: argparse.Namespace, task_label: str) -> pd.DataFrame:
     rows = []
     ranked = df.sort_values("risk_score", ascending=True).reset_index(drop=True)
     n = len(ranked)
@@ -772,6 +772,7 @@ def risk_coverage_curve(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFr
         metrics = metric_block(accepted)
         rows.append(
             {
+                "task": task_label,
                 "coverage": safe_div(keep_n, n),
                 "escalation_rate": 1.0 - safe_div(keep_n, n),
                 **metrics,
@@ -889,7 +890,10 @@ def main() -> None:
     pd.concat([global_weights, shrunk_weights], ignore_index=True).to_csv(args.out_dir / "selective_arbitration_model_weights.csv", index=False)
     pd.DataFrame(metrics_rows).to_csv(args.out_dir / "selective_arbitration_ablation_metrics.csv", index=False)
     pd.DataFrame(base_metrics).to_csv(args.out_dir / "base_model_metrics_on_common_cases.csv", index=False)
-    risk_coverage_curve(full, args).to_csv(args.out_dir / "risk_coverage_curve.csv", index=False)
+    risk_frames = [risk_coverage_curve(full, args, "overall")]
+    for task_name, task_df in full.groupby("task", dropna=False):
+        risk_frames.append(risk_coverage_curve(task_df, args, str(task_name)))
+    pd.concat(risk_frames, ignore_index=True).to_csv(args.out_dir / "risk_coverage_curve.csv", index=False)
     conformal_df.to_csv(args.out_dir / "conformal_thresholds.csv", index=False)
 
     counterfactual_summary: dict[str, Any] = {"run": False}

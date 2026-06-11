@@ -35,6 +35,7 @@ ABLATION_COLUMNS = [
     "worst_group_accepted_f1",
 ]
 RISK_COLUMNS = [
+    "task",
     "coverage",
     "escalation_rate",
     "f1",
@@ -129,7 +130,16 @@ def main() -> None:
     print_table(f"Ablation Metrics ({args.task})", ablation_rows, ABLATION_COLUMNS)
 
     if risk_path.exists():
-        risk_rows = read_csv(risk_path)[: args.top_risk_rows]
+        all_risk_rows = read_csv(risk_path)
+        if all_risk_rows and "task" in all_risk_rows[0]:
+            risk_rows = [
+                row
+                for row in all_risk_rows
+                if str(row.get("task", "")).lower() == args.task.lower()
+            ]
+        else:
+            risk_rows = all_risk_rows
+        risk_rows = risk_rows[: args.top_risk_rows]
         print_table("Risk-Coverage Curve", risk_rows, RISK_COLUMNS)
 
 
