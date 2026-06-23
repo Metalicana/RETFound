@@ -32,6 +32,10 @@ ATTRIBUTES = [
 ]
 COUNTERFACTUAL_ATTRIBUTES = ["race", "ethnicity", "sex_gender", "age_group"]
 RELIABILITY_FIELDS = ["auroc", "f1", "ece", "fnr", "fpr"]
+RELIABILITY_SCORE_FORMULA = (
+    "weight_auroc*auroc + weight_f1*f1 - weight_ece*ece "
+    "- weight_fnr*fnr - weight_fpr*fpr"
+)
 MODEL_ALIASES = {
     "retfound_oct": ["fairvision_oct_retfound"],
     "mirage_slo": ["fairvision_slo_mirage"],
@@ -135,6 +139,14 @@ def finite(value: Any, default: float = math.nan) -> float:
 
 def int_label(value: Any) -> int:
     return int(round(finite(value, 0.0)))
+
+
+def boolish(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"1", "true", "yes", "y"}
 
 
 def add_intersectional_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -303,17 +315,29 @@ def case_prior(
         "lambda": lam,
         "local_n": finite(local.get("n") if local else None, 0.0),
         "global_n": finite(global_prior.get("n") if global_prior else None, 0.0),
+        "local_unstable": boolish(local.get("unstable") if local else False),
         **metrics,
     }
 
 
+def reliability_weights(args: argparse.Namespace) -> dict[str, float]:
+    return {
+        "auroc": float(args.weight_auroc),
+        "f1": float(args.weight_f1),
+        "ece": float(args.weight_ece),
+        "fnr": float(args.weight_fnr),
+        "fpr": float(args.weight_fpr),
+    }
+
+
 def reliability_score(prior: dict[str, Any], args: argparse.Namespace) -> float:
+    weights = reliability_weights(args)
     return (
-        args.weight_auroc * finite(prior.get("auroc"), 0.5)
-        + args.weight_f1 * finite(prior.get("f1"), 0.0)
-        - args.weight_ece * finite(prior.get("ece"), 0.5)
-        - args.weight_fnr * finite(prior.get("fnr"), 0.5)
-        - args.weight_fpr * finite(prior.get("fpr"), 0.5)
+        weights["auroc"] * finite(prior.get("auroc"), 0.5)
+        + weights["f1"] * finite(prior.get("f1"), 0.0)
+        - weights["ece"] * finite(prior.get("ece"), 0.5)
+        - weights["fnr"] * finite(prior.get("fnr"), 0.5)
+        - weights["fpr"] * finite(prior.get("fpr"), 0.5)
     )
 
 
@@ -371,6 +395,7 @@ def arbitrate_case(
                 "prior_lambda": prior["lambda"],
                 "prior_local_n": prior["local_n"],
                 "prior_global_n": prior["global_n"],
+                "prior_local_unstable": prior["local_unstable"],
                 "prior_auroc": prior["auroc"],
                 "prior_f1": prior["f1"],
                 "prior_ece": prior["ece"],
@@ -623,7 +648,8 @@ def add_escalation_columns(
     out["conformal_attribute"] = conformal_attrs
     out["conformal_subgroup"] = conformal_subgroups
     out["conformal_lambda"] = conformal_lambdas
-    out["risk_score"] = out["risk_score"].astype(float) + out["escalate_to_human"].astype(float)
+    out["risk_score"] = out["risk_score"].astype(float)
+    out["escalation_policy_score"] = out["risk_score"] + out["escalate_to_human"].astype(float)
     return out
 
 
@@ -668,12 +694,27 @@ def ece(df: pd.DataFrame, bins: int = 10) -> float:
 def auroc(df: pd.DataFrame) -> float:
     if df.empty or df["y_true"].nunique() < 2:
         return math.nan
-    try:
-        from sklearn.metrics import roc_auc_score
-
-        return float(roc_auc_score(df["y_true"].astype(int), df["y_prob"].astype(float)))
-    except Exception:
+    ordered = sorted(
+        zip(df["y_prob"].astype(float).tolist(), df["y_true"].astype(int).tolist()),
+        key=lambda item: item[0],
+    )
+    positives = sum(label for _, label in ordered)
+    negatives = len(ordered) - positives
+    if positives == 0 or negatives == 0:
         return math.nan
+
+    rank_sum = 0.0
+    rank = 1
+    idx = 0
+    while idx < len(ordered):
+        end = idx
+        while end + 1 < len(ordered) and ordered[end + 1][0] == ordered[idx][0]:
+            end += 1
+        avg_rank = (rank + rank + (end - idx)) / 2.0
+        rank_sum += avg_rank * sum(label for _, label in ordered[idx : end + 1])
+        rank += end - idx + 1
+        idx = end + 1
+    return float((rank_sum - positives * (positives + 1) / 2.0) / (positives * negatives))
 
 
 def group_worst_f1(df: pd.DataFrame, min_positive: int, min_negative: int) -> float:
@@ -910,7 +951,7 @@ def main() -> None:
 
     summary = {
         "test_common_cases": int(len(full)),
-        "validation_common_cases": int(len(val.groupby(CASE_COLUMNS))) if not val.empty else 0,
+        "validation_common_cases": int(len(val.drop_duplicates(CASE_COLUMNS))) if not val.empty else 0,
         "tasks": args.tasks,
         "models_requested": args.models,
         "test_loaded_files": test_loaded,
@@ -919,8 +960,28 @@ def main() -> None:
         "validation_missing_files": val_missing,
         "subgroup_priors": str(args.subgroup_priors),
         "global_priors": str(args.global_priors),
-        "subgroup_shrinkage_k": args.subgroup_shrinkage_k,
-        "conformal_alpha": args.conformal_alpha,
+        "reliability_score": {
+            "formula": RELIABILITY_SCORE_FORMULA,
+            "weights": reliability_weights(args),
+        },
+        "softmax": {
+            "beta": args.beta,
+            "gamma_uncertainty": args.gamma,
+            "delta_vote_disagreement": args.delta,
+        },
+        "shrinkage": {
+            "subgroup_k": args.subgroup_shrinkage_k,
+            "conformal_k": args.conformal_shrinkage_k,
+        },
+        "selective_escalation": {
+            "close_call_margin": args.close_call_margin,
+            "disagreement_rate_threshold": args.disagreement_rate_threshold,
+            "low_reliability_threshold": args.low_reliability_threshold,
+            "conformal_alpha": args.conformal_alpha,
+            "conformal_enabled": bool(global_q),
+            "risk_coverage_rank_column": "risk_score",
+            "policy_score_column": "escalation_policy_score",
+        },
         "outputs": {
             "predictions": str(args.out_dir / "selective_arbitration_predictions.csv"),
             "weights": str(args.out_dir / "selective_arbitration_model_weights.csv"),
