@@ -1,6 +1,6 @@
 import os
 from openai import AzureOpenAI
-from data.loader import GenericEyeLoader
+#from data.loader import GenericEyeLoader
 from pprint import pprint
 from dotenv import load_dotenv
 

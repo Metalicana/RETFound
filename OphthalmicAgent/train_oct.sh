@@ -28,8 +28,8 @@ nvidia-smi
 cd /lustre/fs1/home/yu395012/RETFound/OphthalmicAgent
 
 # --- EXECUTE PYTHON SCRIPT ---
-echo "Running main training script: linear_probing_oct2.py"
+echo "Running main training script: linear_probing_oct3.py"
 
-python -u -m VisionAgent.linear_probing_oct2
+python -u -m VisionAgent.linear_probing_oct3
 
 echo "--- Job finished successfully ---"

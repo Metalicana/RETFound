@@ -145,6 +145,8 @@ OphthalmicAgent/data/DR/**/*.jpg
 OphthalmicAgent/data/DR/**/*.npz
 OphthalmicAgent/data/AMD/**/*.jpg
 OphthalmicAgent/data/AMD/**/*.npz
+OphthalmicAgent/data_refuge/
+OphthalmicAgent/data_gdp/
 
 # Keep the CSVs and Python scripts
 !OphthalmicAgent/data/**/*.csv

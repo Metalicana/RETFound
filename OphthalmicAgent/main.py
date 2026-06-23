@@ -10,7 +10,7 @@ from GuidelinesAgent.guidelines_agent import GuidelinesAgent
 from SafetyAgent.safety_agent import SafetyAgent
 from Orchestrator.ophthalmic_agent import Orchestrator
 
-from data.loader import GenericEyeLoader
+from data.loader import ExcelEyeLoader
 
 import numpy as np
 from PIL import Image
@@ -18,12 +18,12 @@ import pandas as pd
 import json
 import re
 
-OUTPUT_CSV = "ophthalmic_performance_results_apr30.csv"
+OUTPUT_CSV = "ophthalmic_performance_results_jun11.csv"
 
 #Intiializing agents
 profiler = BioProfiler()
 equity_agent = EquityAgent()
-vision_agent = VisionSpecialist("./weights/oct_model_best.pth", "./weights/slo_model_best.pth")
+vision_agent = VisionSpecialist("./weights/oct_model_best_all_binary.pth", "./weights/slo_model_best_all_binary.pth")
 functional_agent = FunctionalSpecialist()
 ophthalmic_agent = Orchestrator()
 safety_agent = SafetyAgent()
@@ -161,95 +161,109 @@ def initialize_state(patient_data):
     return state
     
 if __name__ == "__main__":
-
+    
+    EXCEL_PATH = "./data/fairvision_250each.csv"
+    
     results = []
     
-    BASE_PATH = "data/"
-    diseases = ['Glaucoma', 'AMD', 'DR']
-#    diseases = ['AMD', 'Glaucoma', 'DR']
-#    diseases = ['DR', 'AMD', 'Glaucoma']
+    # Initialize the updated Excel Loader
+    loader = ExcelEyeLoader(EXCEL_PATH)
     
-    for disease in diseases: 
-      loader = GenericEyeLoader(BASE_PATH)  
-      df = loader.get_metadata(disease)
-      
-      test_rows = df[df['use'] == 'test']
-      
-      if not test_rows.empty: 
-          for i in range(100):     
-          
-            try: 
-              patient_record = loader.load_patient(disease, test_rows.iloc[i])
+    # Target conditions to run evaluation blocks on
+    diseases = ['Glaucoma', 'AMD', 'DR']
+    
+    for disease in diseases:
+        # Pull up to 250 records from the master Excel per disease category
+        test_rows = loader.get_records_by_disease(disease, limit=250)
         
-              final_state = initialize_state(patient_record)
-              run_diagnostic_pipeline(patient_record)
-              
-              age = patient_record['metadata']['age']
-              gender = patient_record['metadata']['gender']
-              race = patient_record['metadata']['race']
-              ethnicity = patient_record['metadata']['ethnicity']
-
-              pred_labels = parse_agent_labels(final_state)
-              ground_truth = patient_record['stage']
-              
-              row = {
-                  "Filename": patient_record['directory'],
-                  "Task_Folder": disease,
-                  "Age": age,
-                  "Gender": gender,
-                  "Race": race,
-                  "Ethnicity": ethnicity,
-                  "Ground_Truth": ground_truth,
-                  "Pred_AMD": pred_labels.get("AMD", -1) if pred_labels else -1,
-                  "Pred_DR": pred_labels.get("DR", -1) if pred_labels else -1,
-                  "Pred_GL": pred_labels.get("GL", -1) if pred_labels else -1,
-              }
-              
-              # Select correct prediction
-              if "AMD" in disease:
-                  pred = row["Pred_AMD"]
-              elif "DR" in disease:
-                  pred = row["Pred_DR"]
-              elif "Glaucoma" in disease:
-                  pred = row["Pred_GL"]
-              else:
-                  pred = -1
-              
-              # Compute correctness
-              if pred == -1 or ground_truth == -1:
-                  row["Is_Correct"] = -1
-              else:
-                  row["Is_Correct"] = int(pred == ground_truth)
-              
-              results.append(row)
-
-              df = pd.DataFrame(results)
-              df.to_csv(OUTPUT_CSV, index=False)
-            
-              print(f"\nDisease folder is {disease} and ground truth is {ground_truth}, example number is {i}")
-              print("\nEND OF EXAMPLE")
-              print("\n" + "-"*30)
-              
-            except Exception as e:
-              # Catching the content filter specifically
-              print(f"!!! Error at Index {i}. Skipping...")
-              row = {
-                    "Filename": patient_record['directory'],
-                    "Task_Folder": disease,
-                    "Age": age,
-                    "Gender": gender,
-                    "Race": race,
-                    "Ethnicity": ethnicity,
-                    "Ground_Truth": -1,
-                    "Pred_AMD": -1,  
-                    "Pred_DR": -1,    
-                    "Pred_GL": -1,    
-                    "Is_Correct": -1
-                  }
-              results.append(row)
-              
-              df = pd.DataFrame(results)
-              df.to_csv(OUTPUT_CSV, index=False)    
-            
-      else:
-          print("No test data found to process.")
+        if not test_rows.empty:
+            # Iterate through every row explicitly returned by the Excel filter block
+            for index, current_row in test_rows.iterrows():
+                
+                # Pre-extract basic row demographics for error-handling resilience
+                # Safe checking for case-variations using dictionary transformations
+                row_dict = {k.lower(): v for k, v in current_row.to_dict().items()}
+                
+                age = row_dict.get('age', 'Unknown')
+                gender = row_dict.get('gender', 'Unknown')
+                race = row_dict.get('race', 'Unknown')
+                ethnicity = row_dict.get('ethnicity', 'Unknown')
+                
+                patient_record = None
+                
+                try:
+                    # Load structural files and map binary ground truth via row paths
+                    patient_record = loader.load_patient_from_excel_row(current_row)
+                    
+                    # Core pipeline logic execution
+                    final_state = initialize_state(patient_record)
+                    run_diagnostic_pipeline(patient_record)
+                    
+                    pred_labels = parse_agent_labels(final_state)
+                    ground_truth = patient_record['stage']
+                    
+                    row = {
+                        "Filename": patient_record['directory'],
+                        "Task_Folder": disease,
+                        "Age": age,
+                        "Gender": gender,
+                        "Race": race,
+                        "Ethnicity": ethnicity,
+                        "Ground_Truth": ground_truth,
+                        "Pred_AMD": pred_labels.get("AMD", -1) if pred_labels else -1,
+                        "Pred_DR": pred_labels.get("DR", -1) if pred_labels else -1,
+                        "Pred_GL": pred_labels.get("GL", -1) if pred_labels else -1,
+                    }
+                    
+                    # Select corresponding validation prediction
+                    if "AMD" in disease:
+                        pred = row["Pred_AMD"]
+                    elif "DR" in disease:
+                        pred = row["Pred_DR"]
+                    elif "Glaucoma" in disease:
+                        pred = row["Pred_GL"]
+                    else:
+                        pred = -1
+                    
+                    # Compute accuracy profiles
+                    if pred == -1 or ground_truth == -1:
+                        row["Is_Correct"] = -1
+                    else:
+                        row["Is_Correct"] = int(pred == ground_truth)
+                    
+                    results.append(row)
+                    
+                    # Inline checkpoint auto-saving
+                    out_df = pd.DataFrame(results)
+                    out_df.to_csv(OUTPUT_CSV, index=False)
+                    
+                    print(f"\nDisease: {disease} | Ground Truth: {ground_truth} | Row Index Checked: {index}")
+                    print("END OF EXAMPLE\n" + "-"*30)
+                    
+                except Exception as e:
+                    print(f"!!! Error processing row index {index} in {disease}. Skipping... Details: {e}")
+                    
+                    # Safely map fallback structural variables during exception failures
+                    fallback_filename = patient_record['directory'] if patient_record else row_dict.get('filepath', 'Error')
+                    fallback_gt = patient_record['stage'] if patient_record else row_dict.get('ground_truth', -1)
+                    
+                    row = {
+                        "Filename": fallback_filename,
+                        "Task_Folder": disease,
+                        "Age": age,
+                        "Gender": gender,
+                        "Race": race,
+                        "Ethnicity": ethnicity,
+                        "Ground_Truth": fallback_gt,
+                        "Pred_AMD": -1,  
+                        "Pred_DR": -1,    
+                        "Pred_GL": -1,    
+                        "Is_Correct": -1
+                    }
+                    results.append(row)
+                    
+                    out_df = pd.DataFrame(results)
+                    out_df.to_csv(OUTPUT_CSV, index=False)    
+                    
+        else:
+            print(f"No custom Excel rows found to process for: {disease}")
