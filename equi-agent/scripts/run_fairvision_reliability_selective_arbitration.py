@@ -36,6 +36,7 @@ RELIABILITY_SCORE_FORMULA = (
     "weight_auroc*auroc + weight_f1*f1 - weight_ece*ece "
     "- weight_fnr*fnr - weight_fpr*fpr"
 )
+RELIABILITY_SCORE_SHRINKAGE_FORMULA = "lambda_g * R_local + (1 - lambda_g) * R_global"
 MODEL_ALIASES = {
     "retfound_oct": ["fairvision_oct_retfound"],
     "mirage_slo": ["fairvision_slo_mirage"],
@@ -271,6 +272,16 @@ def blend_metric(local: dict | None, global_prior: dict | None, field: str, lam:
     return lam * local_value + (1.0 - lam) * global_value
 
 
+def metric_values(row: dict | None) -> dict[str, float]:
+    return {
+        "auroc": finite(row.get("auroc") if row else None, 0.5),
+        "f1": finite(row.get("f1") if row else None, 0.0),
+        "ece": finite(row.get("ece") if row else None, 0.5),
+        "fnr": finite(row.get("fnr") if row else None, 0.5),
+        "fpr": finite(row.get("fpr") if row else None, 0.5),
+    }
+
+
 def case_prior(
     row: pd.Series | dict[str, Any],
     model: str,
@@ -309,6 +320,11 @@ def case_prior(
         "fnr": blend_metric(local, global_prior, "fnr", lam, 0.5),
         "fpr": blend_metric(local, global_prior, "fpr", lam, 0.5),
     }
+    global_metrics = metric_values(global_prior)
+    local_metrics = metric_values(local)
+    global_reliability_score = reliability_score(global_metrics, args)
+    local_reliability_score = reliability_score(local_metrics, args) if local is not None else global_reliability_score
+    shrunk_reliability_score = lam * local_reliability_score + (1.0 - lam) * global_reliability_score
     return {
         "attribute": attr,
         "subgroup": subgroup,
@@ -316,6 +332,9 @@ def case_prior(
         "local_n": finite(local.get("n") if local else None, 0.0),
         "global_n": finite(global_prior.get("n") if global_prior else None, 0.0),
         "local_unstable": boolish(local.get("unstable") if local else False),
+        "local_reliability_score": local_reliability_score,
+        "global_reliability_score": global_reliability_score,
+        "reliability_score": shrunk_reliability_score,
         **metrics,
     }
 
@@ -331,6 +350,8 @@ def reliability_weights(args: argparse.Namespace) -> dict[str, float]:
 
 
 def reliability_score(prior: dict[str, Any], args: argparse.Namespace) -> float:
+    if "reliability_score" in prior:
+        return finite(prior.get("reliability_score"), 0.0)
     weights = reliability_weights(args)
     return (
         weights["auroc"] * finite(prior.get("auroc"), 0.5)
@@ -396,6 +417,8 @@ def arbitrate_case(
                 "prior_local_n": prior["local_n"],
                 "prior_global_n": prior["global_n"],
                 "prior_local_unstable": prior["local_unstable"],
+                "prior_local_reliability_score": prior["local_reliability_score"],
+                "prior_global_reliability_score": prior["global_reliability_score"],
                 "prior_auroc": prior["auroc"],
                 "prior_f1": prior["f1"],
                 "prior_ece": prior["ece"],
@@ -831,6 +854,9 @@ def run_counterfactuals(
     local_q: dict[tuple[str, str, str], dict[str, float]],
     args: argparse.Namespace,
 ) -> pd.DataFrame:
+    def shift(cf_row: dict[str, Any], base_row: dict[str, Any], key: str) -> float:
+        return finite(cf_row.get(key)) - finite(base_row.get(key))
+
     values_by_attr = {
         attr: sorted(test_predictions[attr].dropna().astype(str).unique())[: args.counterfactual_max_values]
         for attr in COUNTERFACTUAL_ATTRIBUTES
@@ -857,10 +883,27 @@ def run_counterfactuals(
                         "counterfactual_value": value,
                         "base_y_prob": base_row["y_prob"],
                         "counterfactual_y_prob": cf_row["y_prob"],
+                        "probability_shift": shift(cf_row, base_row, "y_prob"),
+                        "abs_probability_shift": abs(shift(cf_row, base_row, "y_prob")),
                         "base_y_pred": base_row["y_pred"],
                         "counterfactual_y_pred": cf_row["y_pred"],
+                        "base_weighted_reliability": base_row.get("weighted_reliability", ""),
+                        "counterfactual_weighted_reliability": cf_row.get("weighted_reliability", ""),
+                        "reliability_shift": shift(cf_row, base_row, "weighted_reliability"),
+                        "base_risk_score": base_row.get("risk_score", ""),
+                        "counterfactual_risk_score": cf_row.get("risk_score", ""),
+                        "risk_shift": shift(cf_row, base_row, "risk_score"),
+                        "base_escalation_policy_score": base_row.get("escalation_policy_score", ""),
+                        "counterfactual_escalation_policy_score": cf_row.get("escalation_policy_score", ""),
+                        "escalation_policy_score_shift": shift(cf_row, base_row, "escalation_policy_score"),
                         "base_escalate": base_row["escalate_to_human"],
                         "counterfactual_escalate": cf_row["escalate_to_human"],
+                        "base_escalation_reasons": base_row.get("escalation_reasons", ""),
+                        "counterfactual_escalation_reasons": cf_row.get("escalation_reasons", ""),
+                        "base_conformal_label_set": base_row.get("conformal_label_set", ""),
+                        "counterfactual_conformal_label_set": cf_row.get("conformal_label_set", ""),
+                        "base_conformal_set_size": base_row.get("conformal_set_size", ""),
+                        "counterfactual_conformal_set_size": cf_row.get("conformal_set_size", ""),
                         "label_flipped": int(base_row["y_pred"] != cf_row["y_pred"]),
                         "escalation_flipped": int(base_row["escalate_to_human"] != cf_row["escalate_to_human"]),
                     }
@@ -962,6 +1005,7 @@ def main() -> None:
         "global_priors": str(args.global_priors),
         "reliability_score": {
             "formula": RELIABILITY_SCORE_FORMULA,
+            "shrinkage_formula": RELIABILITY_SCORE_SHRINKAGE_FORMULA,
             "weights": reliability_weights(args),
         },
         "softmax": {
