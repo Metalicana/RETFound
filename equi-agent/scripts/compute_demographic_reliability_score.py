@@ -10,6 +10,7 @@ from typing import Any
 
 DEFAULT_PRIORS_JSON = Path("equi-agent/outputs/metrics/validation_subgroup_priors.json")
 DEFAULT_SUPPORT_CSV = Path("equi-agent/outputs/fairvision_reliability_selective_arbitration/selective_arbitration_predictions.csv")
+DEFAULT_SUBGROUP_RELIABILITY_CSV = Path("equi-agent/outputs/metrics/demographic_reliability_subgroup_model_scores.csv")
 DEFAULT_FNR_WEIGHT = 0.35
 DEFAULT_FPR_WEIGHT = 0.25
 DEFAULT_ECE_WEIGHT = 0.15
@@ -49,6 +50,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--priors-json", type=Path, default=DEFAULT_PRIORS_JSON)
     parser.add_argument("--support-csv", type=Path, default=DEFAULT_SUPPORT_CSV)
+    parser.add_argument(
+        "--subgroup-reliability-csv",
+        type=Path,
+        help=(
+            "Optional precomputed task x age_group x race x gender x model score table. "
+            "When supplied, the script looks up the requested row instead of recomputing from priors."
+        ),
+    )
+    parser.add_argument("--score-column", default="final_R_bad")
     parser.add_argument("--task", required=True, help="amd, dr, or glaucoma")
     parser.add_argument("--model", required=True, help="Exact model_name, e.g. retfound_oct")
     parser.add_argument("--age-group", required=True, help="younger, middle-aged, or older")
@@ -110,6 +120,131 @@ def load_json_rows(path: Path) -> list[dict[str, Any]]:
 def read_csv(path: Path) -> list[dict[str, str]]:
     with path.open(newline="") as handle:
         return list(csv.DictReader(handle))
+
+
+def row_gender(row: dict[str, Any]) -> str:
+    return norm_gender(str(row.get("gender", row.get("sex_gender", ""))))
+
+
+def lookup_precomputed_score(
+    rows: list[dict[str, str]],
+    task: str,
+    model: str,
+    age_group: str,
+    race: str,
+    gender: str,
+) -> dict[str, str]:
+    matches = [
+        row
+        for row in rows
+        if norm(row.get("task")) == task
+        and norm(row.get("model_name")) == model
+        and norm(row.get("age_group")) == age_group
+        and norm_race(str(row.get("race", ""))) == race
+        and row_gender(row) == gender
+    ]
+    if matches:
+        return matches[0]
+
+    available_models = sorted({norm(row.get("model_name")) for row in rows if norm(row.get("task")) == task})
+    available_subgroups = sorted(
+        {
+            (
+                norm(row.get("age_group")),
+                norm_race(str(row.get("race", ""))),
+                row_gender(row),
+            )
+            for row in rows
+            if norm(row.get("task")) == task and norm(row.get("model_name")) == model
+        }
+    )
+    raise SystemExit(
+        "No precomputed subgroup reliability row found for "
+        f"task={task}, model={model}, age_group={age_group}, race={race}, gender={gender}.\n"
+        f"Available models for task={task}: {available_models}\n"
+        f"Available subgroups for this task/model: {available_subgroups[:20]}"
+    )
+
+
+def precomputed_result(
+    row: dict[str, str],
+    args: argparse.Namespace,
+    task: str,
+    model: str,
+    age_group: str,
+    race: str,
+    gender: str,
+) -> dict[str, Any]:
+    if args.score_column not in row:
+        raise SystemExit(
+            f"Score column '{args.score_column}' not found in {args.subgroup_reliability_csv}. "
+            f"Available columns: {list(row.keys())}"
+        )
+    final_r_bad = finite(row.get(args.score_column))
+    if math.isnan(final_r_bad):
+        raise SystemExit(
+            f"Score column '{args.score_column}' is not numeric for "
+            f"task={task}, model={model}, age_group={age_group}, race={race}, gender={gender}"
+        )
+    return {
+        "task": task,
+        "model_name": model,
+        "age_group": age_group,
+        "race": race,
+        "gender": gender,
+        "source": str(args.subgroup_reliability_csv),
+        "score_column": args.score_column,
+        "score_direction": row.get("score_direction", "lower_is_better"),
+        "score_formula": row.get("score_formula", ""),
+        "scores": {
+            "final_R_bad": final_r_bad,
+            "arbitration_reliability_score": 1.0 - final_r_bad,
+            "R_global_bad": finite(row.get("R_global_bad")),
+            "R_local_bad": finite(row.get("R_local_bad")),
+            "R_age_bad": finite(row.get("R_age_bad")),
+            "R_race_bad": finite(row.get("R_race_bad")),
+            "R_gender_bad": finite(row.get("R_gender_bad")),
+        },
+        "rank": {
+            "rank": finite(row.get("rank")),
+            "is_winner": int(finite(row.get("is_winner"), 0)),
+            "is_runner_up": int(finite(row.get("is_runner_up"), 0)),
+            "model_set": row.get("model_set", ""),
+        },
+        "support": {
+            "n_total": finite(row.get("n_total")),
+            "age_n": finite(row.get("age_n")),
+            "race_n": finite(row.get("race_n")),
+            "gender_n": finite(row.get("gender_n")),
+            "intersection_n": finite(row.get("intersection_n")),
+            "lambda_age": finite(row.get("lambda_age")),
+            "lambda_race": finite(row.get("lambda_race")),
+            "lambda_gender": finite(row.get("lambda_gender")),
+            "lambda_sum": finite(row.get("lambda_sum")),
+            "intersection_lambda": finite(row.get("intersection_lambda")),
+        },
+    }
+
+
+def print_precomputed_result(result: dict[str, Any]) -> None:
+    scores = result["scores"]
+    support = result["support"]
+    rank = result["rank"]
+    print(
+        "task={task} model={model_name} age_group={age_group} race={race} gender={gender}".format(**result)
+    )
+    print(f"source={result['source']}")
+    print(f"formula={result['score_formula']}")
+    print(f"direction={result['score_direction']}; lower final_R_bad is better")
+    print(f"final_R_bad={scores['final_R_bad']:.6f}")
+    print(f"arbitration_reliability_score=1-final_R_bad={scores['arbitration_reliability_score']:.6f}")
+    print(f"rank={rank['rank']:.0f}  is_winner={rank['is_winner']}  is_runner_up={rank['is_runner_up']}  model_set={rank['model_set']}")
+    print(f"R_global_bad={scores['R_global_bad']:.6f}")
+    print(f"R_local_bad={scores['R_local_bad']:.6f}")
+    print(f"R_age_bad={scores['R_age_bad']:.6f}  age_n={support['age_n']:.0f}/{support['n_total']:.0f}")
+    print(f"R_race_bad={scores['R_race_bad']:.6f}  race_n={support['race_n']:.0f}/{support['n_total']:.0f}")
+    print(f"R_gender_bad={scores['R_gender_bad']:.6f}  gender_n={support['gender_n']:.0f}/{support['n_total']:.0f}")
+    print(f"intersection_n={support['intersection_n']:.0f}  lambda={support['intersection_lambda']:.6f}")
 
 
 def prior_lookup(rows: list[dict[str, Any]]) -> dict[tuple[str, str, str, str], dict[str, Any]]:
@@ -232,6 +367,22 @@ def main() -> None:
     age_group = norm(args.age_group)
     race = norm_race(args.race)
     gender = norm_gender(args.gender)
+
+    if args.subgroup_reliability_csv is not None:
+        row = lookup_precomputed_score(
+            read_csv(args.subgroup_reliability_csv),
+            task,
+            model,
+            age_group,
+            race,
+            gender,
+        )
+        result = precomputed_result(row, args, task, model, age_group, race, gender)
+        if args.json:
+            print(json.dumps(result, indent=2, sort_keys=True))
+        else:
+            print_precomputed_result(result)
+        return
 
     priors = prior_lookup(load_json_rows(args.priors_json))
     support = support_counts(read_csv(args.support_csv), task, age_group, race, gender)
