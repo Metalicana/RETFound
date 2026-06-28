@@ -53,12 +53,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fnr-weight", type=float, default=0.85)
     parser.add_argument("--fpr-weight", type=float, default=0.15)
     parser.add_argument(
-        "--normalize-local-lambdas",
+        "--raw-local-lambdas",
         action="store_true",
-        help=(
-            "Normalize age/race/gender support weights before computing R_local. "
-            "Default follows the requested raw weighted sum."
-        ),
+        help="Use the unnormalized age/race/gender weighted sum for R_local.",
     )
     parser.add_argument("--json", action="store_true", help="Print JSON instead of a compact text report.")
     return parser.parse_args()
@@ -202,7 +199,7 @@ def main() -> None:
     lambda_sum = lambda_age + lambda_race + lambda_gender
     raw_local = lambda_age * r_age + lambda_race * r_race + lambda_gender * r_gender
     normalized_local = raw_local / lambda_sum if lambda_sum else math.nan
-    r_local = normalized_local if args.normalize_local_lambdas else raw_local
+    r_local = raw_local if args.raw_local_lambdas else normalized_local
 
     intersection_n = support["intersection_n"]
     shrinkage_lambda = intersection_n / (intersection_n + args.k) if intersection_n > 0 and args.k >= 0 else 0.0
@@ -216,9 +213,13 @@ def main() -> None:
         "gender": gender,
         "formula": {
             "component_score": f"{args.fnr_weight}*FNR + {args.fpr_weight}*FPR",
-            "r_local": "lambda_age*R_age + lambda_race*R_race + lambda_gender*R_gender",
+            "r_local": (
+                "lambda-normalized weighted mean of R_age, R_race, and R_gender"
+                if not args.raw_local_lambdas
+                else "lambda_age*R_age + lambda_race*R_race + lambda_gender*R_gender"
+            ),
             "r_final": "lambda*R_local + (1-lambda)*R_global",
-            "local_lambdas_normalized": bool(args.normalize_local_lambdas),
+            "local_lambdas_normalized": not bool(args.raw_local_lambdas),
         },
         "scores": {
             "R_global": r_global,
@@ -277,8 +278,10 @@ def main() -> None:
     print(f"R_local_normalized={normalized_local:.6f}")
     print(f"intersection_n={intersection_n}  k={args.k:g}  lambda={shrinkage_lambda:.6f}")
     print(f"R_final={r_final:.6f}")
-    if not args.normalize_local_lambdas:
-        print("note=R_final uses raw unnormalized local lambdas, exactly as requested.")
+    if args.raw_local_lambdas:
+        print("note=R_final uses raw unnormalized local lambdas.")
+    else:
+        print("note=R_final uses normalized local lambdas by default.")
 
 
 if __name__ == "__main__":
