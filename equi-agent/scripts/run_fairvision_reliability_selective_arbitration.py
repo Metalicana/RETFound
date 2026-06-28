@@ -78,6 +78,16 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("equi-agent/outputs/metrics/validation_subgroup_priors_global.csv"),
     )
+    parser.add_argument(
+        "--subgroup-reliability-csv",
+        type=Path,
+        default=None,
+        help=(
+            "Optional clean task x age_group x race x gender x model reliability-risk CSV. "
+            "When supplied, shrunk arbitration uses 1 - final_R_bad as the model reliability score."
+        ),
+    )
+    parser.add_argument("--subgroup-reliability-score-column", default="final_R_bad")
     parser.add_argument("--subgroup-shrinkage-k", type=float, default=50.0)
     parser.add_argument("--conformal-shrinkage-k", type=float, default=50.0)
     parser.add_argument("--conformal-alpha", type=float, default=0.10)
@@ -254,6 +264,59 @@ def load_prior_tables(subgroup_path: Path, global_path: Path) -> tuple[dict[tupl
     return subgroup_lookup, global_lookup
 
 
+def load_subgroup_reliability_scores(
+    path: Path | None,
+    score_column: str,
+) -> dict[tuple[str, str, str, str, str], dict[str, Any]]:
+    if path is None:
+        return {}
+    if not path.exists():
+        raise SystemExit(f"Subgroup reliability CSV not found: {path}")
+
+    df = pd.read_csv(path)
+    requested_score_column = score_column
+    if score_column not in df.columns:
+        fallback = "score" if "score" in df.columns else ""
+        if not fallback:
+            raise SystemExit(
+                f"Subgroup reliability CSV {path} does not contain score column '{score_column}'. "
+                f"Available columns: {list(df.columns)}"
+            )
+        score_column = fallback
+
+    lookup: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
+    for row in df.to_dict("records"):
+        row = dict(row)
+        if requested_score_column not in row and score_column in row:
+            row[requested_score_column] = row[score_column]
+        gender_value = row.get("gender", row.get("sex_gender", ""))
+        key = (
+            str(row.get("task", "")),
+            norm(row.get("age_group", "")),
+            norm(row.get("race", "")),
+            norm(gender_value),
+            str(row.get("model_name", "")),
+        )
+        if all(key):
+            lookup[key] = row
+    return lookup
+
+
+def subgroup_reliability_row(
+    row: pd.Series | dict[str, Any],
+    model: str,
+    lookup: dict[tuple[str, str, str, str, str], dict[str, Any]],
+) -> dict[str, Any] | None:
+    key = (
+        str(row.get("task", "")),
+        norm(row.get("age_group", "")),
+        norm(row.get("race", "")),
+        norm(row.get("sex_gender", row.get("gender", ""))),
+        model,
+    )
+    return lookup.get(key)
+
+
 def subgroup_value(row: pd.Series | dict[str, Any], attr: str) -> str:
     if attr in row:
         return norm(row.get(attr))
@@ -287,6 +350,7 @@ def case_prior(
     model: str,
     subgroup_lookup: dict[tuple[str, str, str, str, str], dict],
     global_lookup: dict[tuple[str, str, str], dict],
+    args: argparse.Namespace,
     shrinkage_k: float,
     mode: str,
 ) -> dict[str, Any]:
@@ -371,6 +435,7 @@ def arbitrate_case(
     group: pd.DataFrame,
     subgroup_lookup: dict[tuple[str, str, str, str, str], dict],
     global_lookup: dict[tuple[str, str, str], dict],
+    subgroup_reliability_lookup: dict[tuple[str, str, str, str, str], dict[str, Any]],
     args: argparse.Namespace,
     reliability_mode: str,
     metadata_override: dict[str, Any] | None = None,
@@ -390,8 +455,19 @@ def arbitrate_case(
 
     for row in group.to_dict("records"):
         model = str(row["model_name"])
-        prior = case_prior(meta, model, subgroup_lookup, global_lookup, args.subgroup_shrinkage_k, reliability_mode)
+        prior = case_prior(meta, model, subgroup_lookup, global_lookup, args, args.subgroup_shrinkage_k, reliability_mode)
         score = reliability_score(prior, args)
+        score_source = f"{reliability_mode}_prior_table"
+        subgroup_r_bad = math.nan
+        subgroup_reliability_rank = math.nan
+        if reliability_mode == "shrunk" and subgroup_reliability_lookup:
+            reliability_row = subgroup_reliability_row(meta, model, subgroup_reliability_lookup)
+            if reliability_row is not None:
+                subgroup_r_bad = finite(reliability_row.get(args.subgroup_reliability_score_column))
+                subgroup_reliability_rank = finite(reliability_row.get("rank"))
+                if not math.isnan(subgroup_r_bad):
+                    score = 1.0 - subgroup_r_bad
+                    score_source = "subgroup_reliability_csv_one_minus_R_bad"
         prob = finite(row.get("y_prob"), 0.0)
         pred = int_label(row.get("y_pred"))
         uncertainty = max(0.0, 1.0 - 2.0 * abs(prob - 0.5))
@@ -425,6 +501,9 @@ def arbitrate_case(
                 "prior_fnr": prior["fnr"],
                 "prior_fpr": prior["fpr"],
                 "reliability_score": score,
+                "reliability_score_source": score_source,
+                "subgroup_R_bad": subgroup_r_bad,
+                "subgroup_reliability_rank": subgroup_reliability_rank,
                 "weight_logit": logit,
             }
         )
@@ -470,13 +549,21 @@ def arbitrate_frame(
     predictions: pd.DataFrame,
     subgroup_lookup: dict[tuple[str, str, str, str, str], dict],
     global_lookup: dict[tuple[str, str, str], dict],
+    subgroup_reliability_lookup: dict[tuple[str, str, str, str, str], dict[str, Any]],
     args: argparse.Namespace,
     reliability_mode: str,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     pred_rows = []
     weight_rows = []
     for _, group in predictions.groupby(CASE_COLUMNS, dropna=False, sort=False):
-        pred, model_rows = arbitrate_case(group, subgroup_lookup, global_lookup, args, reliability_mode)
+        pred, model_rows = arbitrate_case(
+            group,
+            subgroup_lookup,
+            global_lookup,
+            subgroup_reliability_lookup,
+            args,
+            reliability_mode,
+        )
         pred_rows.append(pred)
         weight_rows.extend(model_rows)
     return pd.DataFrame(pred_rows), pd.DataFrame(weight_rows)
@@ -850,6 +937,7 @@ def run_counterfactuals(
     test_predictions: pd.DataFrame,
     subgroup_lookup: dict[tuple[str, str, str, str, str], dict],
     global_lookup: dict[tuple[str, str, str], dict],
+    subgroup_reliability_lookup: dict[tuple[str, str, str, str, str], dict[str, Any]],
     global_q: dict[str, float],
     local_q: dict[tuple[str, str, str], dict[str, float]],
     args: argparse.Namespace,
@@ -864,7 +952,14 @@ def run_counterfactuals(
     }
     rows = []
     for _, group in test_predictions.groupby(CASE_COLUMNS, dropna=False, sort=False):
-        base_pred, _ = arbitrate_case(group, subgroup_lookup, global_lookup, args, "shrunk")
+        base_pred, _ = arbitrate_case(
+            group,
+            subgroup_lookup,
+            global_lookup,
+            subgroup_reliability_lookup,
+            args,
+            "shrunk",
+        )
         base_full = add_escalation_columns(pd.DataFrame([base_pred]), args, global_q, local_q, use_disagreement=True, use_conformal=True)
         base_row = base_full.iloc[0].to_dict()
         for attr, values in values_by_attr.items():
@@ -872,7 +967,15 @@ def run_counterfactuals(
             for value in values:
                 if str(value) == current:
                     continue
-                cf_pred, _ = arbitrate_case(group, subgroup_lookup, global_lookup, args, "shrunk", {attr: value})
+                cf_pred, _ = arbitrate_case(
+                    group,
+                    subgroup_lookup,
+                    global_lookup,
+                    subgroup_reliability_lookup,
+                    args,
+                    "shrunk",
+                    {attr: value},
+                )
                 cf_full = add_escalation_columns(pd.DataFrame([cf_pred]), args, global_q, local_q, use_disagreement=True, use_conformal=True)
                 cf_row = cf_full.iloc[0].to_dict()
                 rows.append(
@@ -922,6 +1025,10 @@ def main() -> None:
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
     subgroup_lookup, global_lookup = load_prior_tables(args.subgroup_priors, args.global_priors)
+    subgroup_reliability_lookup = load_subgroup_reliability_scores(
+        args.subgroup_reliability_csv,
+        args.subgroup_reliability_score_column,
+    )
     test_raw, test_loaded, test_missing, test_models = load_predictions(args.predictions_root, args.tasks, args.models, "test")
     val_raw, val_loaded, val_missing, val_models = load_predictions(args.predictions_root, args.tasks, args.models, "val")
     test = restrict_to_common_cases(test_raw, test_models)
@@ -929,8 +1036,22 @@ def main() -> None:
     if test.empty:
         raise SystemExit("No common test cases found across the loaded FairVision model prediction files.")
 
-    global_test, global_weights = arbitrate_frame(test, subgroup_lookup, global_lookup, args, "global")
-    shrunk_test, shrunk_weights = arbitrate_frame(test, subgroup_lookup, global_lookup, args, "shrunk")
+    global_test, global_weights = arbitrate_frame(
+        test,
+        subgroup_lookup,
+        global_lookup,
+        {},
+        args,
+        "global",
+    )
+    shrunk_test, shrunk_weights = arbitrate_frame(
+        test,
+        subgroup_lookup,
+        global_lookup,
+        subgroup_reliability_lookup,
+        args,
+        "shrunk",
+    )
     static_test = static_mean_predictions(test)
     best_single = best_single_global_predictions(test, global_lookup, args)
 
@@ -939,7 +1060,14 @@ def main() -> None:
         local_q: dict[tuple[str, str, str], dict[str, float]] = {}
         conformal_df = pd.DataFrame()
     else:
-        shrunk_val, _ = arbitrate_frame(val, subgroup_lookup, global_lookup, args, "shrunk")
+        shrunk_val, _ = arbitrate_frame(
+            val,
+            subgroup_lookup,
+            global_lookup,
+            subgroup_reliability_lookup,
+            args,
+            "shrunk",
+        )
         global_q, local_q, conformal_df = build_conformal_tables(shrunk_val, args)
 
     global_no_escalation = add_escalation_columns(global_test, args, use_disagreement=False, use_conformal=False)
@@ -982,7 +1110,15 @@ def main() -> None:
 
     counterfactual_summary: dict[str, Any] = {"run": False}
     if args.run_counterfactuals and global_q:
-        counterfactuals = run_counterfactuals(test, subgroup_lookup, global_lookup, global_q, local_q, args)
+        counterfactuals = run_counterfactuals(
+            test,
+            subgroup_lookup,
+            global_lookup,
+            subgroup_reliability_lookup,
+            global_q,
+            local_q,
+            args,
+        )
         counterfactuals.to_csv(args.out_dir / "metadata_counterfactuals.csv", index=False)
         if not counterfactuals.empty:
             counterfactual_summary = {
@@ -1003,6 +1139,9 @@ def main() -> None:
         "validation_missing_files": val_missing,
         "subgroup_priors": str(args.subgroup_priors),
         "global_priors": str(args.global_priors),
+        "subgroup_reliability_csv": str(args.subgroup_reliability_csv) if args.subgroup_reliability_csv else "",
+        "subgroup_reliability_csv_rows": int(len(subgroup_reliability_lookup)),
+        "subgroup_reliability_score_column": args.subgroup_reliability_score_column,
         "reliability_score": {
             "formula": RELIABILITY_SCORE_FORMULA,
             "shrinkage_formula": RELIABILITY_SCORE_SHRINKAGE_FORMULA,

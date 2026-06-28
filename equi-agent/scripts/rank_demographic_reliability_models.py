@@ -52,6 +52,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--priors-json", type=Path, default=DEFAULT_PRIORS_JSON)
     parser.add_argument("--support-csv", type=Path, default=DEFAULT_SUPPORT_CSV)
     parser.add_argument("--out-dir", type=Path, default=Path("equi-agent/outputs/metrics/demographic_reliability_rankings"))
+    parser.add_argument(
+        "--subgroup-reliability-csv",
+        type=Path,
+        default=Path("equi-agent/outputs/metrics/demographic_reliability_subgroup_model_scores.csv"),
+        help=(
+            "Clean long-format output path with one row per task x age_group x race x gender x model. "
+            "This is the portable subgroup reliability table for downstream scripts."
+        ),
+    )
     parser.add_argument("--model-set", choices=["all", "foundation"], default="foundation")
     parser.add_argument("--task", help="Optional task filter: amd, dr, or glaucoma.")
     parser.add_argument("--k", type=float, default=50.0)
@@ -248,6 +257,7 @@ def main() -> None:
     combo_keys = sorted(support["combo_counts"])
 
     long_rows: list[dict[str, Any]] = []
+    unified_rows: list[dict[str, Any]] = []
     ranking_rows: list[dict[str, Any]] = []
     winner_counts: Counter[tuple[str, str]] = Counter()
     runner_up_counts: Counter[tuple[str, str]] = Counter()
@@ -260,6 +270,39 @@ def main() -> None:
         model_scores.sort(key=lambda row: (finite(row["score"]), row["model_name"]))
         for rank, row in enumerate(model_scores, start=1):
             long_rows.append({"rank": rank, **row})
+            unified_rows.append(
+                {
+                    "dataset": "harvard_fairvision",
+                    "task": task,
+                    "age_group": age_group,
+                    "race": race,
+                    "gender": gender,
+                    "subgroup_key": f"age_group={age_group}|race={race}|gender={gender}",
+                    "model_name": row["model_name"],
+                    "model_set": args.model_set,
+                    "rank": rank,
+                    "is_winner": int(rank == 1),
+                    "is_runner_up": int(rank == 2),
+                    "final_R_bad": row["score"],
+                    "R_global_bad": row["R_global"],
+                    "R_local_bad": row["R_local"],
+                    "R_age_bad": row["R_age"],
+                    "R_race_bad": row["R_race"],
+                    "R_gender_bad": row["R_gender"],
+                    "score_formula": row["score_formula"],
+                    "score_direction": "lower_is_better",
+                    "n_total": row["n_total"],
+                    "age_n": row["age_n"],
+                    "race_n": row["race_n"],
+                    "gender_n": row["gender_n"],
+                    "intersection_n": row["intersection_n"],
+                    "lambda_age": row["lambda_age"],
+                    "lambda_race": row["lambda_race"],
+                    "lambda_gender": row["lambda_gender"],
+                    "lambda_sum": row["lambda_sum"],
+                    "intersection_lambda": row["intersection_lambda"],
+                }
+            )
 
         winner = model_scores[0]
         runner_up = model_scores[1] if len(model_scores) > 1 else None
@@ -304,6 +347,7 @@ def main() -> None:
     write_csv(ranking_path, ranking_rows)
     write_csv(long_path, long_rows)
     write_csv(counts_path, count_rows)
+    write_csv(args.subgroup_reliability_csv, unified_rows)
 
     print(f"model_set={args.model_set}")
     print(f"formula={formula_string(args)}")
@@ -313,6 +357,7 @@ def main() -> None:
     print(f"wrote={ranking_path}")
     print(f"wrote={long_path}")
     print(f"wrote={counts_path}")
+    print(f"wrote={args.subgroup_reliability_csv}")
     print("\nWinner counts")
     for row in count_rows:
         if row["winner_count"] or row["runner_up_count"]:
