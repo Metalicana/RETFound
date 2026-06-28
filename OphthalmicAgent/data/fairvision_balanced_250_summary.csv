@@ -1,0 +1,4 @@
+task,path,n,negative,positive,seed,source
+amd,OphthalmicAgent/data/fairvision_amd_balanced_250.csv,250,125,125,2026,equi-agent/outputs/fairvision_reliability_selective_arbitration/selective_arbitration_predictions.csv
+dr,OphthalmicAgent/data/fairvision_dr_balanced_250.csv,250,125,125,2026,equi-agent/outputs/fairvision_reliability_selective_arbitration/selective_arbitration_predictions.csv
+glaucoma,OphthalmicAgent/data/fairvision_glaucoma_balanced_250.csv,250,125,125,2026,equi-agent/outputs/fairvision_reliability_selective_arbitration/selective_arbitration_predictions.csv
