@@ -10,6 +10,11 @@ from typing import Any
 
 DEFAULT_PRIORS_JSON = Path("equi-agent/outputs/metrics/validation_subgroup_priors.json")
 DEFAULT_SUPPORT_CSV = Path("equi-agent/outputs/fairvision_reliability_selective_arbitration/selective_arbitration_predictions.csv")
+DEFAULT_FNR_WEIGHT = 0.35
+DEFAULT_FPR_WEIGHT = 0.25
+DEFAULT_ECE_WEIGHT = 0.15
+DEFAULT_AUROC_WEIGHT = 0.15
+DEFAULT_F1_WEIGHT = 0.10
 
 
 TASK_ALIASES = {
@@ -38,7 +43,7 @@ GENDER_ALIASES = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Compute demographic reliability risk from model FNR/FPR priors. "
+            "Compute demographic reliability risk from model performance priors. "
             "Higher score means worse expected reliability."
         )
     )
@@ -50,8 +55,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--race", required=True, help="white/caucasian, black, asian, etc.")
     parser.add_argument("--gender", required=True, help="male or female")
     parser.add_argument("--k", type=float, default=50.0, help="Intersectional shrinkage parameter.")
-    parser.add_argument("--fnr-weight", type=float, default=0.85)
-    parser.add_argument("--fpr-weight", type=float, default=0.15)
+    parser.add_argument("--fnr-weight", type=float, default=DEFAULT_FNR_WEIGHT)
+    parser.add_argument("--fpr-weight", type=float, default=DEFAULT_FPR_WEIGHT)
+    parser.add_argument("--ece-weight", type=float, default=DEFAULT_ECE_WEIGHT)
+    parser.add_argument("--auroc-weight", type=float, default=DEFAULT_AUROC_WEIGHT)
+    parser.add_argument("--f1-weight", type=float, default=DEFAULT_F1_WEIGHT)
     parser.add_argument(
         "--raw-local-lambdas",
         action="store_true",
@@ -142,8 +150,53 @@ def require_prior(
     return row
 
 
-def error_score(row: dict[str, Any], fnr_weight: float, fpr_weight: float) -> float:
-    return fnr_weight * finite(row.get("fnr"), 0.5) + fpr_weight * finite(row.get("fpr"), 0.5)
+def metric_value(row: dict[str, Any], fallback_row: dict[str, Any] | None, metric: str, default: float) -> float:
+    value = finite(row.get(metric))
+    if not math.isnan(value):
+        return value
+    if fallback_row is not None and fallback_row is not row:
+        fallback = finite(fallback_row.get(metric))
+        if not math.isnan(fallback):
+            return fallback
+    return default
+
+
+def risk_components(row: dict[str, Any], fallback_row: dict[str, Any] | None = None) -> dict[str, float]:
+    f1 = metric_value(row, fallback_row, "f1", 0.0)
+    auroc = metric_value(row, fallback_row, "auroc", 0.5)
+    return {
+        "fnr": metric_value(row, fallback_row, "fnr", 0.5),
+        "fpr": metric_value(row, fallback_row, "fpr", 0.5),
+        "ece": metric_value(row, fallback_row, "ece", 0.5),
+        "one_minus_auroc": 1.0 - auroc,
+        "one_minus_f1": 1.0 - f1,
+    }
+
+
+def risk_score(
+    row: dict[str, Any],
+    fallback_row: dict[str, Any] | None,
+    fnr_weight: float,
+    fpr_weight: float,
+    ece_weight: float,
+    auroc_weight: float,
+    f1_weight: float,
+) -> float:
+    components = risk_components(row, fallback_row)
+    return (
+        fnr_weight * components["fnr"]
+        + fpr_weight * components["fpr"]
+        + ece_weight * components["ece"]
+        + auroc_weight * components["one_minus_auroc"]
+        + f1_weight * components["one_minus_f1"]
+    )
+
+
+def formula_string(args: argparse.Namespace) -> str:
+    return (
+        f"{args.fnr_weight}*FNR + {args.fpr_weight}*FPR + {args.ece_weight}*ECE + "
+        f"{args.auroc_weight}*(1-AUROC) + {args.f1_weight}*(1-F1)"
+    )
 
 
 def support_counts(rows: list[dict[str, str]], task: str, age_group: str, race: str, gender: str) -> dict[str, Any]:
@@ -188,10 +241,42 @@ def main() -> None:
     race_row = require_prior(priors, task, model, "race", race)
     gender_row = require_prior(priors, task, model, "sex_gender", gender)
 
-    r_global = error_score(global_row, args.fnr_weight, args.fpr_weight)
-    r_age = error_score(age_row, args.fnr_weight, args.fpr_weight)
-    r_race = error_score(race_row, args.fnr_weight, args.fpr_weight)
-    r_gender = error_score(gender_row, args.fnr_weight, args.fpr_weight)
+    r_global = risk_score(
+        global_row,
+        None,
+        args.fnr_weight,
+        args.fpr_weight,
+        args.ece_weight,
+        args.auroc_weight,
+        args.f1_weight,
+    )
+    r_age = risk_score(
+        age_row,
+        global_row,
+        args.fnr_weight,
+        args.fpr_weight,
+        args.ece_weight,
+        args.auroc_weight,
+        args.f1_weight,
+    )
+    r_race = risk_score(
+        race_row,
+        global_row,
+        args.fnr_weight,
+        args.fpr_weight,
+        args.ece_weight,
+        args.auroc_weight,
+        args.f1_weight,
+    )
+    r_gender = risk_score(
+        gender_row,
+        global_row,
+        args.fnr_weight,
+        args.fpr_weight,
+        args.ece_weight,
+        args.auroc_weight,
+        args.f1_weight,
+    )
 
     lambda_age = support["lambda_age"]
     lambda_race = support["lambda_race"]
@@ -212,7 +297,9 @@ def main() -> None:
         "race": race,
         "gender": gender,
         "formula": {
-            "component_score": f"{args.fnr_weight}*FNR + {args.fpr_weight}*FPR",
+            "component_score": formula_string(args),
+            "direction": "higher is worse; lower is better",
+            "missing_component_rule": "undefined subgroup F1/AUROC/ECE/FNR/FPR fall back to the model's global metric for the same task",
             "r_local": (
                 "lambda-normalized weighted mean of R_age, R_race, and R_gender"
                 if not args.raw_local_lambdas
@@ -243,23 +330,35 @@ def main() -> None:
                 "n": global_row.get("n"),
                 "fnr": global_row.get("fnr"),
                 "fpr": global_row.get("fpr"),
+                "ece": global_row.get("ece"),
+                "auroc": global_row.get("auroc"),
+                "f1": global_row.get("f1"),
             },
             "age": {
                 "n": age_row.get("n"),
                 "fnr": age_row.get("fnr"),
                 "fpr": age_row.get("fpr"),
+                "ece": age_row.get("ece"),
+                "auroc": age_row.get("auroc"),
+                "f1": age_row.get("f1"),
                 "unstable": age_row.get("unstable"),
             },
             "race": {
                 "n": race_row.get("n"),
                 "fnr": race_row.get("fnr"),
                 "fpr": race_row.get("fpr"),
+                "ece": race_row.get("ece"),
+                "auroc": race_row.get("auroc"),
+                "f1": race_row.get("f1"),
                 "unstable": race_row.get("unstable"),
             },
             "gender": {
                 "n": gender_row.get("n"),
                 "fnr": gender_row.get("fnr"),
                 "fpr": gender_row.get("fpr"),
+                "ece": gender_row.get("ece"),
+                "auroc": gender_row.get("auroc"),
+                "f1": gender_row.get("f1"),
                 "unstable": gender_row.get("unstable"),
             },
         },
@@ -270,6 +369,8 @@ def main() -> None:
         return
 
     print(f"task={task} model={model} age_group={age_group} race={race} gender={gender}")
+    print(f"formula={formula_string(args)}")
+    print("direction=higher risk is worse; lower is better")
     print(f"R_global={r_global:.6f}")
     print(f"R_age={r_age:.6f}  lambda_age={lambda_age:.6f}  age_n={support['age_n']}/{support['n_total']}")
     print(f"R_race={r_race:.6f}  lambda_race={lambda_race:.6f}  race_n={support['race_n']}/{support['n_total']}")
