@@ -33,7 +33,7 @@
 
 \begin{document}
 
-\title[Equi-Agent]{Equi-Agent: Agentic Reliability-Conditioned Selective Prediction for Retinal Foundation Models}
+\title[RetinAgent]{RetinAgent: Agentic Reliability Triage for Retinal Foundation Models}
 
 \author*[1,2]{\fnm{Abdul Mohaimen Al} \sur{Radi}}\email{iauthor@gmail.com}
 \author[2]{\fnm{Yusra} \sur{Ahmed}}\email{iiauthor@gmail.com}
@@ -46,7 +46,7 @@
 \affil[2]{\orgdiv{Department}, \orgname{Organization}, \orgaddress{\street{Street}, \city{City}, \postcode{10587}, \state{State}, \country{Country}}}
 \affil[3]{\orgdiv{Department}, \orgname{Organization}, \orgaddress{\street{Street}, \city{City}, \postcode{610101}, \state{State}, \country{Country}}}
 
-\abstract{Retinal foundation models can perform well on average while remaining unreliable for specific diseases, imaging modalities, or patient subgroups. We study this problem using a controlled evaluation of ophthalmic foundation-model outputs on Harvard-FairVision for age-related macular degeneration, diabetic retinopathy, and glaucoma, and on Harvard-GDP for glaucoma detection and progression forecasting. Across FairVision tasks, standalone models show clear differences in thresholded performance, calibration, and subgroup error rates. Static probability fusion and simple reliability routing do not remove these gaps. We therefore introduce Equi-Agent as an agentic reliability-arbitration framework: specialized agents profile patient context, summarize model and modality evidence, audit subgroup reliability, check guideline and safety constraints, and route uncertain cases to human review. To make the agentic system auditable, the agents operate around a locked reliability-conditioned selective-prediction core that combines validation-derived model reliability priors, empirical-Bayes subgroup shrinkage, model disagreement, calibration uncertainty, and conformal escalation. On 9,000 FairVision held-out test cases, forced reliability-weighted arbitration produced F1 0.729 and balanced accuracy 0.807, comparable to static probability fusion, but selective escalation improved accepted-case F1 to 0.902 and worst-group accepted-case F1 to 0.615 while accepting 30.9\% of cases for automated decision. Metadata counterfactuals changed disease labels in only 0.4\% of 54,000 perturbations but changed escalation status in 5.8\%, supporting the intended use of demographics for reliability lookup rather than diagnosis. For GDP progression forecasting, live Equi-Agent arbitration improves thresholded F1 from 0.600 to 0.684 and worst-group F1 from 0.564 to 0.619 while escalating 51 of 200 cases. These results support agentic selective reliability auditing as a clinically relevant complement to retinal foundation-model prediction.}
+\abstract{Retinal foundation models can appear strong on aggregate metrics while remaining unreliable for specific diseases, imaging modalities, or patient subgroups. We study this problem using a controlled evaluation of ophthalmic foundation-model outputs on Harvard-FairVision for age-related macular degeneration, diabetic retinopathy, and glaucoma, and on Harvard-GDP for glaucoma detection and progression forecasting. Across FairVision tasks, dataset imbalance and subgroup-level F1 distributions show that model reliability is not uniform across race, ethnicity, gender, and age strata. Static probability fusion and simple reliability routing do not remove these gaps. We therefore introduce RetinAgent as an agentic reliability-triage framework: specialized agents profile patient context, summarize model and modality evidence, audit subgroup reliability, check guideline and safety constraints, and route uncertain cases to human review. To make the agentic system auditable, the agents operate around a locked quantitative core that combines validation-derived model reliability priors, empirical-Bayes subgroup shrinkage, model disagreement, calibration uncertainty, and conformal escalation. On 9,000 FairVision held-out test cases, forced reliability-weighted arbitration produced F1 0.729 and balanced accuracy 0.807, comparable to static probability fusion, but selective escalation improved accepted-case F1 to 0.902 and worst-group accepted-case F1 to 0.615 while accepting 30.9\% of cases for automated decision. Metadata counterfactuals changed disease labels in only 0.4\% of 54,000 perturbations but changed escalation status in 5.8\%, supporting the intended use of demographics for reliability lookup rather than diagnosis. For GDP progression forecasting, live RetinAgent arbitration improves thresholded F1 from 0.600 to 0.684 and worst-group F1 from 0.564 to 0.619 while escalating 51 of 200 cases. These results support agentic reliability triage as a clinically relevant complement to retinal foundation-model prediction.}
 
 \keywords{ophthalmic foundation models, multi-agent systems, selective prediction, fairness, calibration, retina imaging}
 
@@ -57,11 +57,29 @@ Retinal diseases such as age-related macular degeneration (AMD), diabetic retino
 
 The recent emergence of ophthalmic foundation models has changed the technical landscape. Large pretrained retinal encoders can be adapted to multiple downstream tasks and often outperform smaller task-specific models. Yet average accuracy is an incomplete measure of clinical readiness. A model may perform well overall while being poorly calibrated for a subgroup, overcalling disease in one demographic stratum, or missing early pathology in another. This failure mode is especially consequential in ophthalmology, where anatomical baselines and disease appearance vary across age, ancestry, image modality, acquisition protocol, and disease stage.
 
-Current mitigation strategies only partially address this problem. Static ensembles assume that model reliability can be averaged. Calibration methods rescale probabilities without deciding which evidence source should be trusted. Fairness-aware post-processing adjusts thresholds at the group level, but often treats subgroup membership as a fixed correction rather than as one component of a broader clinical context. In practice, the relevant question is more granular: given this patient, this image, this disease task, and this pattern of model disagreement, which output should influence the final decision, and with what degree of confidence?
+Across commonly used retinal benchmarks, this subgroup reliability problem begins at the data level. FairVision AMD, DR, and glaucoma splits and Harvard-GDP glaucoma data all show imbalanced disease labels and uneven demographic representation across race, ethnicity, gender, and age strata (Fig.~\ref{fig:dataset_imbalance_compact}). These support gaps matter because global validation metrics can be dominated by well-represented strata while leaving weaker strata under-audited.
 
-Here we introduce Equi-Agent, an agentic reliability-arbitration framework for contextual arbitration among retinal foundation models. Equi-Agent treats model trust as dynamic rather than intrinsic. It decomposes retinal decision support into specialized agents: a BioProfiler for patient context, a Vision Specialist for model and modality evidence, a Functional Specialist for visual-field and longitudinal signals when available, an Equity Auditor for validation-derived subgroup reliability, a Guidelines Agent for clinical context, a Final Orchestrator for decision integration, and a Safety Agent for escalation review. The agents operate around a locked reliability-conditioned scoring core so that the system remains auditable rather than becoming unconstrained free-form reasoning. The framework is designed to produce not only a diagnostic label, but also a transparent account of model trust and an escalation recommendation when evidence is discordant or insufficient.
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/dataset_imbalance_compact_matrix.png}
+\caption{Dataset imbalance across retinal benchmarks. Compact label, race, ethnicity, gender, and age distributions show why aggregate validation metrics can hide weak subgroup support.}
+\label{fig:dataset_imbalance_compact}
+\end{figure*}
 
-We make four contributions. First, we establish a controlled benchmark for comparing retinal foundation models under identical FairVision train, validation, and test splits with standardized subgroup and calibration metrics. Second, we formulate trust calibration as an explicit agentic arbitration problem: specialized agents interpret model outputs together with validation reliability priors, modality context, guideline constraints, and safety checks rather than averaging probabilities blindly. Third, we introduce a locked reliability-conditioned selective arbitration tool with empirical-Bayes subgroup shrinkage, reliability-weighted model fusion, conformal escalation, and risk-coverage evaluation; this tool is used as the auditable scoring substrate for agent decisions. Fourth, we evaluate metadata counterfactuals to test whether demographic context changes diagnosis directly or primarily changes confidence and escalation.
+The effect of this imbalance is visible in subgroup-level model performance. Foundation-model F1 varies substantially across race, ethnicity, gender, and age strata, and each disease task has a distinct reliability profile (Fig.~\ref{fig:foundation_subgroup_f1_gap}). AMD performance is concentrated in older patients, DR remains weak across many strata, and glaucoma is stronger overall but still varies by age and model. Cells without positive cases, such as the AMD young subgroup, are treated as uninterpretable support gaps rather than as model failures.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.82\textwidth]{figures/foundation_subgroup_f1_gap_matrix.png}
+\caption{Subgroup-level F1 gaps across foundation models. Cells show median F1 across foundation-model baselines from the per-disease manuscript tables; smaller text reports the drop from the best subgroup within the same disease and attribute. Grey cells indicate no positive cases, so positive-class F1 is not interpreted as model failure.}
+\label{fig:foundation_subgroup_f1_gap}
+\end{figure*}
+
+Current mitigation strategies only partially address this problem. Static ensembles assume that model reliability can be averaged. Calibration methods rescale probabilities without deciding which evidence source should be trusted. Fairness-aware post-processing adjusts thresholds at the group level, but often treats subgroup membership as a fixed correction rather than as one component of a broader clinical context. In practice, the relevant question is more granular: given this patient, this image, this disease task, and this pattern of model disagreement, which output should influence the final decision, and should the case be automated at all?
+
+Here we introduce RetinAgent, an agentic reliability-triage framework for retinal foundation models. RetinAgent treats model trust as dynamic rather than intrinsic. It decomposes retinal decision support into specialized agents: a BioProfiler for patient context, a Vision Specialist for model and modality evidence, a Functional Specialist for visual-field and longitudinal signals when available, an Equity Auditor for validation-derived subgroup reliability, a Guidelines Agent for clinical context, a Final Orchestrator for decision integration, and a Safety Agent for escalation review. The agents operate around a locked quantitative scoring core so that the system remains auditable rather than becoming unconstrained free-form reasoning. The framework is designed to produce not only a diagnostic label, but also a transparent account of model trust and an escalation recommendation when evidence is discordant or insufficient.
+
+We make four contributions. First, we establish a controlled benchmark for comparing retinal foundation models under identical FairVision train, validation, and test splits with standardized subgroup and calibration metrics. Second, we show that dataset imbalance and subgroup-level F1 spread expose reliability failures that aggregate metrics hide. Third, we introduce a locked reliability-triage tool with empirical-Bayes subgroup shrinkage, reliability-weighted model fusion, conformal escalation, and risk-coverage evaluation; this tool is used as the auditable scoring substrate for agent decisions. Fourth, we evaluate metadata counterfactuals to test whether demographic context changes diagnosis directly or primarily changes confidence and escalation.
 
 \section{Related Work}
 \subsection{Foundation Models in Ophthalmic Imaging}
@@ -73,19 +91,19 @@ We therefore evaluate foundation models under a shared transfer protocol whereve
 \subsection{Bias and Fairness in Medical Vision Models}
 Medical AI systems can reproduce or amplify disparities when training data, acquisition protocols, disease prevalence, or label quality differ across patient groups. In ophthalmology, these concerns include unequal sensitivity, unequal false-positive burden, and subgroup-specific calibration error. Such failures are not merely statistical; they can alter referral patterns, delay treatment, or increase unnecessary follow-up for already underserved populations.
 
-Equi-Agent addresses fairness as a problem of reliability-aware inference. Rather than using demographic metadata as disease evidence, the framework uses validation-set behavior to estimate when a model's output is less trustworthy for a given subgroup and task. This distinction is central: demographic context informs trust in the model, not the biological likelihood of disease.
+RetinAgent addresses fairness as a problem of reliability-aware inference. Rather than using demographic metadata as disease evidence, the framework uses validation-set behavior to estimate when a model's output is less trustworthy for a given subgroup and task. This distinction is central: demographic context informs trust in the model, not the biological likelihood of disease.
 
 \subsection{Multi-Agent and LLM-Based Clinical Reasoning Systems}
 Large language models have been used to summarize clinical records, retrieve guidelines, explain model outputs, and support multi-step medical reasoning. Multi-agent systems extend this idea by assigning specialized roles to separate reasoning modules. This can improve interpretability, but it also creates risks: hallucinated findings, prompt sensitivity, and poorly controlled decision logic.
 
-Equi-Agent constrains language-model reasoning to evidence-grounded arbitration. Agents reason over supplied model probabilities, patient metadata, validation priors, image-derived findings, visual-field measurements, and guideline summaries. They are not used to infer hidden clinical measurements or replace the image models. The empirical question is whether this structured arbitration improves reliability beyond deterministic routing, static fusion, and post-hoc calibration.
+RetinAgent constrains language-model reasoning to evidence-grounded arbitration. Agents reason over supplied model probabilities, patient metadata, validation priors, image-derived findings, visual-field measurements, and guideline summaries. They are not used to infer hidden clinical measurements or replace the image models. The empirical question is whether this structured arbitration improves reliability beyond deterministic routing, static fusion, and post-hoc calibration.
 
 \section{Methods}
 \subsection{Problem Formulation}
 \label{subsec:problem_formulation}
 Let $x_i^{(m)}$ denote the imaging input for patient-eye case $i$ and modality $m$, and let $a_i$ denote available patient metadata, including age group, race, ethnicity, and sex/gender. For each disease task $t \in \{\mathrm{AMD}, \mathrm{DR}, \mathrm{glaucoma}\}$, a set of base models $\mathcal{M}$ produces probabilities $p_{ij}^{(t)} = f_j(x_i^{(m_j)})$ for model $j$. The objective is to estimate a final prediction $\hat{y}_i^{(t)}$ and confidence score that preserve aggregate diagnostic performance while reducing subgroup-specific reliability gaps.
 
-Equi-Agent frames this as contextual arbitration. For a case $i$, the system estimates the trust assigned to model $j$ as a function of disease task, modality, patient metadata, subgroup-specific validation reliability, model confidence, and cross-model disagreement:
+RetinAgent frames this as contextual arbitration. For a case $i$, the system estimates the trust assigned to model $j$ as a function of disease task, modality, patient metadata, subgroup-specific validation reliability, model confidence, and cross-model disagreement:
 \begin{equation}
 w_{ij}^{(t)} = g\left(t, m_j, a_i, p_{ij}^{(t)}, \mathcal{R}_{j,t,a_i}, \Delta_i^{(t)}\right),
 \end{equation}
@@ -101,11 +119,11 @@ We evaluate modality-specific foundation-model outputs using a standardized pred
 
 This design separates representation evaluation from model-specific fine-tuning optimization. It allows controlled comparison under the same downstream split, label, threshold, and metric contract, while acknowledging that some foundation models may perform differently under native full fine-tuning or prompt-based protocols.
 
-\subsection{Equi-Agent Architecture}
+\subsection{RetinAgent Architecture}
 \label{subsec:architecture_methods}
-Equi-Agent is organized as a structured multi-agent arbitration system (Fig.~\ref{fig:equi_agent_architecture}). The BioProfiler converts structured metadata into concise reliability context while explicitly avoiding demographic disease inference. The Vision Specialist processes OCT and SLO/fundus inputs, reports foundation-model probability distributions, and performs a morphology-grounded visual audit when images are supplied. The Functional Specialist interprets visual-field information, especially mean deviation (MD), total-deviation sensitivity, and longitudinal change when available. The Equity Auditor compares the current patient context with validation-derived subgroup error priors and recommends whether sensitivity- or precision-oriented trust adjustment is warranted. The Guidelines Agent retrieves and summarizes external clinical guidance when available. The Orchestrator integrates these findings into final disease labels. The Safety Agent performs a final uncertainty and discordance audit and can recommend acceptance, override, escalation to human review, or insufficient-data status.
+RetinAgent is organized as a structured multi-agent arbitration system (Fig.~\ref{fig:equi_agent_architecture}). The BioProfiler converts structured metadata into concise reliability context while explicitly avoiding demographic disease inference. The Vision Specialist processes OCT and SLO/fundus inputs, reports foundation-model probability distributions, and performs a morphology-grounded visual audit when images are supplied. The Functional Specialist interprets visual-field information, especially mean deviation (MD), total-deviation sensitivity, and longitudinal change when available. The Equity Auditor compares the current patient context with validation-derived subgroup error priors and recommends whether sensitivity- or precision-oriented trust adjustment is warranted. The Guidelines Agent retrieves and summarizes external clinical guidance when available. The Orchestrator integrates these findings into final disease labels. The Safety Agent performs a final uncertainty and discordance audit and can recommend acceptance, override, escalation to human review, or insufficient-data status.
 
-The agentic design is intentionally constrained. Agents do not invent clinical measurements, train new image classifiers, or use demographic metadata as a direct disease signal. Instead, each agent receives bounded inputs and emits structured outputs that are consumed by downstream agents. The deterministic reliability-conditioned score described below functions as a tool call inside this workflow: it supplies auditable model weights, uncertainty flags, and escalation triggers that the Orchestrator and Safety Agent can use. This separation preserves the agentic workflow while making the core arbitration numerically reproducible.
+The agentic design is intentionally constrained. Agents do not invent clinical measurements, train new image classifiers, or use demographic metadata as a direct disease signal. Instead, each agent receives bounded inputs and emits structured outputs that are consumed by downstream agents. The deterministic reliability-triage score described below functions as a tool call inside this workflow: it supplies auditable model weights, uncertainty flags, and escalation triggers that the Orchestrator and Safety Agent can use. This separation preserves the agentic workflow while making the core arbitration numerically reproducible.
 
 \begin{figure*}[t]
 \centering
@@ -149,7 +167,7 @@ The agentic design is intentionally constrained. Agents do not invent clinical m
 \draw[arrow] (orchestrator) -- (output);
 \end{tikzpicture}
 }
-\caption{Equi-Agent architecture. The system separates image-derived evidence, clinical metadata, subgroup reliability priors, functional visual-field interpretation, guideline context, final arbitration, and safety review into explicit agents.}
+\caption{RetinAgent architecture. The system separates image-derived evidence, clinical metadata, subgroup reliability priors, functional visual-field interpretation, guideline context, final arbitration, and safety review into explicit agents.}
 \label{fig:equi_agent_architecture}
 \end{figure*}
 
@@ -159,25 +177,29 @@ Reliability calibration uses validation-set behavior to estimate when each model
 
 The Equity Auditor converts these priors into trust recommendations. A high subgroup false-negative rate motivates a sensitivity shift, lowering the effective diagnostic threshold or increasing uncertainty when model confidence is borderline. A high false-positive rate motivates a precision shift, raising the threshold or down-weighting overconfident positive predictions. These adjustments act on model trust and confidence; demographic metadata is not used as direct disease evidence.
 
-\subsection{Reliability-Conditioned Selective Arbitration}
+\subsection{Reliability Triage and Selective Arbitration}
 \label{subsec:selective_arbitration_methods}
-The multi-agent system uses reliability scoring as an explicit arbitration tool. For the deterministic FairVision arbitration experiment, we isolate this tool to quantify the contribution of the reliability and escalation mechanism without stochastic language-model variation. In live Equi-Agent runs, the same structured quantities are exposed to the Equity Auditor, Orchestrator, and Safety Agent as bounded evidence rather than as hidden prompt text. For model $j$, task $t$, and subgroup context $g$, local subgroup reliability is shrunk toward the global validation estimate:
+The multi-agent system uses reliability scoring as an explicit arbitration tool. For the deterministic FairVision arbitration experiment, we isolate this tool to quantify the contribution of the reliability and escalation mechanism without stochastic language-model variation. In live RetinAgent runs, the same structured quantities are exposed to the Equity Auditor, Orchestrator, and Safety Agent as bounded evidence rather than as hidden prompt text. For model $j$, task $t$, and subgroup context $g$, validation metrics are first converted to a lower-is-better reliability risk:
+\begin{equation}
+R^{bad}_{j,t,g} =
+0.35\,\mathrm{FNR}_{j,t,g}
++0.25\,\mathrm{FPR}_{j,t,g}
++0.15\,\mathrm{ECE}_{j,t,g}
++0.15\,(1-\mathrm{AUROC}_{j,t,g})
++0.10\,(1-\mathrm{F1}_{j,t,g}).
+\end{equation}
+False-negative risk receives the largest weight because the current setting is screening-oriented, followed by false-positive burden, calibration error, ranking failure, and thresholded F1 loss. Local subgroup risk is then shrunk toward the global validation risk:
 \begin{equation}
 \lambda_g = \frac{n_g}{n_g + k},
 \end{equation}
 \begin{equation}
-\tilde{R}_{j,t,g} = \lambda_g R_{j,t,g}^{local} + (1-\lambda_g)R_{j,t}^{global},
+\tilde{R}^{bad}_{j,t,g} = \lambda_g R^{bad,local}_{j,t,g} + (1-\lambda_g)R^{bad,global}_{j,t},
 \end{equation}
-where $n_g$ is the subgroup validation support and $k=50$ in the current experiments. The scalar reliability score is
+where $n_g$ is the subgroup validation support and $k=50$ in the current experiments. Arbitration uses the corresponding higher-is-better reliability score
 \begin{equation}
-s_{j,t,g} =
-0.45\,\mathrm{AUROC}_{j,t,g}
-+0.35\,\mathrm{F1}_{j,t,g}
--0.10\,\mathrm{ECE}_{j,t,g}
--0.07\,\mathrm{FNR}_{j,t,g}
--0.03\,\mathrm{FPR}_{j,t,g}.
+s_{j,t,g} = 1 - \tilde{R}^{bad}_{j,t,g}.
 \end{equation}
-The false-negative penalty is larger than the false-positive penalty because the current setting is screening-oriented; however, these weights are explicit hyperparameters and can be changed for referral-burden or confirmatory settings.
+This keeps the clinical interpretation auditable: lower $R^{bad}$ means lower expected reliability risk, while higher $s$ gives more softmax weight.
 
 For case $i$, the model-specific arbitration weight is
 \begin{equation}
@@ -213,7 +235,7 @@ For Harvard-GDP, longitudinal extension treats each visit sequence as a temporal
 
 \subsection{Evaluation Metrics}
 \label{subsec:metrics_methods}
-Evaluation is implemented with a standardized prediction schema containing patient identifiers, task, model name, split, ground-truth label, predicted probability, thresholded prediction, and demographic metadata. For Equi-Agent comparisons, we emphasize thresholded diagnostic metrics, including F1-score, balanced accuracy, sensitivity, specificity, Brier score, negative log-likelihood, and expected calibration error. Ranking metrics such as AUROC are retained for standalone model diagnostics where probability ranking is directly interpretable. For agent outputs, AUROC is secondary because the agent is designed to arbitrate thresholded decisions and escalation behavior rather than learn a new continuous ranking function.
+Evaluation is implemented with a standardized prediction schema containing patient identifiers, task, model name, split, ground-truth label, predicted probability, thresholded prediction, and demographic metadata. For RetinAgent comparisons, we emphasize thresholded diagnostic metrics, including F1-score, balanced accuracy, sensitivity, specificity, Brier score, negative log-likelihood, and expected calibration error. Ranking metrics such as AUROC are retained for standalone model diagnostics where probability ranking is directly interpretable. For agent outputs, AUROC is secondary because the agent is designed to arbitrate thresholded decisions and escalation behavior rather than learn a new continuous ranking function.
 
 Selective prediction is evaluated with coverage, escalation rate, accepted-case F1, accepted-case sensitivity and specificity, accepted-case error rate, escalated-case disease prevalence, and worst-group accepted-case F1. Risk-coverage curves report diagnostic performance as the accepted fraction is reduced from 100\% toward more conservative operating points. Metadata counterfactual safety is evaluated by holding image-model outputs fixed while perturbing demographic fields used for reliability lookup and measuring disease-label flip rate and escalation-state flip rate.
 
@@ -226,7 +248,7 @@ Unless otherwise stated, metrics are computed on the held-out test split after t
 
 The evaluation has two parts. First, we assess whether ophthalmic foundation models show task- and subgroup-dependent reliability differences on Harvard-FairVision. Second, we test whether the same arbitration framework can be applied to Harvard-GDP glaucoma progression forecasting. All reported test metrics use held-out test splits. Thresholds, calibration rules, and routing policies are selected using validation data or prespecified rules, not the test labels.
 
-Demographic metadata is used only to identify which validation-derived reliability priors apply to a model output. It is not used as direct disease evidence. For Equi-Agent outputs, thresholded metrics and safety behavior are primary because the agent is an arbitration system rather than a standalone continuous risk-ranking model. AUROC is retained for base models and reported only secondarily for agent outputs when a final probability is emitted.
+Demographic metadata is used only to identify which validation-derived reliability priors apply to a model output. It is not used as direct disease evidence. For RetinAgent outputs, thresholded metrics and safety behavior are primary because the agent is an arbitration system rather than a standalone continuous risk-ranking model. AUROC is retained for base models and reported only secondarily for agent outputs when a final probability is emitted.
 
 \begin{table*}[t]
 \centering
@@ -250,7 +272,7 @@ Harvard-GDP & Progression forecasting & RNFLT, visual-field TDS, OCT B-scan, cli
 
 \subsection{FairVision Diagnostic Evaluation}\label{subsec:diagnostic_eval}
 
-FairVision diagnosis is evaluated on AMD, DR, and glaucoma. We compare OCT-compatible and SLO/fundus-compatible foundation encoders, static fusion baselines, deterministic reliability-routing baselines, and the completed reliability-conditioned selective arbitration experiment. Table~\ref{tab:main_diagnostic_comparison} reports the completed model, fusion, and rule-based arbitration baselines. These rows establish the reliability problem that selective arbitration is designed to address.
+FairVision diagnosis is evaluated on AMD, DR, and glaucoma. We compare OCT-compatible and SLO/fundus-compatible foundation encoders, static fusion baselines, deterministic reliability-routing baselines, and the completed reliability-triage selective arbitration experiment. Table~\ref{tab:main_diagnostic_comparison} reports the completed model, fusion, and rule-based arbitration baselines. These rows establish the reliability problem that selective arbitration is designed to address.
 
 \begin{table*}[t]
 \centering
@@ -284,14 +306,14 @@ RETFound OCT had the best completed macro diagnostic performance among the found
 
 Detailed disease-specific demographic performance for the foundation-model baselines is reported in Appendix Tables~\ref{tab:fairvision_foundation_demographic_amd}--\ref{tab:fairvision_foundation_demographic_glaucoma}. These tables show that subgroup reliability differs not only by model, but also by disease task; therefore, demographic reliability priors are computed separately for each task rather than pooled across AMD, DR, and glaucoma.
 
-\subsection{FairVision Reliability-Conditioned Selective Arbitration}
+\subsection{FairVision Reliability-Triage Selective Arbitration}
 \label{subsec:fairvision_selective_results}
 
-We first evaluate the locked reliability-scoring and escalation tool that sits inside the Equi-Agent workflow. This was done on all 9,000 FairVision held-out test cases shared by the nine available model streams, with 3,000 validation cases used for reliability priors and conformal thresholds. The forced reliability-weighted prediction did not substantially outperform static probability fusion when every case was assigned a binary label (F1 0.729 vs. 0.731). Its main effect was selective triage: by escalating high-uncertainty cases, the full reliability-conformal system improved accepted-case F1 to 0.902, accepted-case sensitivity to 0.890, accepted-case specificity to 0.914, and worst-group accepted-case F1 to 0.615, while accepting 30.9\% of cases for automated decision (Table~\ref{tab:fairvision_selective_ablation}). These outputs are the structured reliability evidence that the full agentic Orchestrator and Safety Agent use for acceptance or escalation.
+We first evaluate the locked reliability-scoring and escalation tool that sits inside the RetinAgent workflow. This was done on all 9,000 FairVision held-out test cases shared by the nine available model streams, with 3,000 validation cases used for reliability priors and conformal thresholds. The forced reliability-weighted prediction did not substantially outperform static probability fusion when every case was assigned a binary label (F1 0.729 vs. 0.731). Its main effect was selective triage: by escalating high-uncertainty cases, the full reliability-conformal system improved accepted-case F1 to 0.902, accepted-case sensitivity to 0.890, accepted-case specificity to 0.914, and worst-group accepted-case F1 to 0.615, while accepting 30.9\% of cases for automated decision (Table~\ref{tab:fairvision_selective_ablation}). These outputs are the structured reliability evidence that the full agentic Orchestrator and Safety Agent use for acceptance or escalation.
 
 \begin{table*}[t]
 \centering
-\caption{FairVision reliability-conditioned selective arbitration ablation on 9,000 held-out test cases. Forced metrics score all cases regardless of escalation. Accepted metrics score only cases not escalated for human review.}
+\caption{FairVision reliability-triage selective arbitration ablation on 9,000 held-out test cases. Forced metrics score all cases regardless of escalation. Accepted metrics score only cases not escalated for human review.}
 \label{tab:fairvision_selective_ablation}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{@{}llllllllllll@{}}
@@ -313,7 +335,7 @@ The risk-coverage curve provides clinically tunable operating points (Table~\ref
 
 \begin{table*}[t]
 \centering
-\caption{Risk-coverage behavior for FairVision reliability-conditioned selective arbitration. Lower coverage means more cases are escalated for human review.}
+\caption{Risk-coverage behavior for FairVision reliability-triage selective arbitration. Lower coverage means more cases are escalated for human review.}
 \label{tab:fairvision_risk_coverage}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{@{}llllllll@{}}
@@ -374,13 +396,13 @@ Endpoint & Method & Input & AUROC $\uparrow$ & F1 $\uparrow$ & Sens. $\uparrow$ 
 \texttt{td\_pointwise\_no\_p\_cut} & Clinical tabular logistic baseline & Metadata + visual field & 0.710 & 0.509 & 0.483 & 0.821 & 0.120 & -- & -- & -- \\
 \texttt{td\_pointwise\_no\_p\_cut} & RETFound OCT linear probe & OCT B-scan & 0.633 & 0.403 & 0.417 & 0.721 & 0.231 & 0.148 & 0.588 & 0.679 \\
 \texttt{td\_pointwise\_no\_p\_cut} & GDP-native RNFLT+TDS EfficientNet & RNFLT + visual-field TDS & 0.816 & 0.600 & 0.500 & 0.929 & 0.066 & 0.564 & 0.086 & 0.068 \\
-\texttt{td\_pointwise\_no\_p\_cut} & Equi-Agent live arbitration & Native helper + reliability priors & 0.816 & 0.684 & 0.650 & 0.893 & 0.064 & 0.619 & 0.109 & 0.242 \\
+\texttt{td\_pointwise\_no\_p\_cut} & RetinAgent live arbitration & Native helper + reliability priors & 0.816 & 0.684 & 0.650 & 0.893 & 0.064 & 0.619 & 0.109 & 0.242 \\
 \botrule
 \end{tabular}%
 }
 \end{table*}
 
-For GDP glaucoma detection, OCT foundation encoders transferred better than they did for progression forecasting. VisionFM OCT produced the highest detection F1 among the tested OCT encoders (0.695), while RETFound OCT and UrFound OCT remained competitive. Progression forecasting required a different evidence source. The native RNFLT+TDS EfficientNet model outperformed the RETFound OCT progression probe on the less sparse progression endpoint (F1 0.600 vs. 0.403). The current live Equi-Agent progression run used the agentic pipeline rather than the isolated deterministic scoring tool alone: the Functional Specialist summarized longitudinal visual-field/RNFL evidence, the Equity Auditor supplied reliability context, the Orchestrator integrated evidence into a progression label, and the Safety Agent produced escalation decisions. This live run improved the native helper's thresholded F1 from 0.600 to 0.684 by applying reliability-aware threshold policies, while maintaining similar ranking behavior and calibration. The agent predicted progression in 54 of 200 cases and escalated 51 cases for human review. Because the agent is an arbitration system rather than a learned continuous risk model, F1, sensitivity, specificity, calibration, subgroup reliability, and escalation behavior are more appropriate primary metrics than AUROC for future agent comparisons.
+For GDP glaucoma detection, OCT foundation encoders transferred better than they did for progression forecasting. VisionFM OCT produced the highest detection F1 among the tested OCT encoders (0.695), while RETFound OCT and UrFound OCT remained competitive. Progression forecasting required a different evidence source. The native RNFLT+TDS EfficientNet model outperformed the RETFound OCT progression probe on the less sparse progression endpoint (F1 0.600 vs. 0.403). The current live RetinAgent progression run used the agentic pipeline rather than the isolated deterministic scoring tool alone: the Functional Specialist summarized longitudinal visual-field/RNFL evidence, the Equity Auditor supplied reliability context, the Orchestrator integrated evidence into a progression label, and the Safety Agent produced escalation decisions. This live run improved the native helper's thresholded F1 from 0.600 to 0.684 by applying reliability-aware threshold policies, while maintaining similar ranking behavior and calibration. The agent predicted progression in 54 of 200 cases and escalated 51 cases for human review. Because the agent is an arbitration system rather than a learned continuous risk model, F1, sensitivity, specificity, calibration, subgroup reliability, and escalation behavior are more appropriate primary metrics than AUROC for future agent comparisons.
 
 \subsection{Remaining Secondary Analyses}\label{subsec:planned_secondary}
 
@@ -390,11 +412,11 @@ The main text reports completed, interpretable comparisons and the completed det
 \label{sec:discussion}
 The completed experiments show that ophthalmic model reliability is task- and modality-dependent. RETFound OCT is the strongest completed FairVision diagnostic baseline, but its subgroup gaps remain large. Static fusion and simple routing do not solve this problem; in several cases they reduce worst-group F1 or worsen calibration despite using the same model outputs. These results support a practical conclusion: model selection for ophthalmic decision support should consider subgroup reliability and calibration, not only average F1 or AUROC.
 
-The FairVision selective-arbitration experiment clarifies the main contribution of the locked reliability tool inside the agentic framework. Reliability weighting alone did not materially improve forced classification over static fusion. The gain appeared when the system was evaluated as a selective predictor: accepted-case F1 increased to 0.902 and worst-group accepted-case F1 increased to 0.615, at the cost of escalating 69.1\% of cases under the most conservative full setting. This is a clinically meaningful but different claim from full automation. Equi-Agent is most defensible as an agentic triage layer: specialized agents organize multimodal evidence, reliability priors, guidelines, and safety checks, while the locked scoring core prevents the system from becoming unconstrained prompt-driven diagnosis.
+The FairVision selective-arbitration experiment clarifies the main contribution of the locked reliability tool inside the agentic framework. Reliability weighting alone did not materially improve forced classification over static fusion. The gain appeared when the system was evaluated as a selective predictor: accepted-case F1 increased to 0.902 and worst-group accepted-case F1 increased to 0.615, at the cost of escalating 69.1\% of cases under the most conservative full setting. This is a clinically meaningful but different claim from full automation. RetinAgent is most defensible as an agentic triage layer: specialized agents organize multimodal evidence, reliability priors, guidelines, and safety checks, while the locked scoring core prevents the system from becoming unconstrained prompt-driven diagnosis.
 
-Equi-Agent addresses this as an auditing and arbitration problem. The system does not treat demographics as disease evidence. Instead, demographic fields are used to select validation-derived reliability priors that describe how a model has behaved for similar cases. Metadata counterfactuals support this distinction: disease labels changed in only 0.4\% of counterfactual perturbations, while escalation status changed in 5.8\%. The final output is a thresholded prediction plus a confidence statement and escalation flag. This design is intentionally constrained: agent reasoning selects a calibration policy, while threshold values and allowable output fields are prespecified.
+RetinAgent addresses this as an auditing and arbitration problem. The system does not treat demographics as disease evidence. Instead, demographic fields are used to select validation-derived reliability priors that describe how a model has behaved for similar cases. Metadata counterfactuals support this distinction: disease labels changed in only 0.4\% of counterfactual perturbations, while escalation status changed in 5.8\%. The final output is a thresholded prediction plus a confidence statement and escalation flag. This design is intentionally constrained: agent reasoning selects a calibration policy, while threshold values and allowable output fields are prespecified.
 
-The GDP experiments clarify an important boundary. Cross-sectional glaucoma detection can be evaluated with OCT foundation-model probes, but longitudinal progression forecasting is better served by the native GDP RNFLT+TDS workflow. This is not a weakness of foundation models in general; it reflects the fact that progression labels are tied to longitudinal structural and functional change. For progression, Equi-Agent should be evaluated primarily by thresholded performance, calibration, and safety behavior rather than by treating its final probability as an independent continuous ranking score.
+The GDP experiments clarify an important boundary. Cross-sectional glaucoma detection can be evaluated with OCT foundation-model probes, but longitudinal progression forecasting is better served by the native GDP RNFLT+TDS workflow. This is not a weakness of foundation models in general; it reflects the fact that progression labels are tied to longitudinal structural and functional change. For progression, RetinAgent should be evaluated primarily by thresholded performance, calibration, and safety behavior rather than by treating its final probability as an independent continuous ranking score.
 
 \subsection{Fairness of Foundation-Model Comparison}
 \label{subsec:discussion_fairness_protocol}
@@ -404,7 +426,7 @@ This does not mean every model has been optimized to its maximum possible perfor
 
 \subsection{Clinical and Methodological Implications}
 \label{subsec:discussion_implications}
-Equi-Agent supports a deployment pattern in which foundation models are treated as evidence sources rather than autonomous diagnostic authorities. A high-confidence model output should be trusted only when it is consistent with morphology, functional context, and validation reliability for the relevant subgroup. Conversely, a borderline or discordant model output can trigger threshold adjustment, uncertainty inflation, or human review.
+RetinAgent supports a deployment pattern in which foundation models are treated as evidence sources rather than autonomous diagnostic authorities. A high-confidence model output should be trusted only when it is consistent with morphology, functional context, and validation reliability for the relevant subgroup. Conversely, a borderline or discordant model output can trigger threshold adjustment, uncertainty inflation, or human review.
 
 This approach may be especially valuable in ophthalmology because multimodal evidence is naturally complementary. OCT can reveal retinal layer pathology, SLO/fundus imaging can reveal vascular and optic-disc patterns, and visual fields can reveal functional loss. An arbitration framework can exploit this complementarity while explicitly monitoring when a modality or model is unreliable.
 
@@ -414,19 +436,19 @@ Several limitations remain. First, subgroup estimates can be unstable when posit
 
 \section{Conclusion}
 \label{sec:conclusion}
-Equi-Agent reframes retinal foundation-model deployment as an agentic reliability-auditing and selective-prediction problem. FairVision experiments show that standalone foundation models and simple ensembles can have substantial subgroup error and calibration gaps. Reliability-conditioned selective arbitration improves accepted-case performance and worst-group accepted-case reliability by escalating uncertain cases, rather than by pretending every case can be automated safely. Harvard-GDP experiments show that progression forecasting requires native longitudinal evidence rather than generic OCT B-scan transfer alone, and live Equi-Agent progression arbitration demonstrates how specialized agents can integrate functional, structural, reliability, and safety evidence. The current evidence supports a cautious role for Equi-Agent: an interpretable multi-agent arbitration layer that reports model reliability, applies prespecified calibration policies, and escalates uncertain cases rather than hiding uncertainty behind a single average metric.
+RetinAgent reframes retinal foundation-model deployment as an agentic reliability-triage problem. FairVision experiments show that standalone foundation models and simple ensembles can have substantial subgroup error and calibration gaps. Reliability-triage selective arbitration improves accepted-case performance and worst-group accepted-case reliability by escalating uncertain cases, rather than by pretending every case can be automated safely. Harvard-GDP experiments show that progression forecasting requires native longitudinal evidence rather than generic OCT B-scan transfer alone, and live RetinAgent progression arbitration demonstrates how specialized agents can integrate functional, structural, reliability, and safety evidence. The current evidence supports a cautious role for RetinAgent: an interpretable multi-agent arbitration layer that reports model reliability, applies prespecified calibration policies, and escalates uncertain cases rather than hiding uncertainty behind a single average metric.
 
 \section*{Data Availability}
 The experiments use Harvard-FairVision and Harvard-GDP data. Dataset access, licensing conditions, and any restrictions on redistribution will be described here before submission. Derived prediction files, subgroup metrics, and manuscript tables are produced under the project outputs directory and can be shared subject to dataset-use agreements.
 
 \section*{Code Availability}
-The Equi-Agent codebase contains scripts for manifest construction, foundation-model prediction extraction, threshold tuning, subgroup-prior construction, dynamic routing, metric computation, and manuscript table generation. A reproducible release with environment files, command-line entry points, and trained lightweight probes will be prepared before submission, subject to the licensing terms of the external foundation-model repositories.
+The RetinAgent codebase contains scripts for manifest construction, foundation-model prediction extraction, threshold tuning, subgroup-prior construction, dynamic routing, metric computation, and manuscript table generation. A reproducible release with environment files, command-line entry points, and trained lightweight probes will be prepared before submission, subject to the licensing terms of the external foundation-model repositories.
 
 \section*{Acknowledgements}
 To be completed before submission.
 
 \section*{Author Contributions}
-A.M.A.R. designed the study, implemented the Equi-Agent framework, ran experiments, and drafted the manuscript. Y.A., N.B., and Y.T. contributed to experimental design, analysis, interpretation, and manuscript revision. Final author roles will be updated before submission.
+A.M.A.R. designed the study, implemented the RetinAgent framework, ran experiments, and drafted the manuscript. Y.A., N.B., and Y.T. contributed to experimental design, analysis, interpretation, and manuscript revision. Final author roles will be updated before submission.
 
 \section*{Competing Interests}
 The authors declare no competing interests. This statement will be updated before submission if needed.
