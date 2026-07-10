@@ -5,6 +5,11 @@ GAMMA is the paired CFP + 3D OCT external glaucoma dataset.
 Cluster-only images belong under `raw/` and must not be committed. Convert the
 downloaded metadata to `manifest.csv` using `manifest.example.csv`.
 
+For the verified Hugging Face layout, generate it with `python
+scripts/prepare_gamma.py`. This retains the original three-class grade and maps
+`non -> 0`, `early -> 1`, and `mid_advanced -> 1`. The deterministic splits are
+stratified by the original grade.
+
 Required columns are `dataset`, `case_id`, `patient_id`, `split`, `label`,
 `cfp_path`, and `oct_path`. Labels are binary (`0` normal, `1` any glaucoma).
 OCT paths may point to a volume file or a directory of ordered B-scans.
