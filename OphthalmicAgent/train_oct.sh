@@ -2,9 +2,9 @@
 #
 # SLURM DIRECTIVES: Configure the resources needed for your final job.
 #
-#SBATCH --job-name=OCT_Linear_Probing    # Name of job for the queue
-#SBATCH --output=slurm_logs/slurm-center-%j.out  # Standard output log file (where prints go)
-#SBATCH --error=slurm_logs/slurm-center%j.err   # Standard error log file
+#SBATCH --job-name=CFP_Linear_Probing    # Name of job for the queue
+#SBATCH --output=slurm_logs/slurm-cfp-%j.out  # Standard output log file (where prints go)
+#SBATCH --error=slurm_logs/slurm-cfp-%j.err   # Standard error log file
 #SBATCH --time=10:00:00                # Maximum job run time (5 hours)
 #SBATCH --nodes=1                      # Request 1 node
 #SBATCH --ntasks-per-node=1            # Run one main task
@@ -30,6 +30,6 @@ echo Running code
 
 cd /lustre/fs1/home/yu395012/RETFound/OphthalmicAgent
 
-python -u -m VisionAgent.linear_probing_oct3
+python -u -m VisionAgent.linear_probing_fundus
 
 echo "--- Job finished successfully ---"

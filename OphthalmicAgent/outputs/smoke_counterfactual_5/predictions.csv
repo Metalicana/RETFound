@@ -1,0 +1,4 @@
+Filename,Task_Folder,Age,Gender,Race,Ethnicity,Ground_Truth,Pred_AMD,Pred_DR,Pred_GL,Is_Correct
+data/Glaucoma/Test/data_07001.npz,Glaucoma,50.81,female,asian,non-hispanic,1.0,-1,-1,0,0
+data/Glaucoma/Test/data_07002.npz,Glaucoma,79.67,female,white,non-hispanic,0.0,-1,-1,0,1
+data/Glaucoma/Test/data_07003.npz,Glaucoma,75.81,female,white,non-hispanic,1.0,-1,-1,1,1

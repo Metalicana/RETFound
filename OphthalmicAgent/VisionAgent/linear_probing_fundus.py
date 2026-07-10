@@ -145,9 +145,9 @@ def train():
     master_df = pd.read_csv(CSV_PATH)
     
     # Combine rows containing 'Train' or 'Test' for training
-    train_df = master_df[master_df['filename'].str.contains('/Train/|/Test/', case=False, regex=True)]
+    train_df = master_df[master_df['filename'].str.contains('/Train/|/Validation', case=False, regex=True)]
     # Use rows containing 'Validation' for validation
-    val_df = master_df[master_df['filename'].str.contains('/Validation/', case=False)]
+    val_df = master_df[master_df['filename'].str.contains('/Test/', case=False)]
     
     print(f"Dataset summary: Training on {len(train_df)} images | Validating on {len(val_df)} images.")
 
