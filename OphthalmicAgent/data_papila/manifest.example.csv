@@ -1,0 +1,3 @@
+dataset,case_id,patient_id,eye,split,label,cfp_path,disc_mask_path,cup_mask_path
+papila,patient001_left,patient001,left,train,0,data_papila/raw/fundus/patient001_left.jpg,data_papila/raw/masks/disc/patient001_left.png,data_papila/raw/masks/cup/patient001_left.png
+papila,patient002_right,patient002,right,val,1,data_papila/raw/fundus/patient002_right.jpg,data_papila/raw/masks/disc/patient002_right.png,data_papila/raw/masks/cup/patient002_right.png
