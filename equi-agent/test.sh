@@ -11,7 +11,6 @@
 #SBATCH --cpus-per-task=16              # Request 16 CPU cores (Matches your NUM_WORKERS=16 setting)
 #SBATCH --gres=gpu:1                   # Request 1 GPU (the resource needed)
 
-export SERPAPI_KEY="714e89089441f4ffa25801256a94aaf1c78b4ee60afdf0921512317f4acc6b5b"
 
 # --- SETUP ENVIRONMENT ---
 echo "--- Starting job on node $(hostname) ---"
