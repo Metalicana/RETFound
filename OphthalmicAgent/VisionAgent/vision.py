@@ -415,7 +415,7 @@ class VisionSpecialist:
         transform = transforms.Compose([
             transforms.Resize((512, 512)),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5], std=[0.5])
+#            transforms.Normalize(mean=[0.5], std=[0.5])
         ])
         input_tensor = transform(image).unsqueeze(0).to(self.device) 
         return input_tensor
@@ -514,40 +514,90 @@ class VisionSpecialist:
         oct_data = state['oct_diagnosis']
         retfound_scores = (
             f"SOURCE: RETFound (OCT Imaging Specialist)\n"
-            f"1. AMD Probability: {oct_data['AMD']['Prob_Pct']}% -> Status: {oct_data['AMD']['Status']}\n"
-            f"2. DR Status: {oct_data['DR']['Status']} (Confidence: {oct_data['DR']['Prob_Pct']}%)\n"
-            f"3. Glaucoma Status: {oct_data['Glaucoma']['Status']} (Confidence: {oct_data['Glaucoma']['Prob_Pct']}%)\n"
+#            f"1. AMD Probability: {oct_data['AMD']['Prob_Pct']}% -> Status: {oct_data['AMD']['Status']}\n"
+#            f"2. DR Status: {oct_data['DR']['Status']} (Confidence: {oct_data['DR']['Prob_Pct']}%)\n"
+#            f"3. Glaucoma Status: {oct_data['Glaucoma']['Status']} (Confidence: {oct_data['Glaucoma']['Prob_Pct']}%)\n"
+            f" Glaucoma Status: {oct_data['Glaucoma']['Status']} (Confidence: {oct_data['Glaucoma']['Prob_Pct']}%)\n"
         )
 
         slo_data = state['slo_diagnosis']
         mirage_scores = (
             f"SOURCE: MIRAGE (SLO Imaging Specialist)\n"
-            f"1. AMD Probability: {slo_data['AMD']['Prob_Pct']}% -> Status: {slo_data['AMD']['Status']}\n"
-            f"2. DR Status: {slo_data['DR']['Status']} (Confidence: {slo_data['DR']['Prob_Pct']}%)\n"
-            f"3. Glaucoma Status: {slo_data['Glaucoma']['Status']} (Confidence: {slo_data['Glaucoma']['Prob_Pct']}%)\n"
+#            f"1. AMD Probability: {slo_data['AMD']['Prob_Pct']}% -> Status: {slo_data['AMD']['Status']}\n"
+#            f"2. DR Status: {slo_data['DR']['Status']} (Confidence: {slo_data['DR']['Prob_Pct']}%)\n"
+#            f"3. Glaucoma Status: {slo_data['Glaucoma']['Status']} (Confidence: {slo_data['Glaucoma']['Prob_Pct']}%)\n"
+            f"Glaucoma Status: {slo_data['Glaucoma']['Status']} (Confidence: {slo_data['Glaucoma']['Prob_Pct']}%)\n"
         )
             
+         
+#        messages = [
+#            {
+#                "role": "system",
+#                "content": (
+#                    """You are a Senior Ophthalmic Imaging Specialist specializing in Glaucoma Diagnostics. Your task is to perform a meticulous, blind "Grounded Visual Audit" of retinal images (OCT B-scans and SLO/Fundus photographs) to extract objective structural descriptors.
+#
+#CRITICAL INSTRUCTION: You are blind to any numerical AI models. Your goal is to describe structural anomalies ONLY if they show definitive, clear focal defects. Do not over-interpret baseline variants. Many healthy patients naturally possess large optic cups (physiological macro-cups) or mildly asymmetrical nerve layers-do not characterize these as pathologically damaged unless active focal destruction is present.
+#
+#### CLINICAL STRUCTURAL AUDIT BENCHMARKS
+#
+#1. **OPTIC DISC & NEURORETINAL RIM CHARACTERISTICS (SLO/Fundus Focus):**
+# - **Cup-to-Disc Ratio (CDR):** Estimate the vertical Cup-to-Disc ratio objectively. Explicitly state if the cup is small/physiological (< 0.4), moderately large (0.4 - 0.65), or severely excavated (>= 0.75).
+# - **Neuroretinal Rim & The ISNT Rule:** Assess the rim color, thickness, and uniformity. Note if the tissue is healthy, uniform, and pink, and check if it follows the ISNT rule (Inferior rim thickest, followed by Superior, Nasal, and Temporal). Look for definitive focal violations, such as clear structural thinning, notches, or a focal breach at the superior or inferior poles.
+# - **Vascular & Margin Biomarkers:** Only report anomalies if you clearly see localized splinter/disc hemorrhages at the margin, vertical elongation of the cup, or significant nasalization/basing of major retinal vessels.
+#
+#2. **PERIPAPILLARY RNFL CHARACTERISTICS (OCT Focus):**
+# - **Axonal Bundle Peak Profile:** Examine the cross-sectional peripapillary Retinal Nerve Fiber Layer (RNFL). Note whether the major superior and inferior axonal bundles preserve their normal, robust "double-hump" peak architectural contour. 
+# - **Localized Tissue Attenuation:** Look for deep, localized wedge defects or focal step-like excavations of the neuroretinal tissue. Mild, smooth, or generalized symmetric thinning should be characterized as a baseline/borderline variant unless a sharp drop into pathologically flat zones is present.
+#
+#### AUDIT PROTOCOL
+#- **Step 1:** Perform an independent visual audit of the SLO optic nerve head layout. If the rim is uniform, thick, and pink, clearly document it as healthy, even if the cup area appears large.
+#- **Step 2:** Perform an independent visual audit of the peripapillary structural layers on the OCT cross-sections.
+#- **Step 3:** Consolidate your visual observations into highly descriptive findings. Do not provide numerical probability estimates, final disease labels, staging scores, or binary selections. Focus on separating definitive structural damage from benign physiological variants."""
+#                )
+#            },
+#            {
+#                "role": "user",
+#                "content": [
+#                    {
+#                        "type": "text",
+#                        "text": """
+#### INPUT DATA FOR CASE
+#1. IMAGE_OCT: [Attached B-scan cross-section of the peripapillary nerve region]
+#2. IMAGE_SLO: [Attached SLO/Fundus photograph centering the optic disc area]
+#                        
+#### YOUR ASSIGNMENT
+#1. Perform a meticulous, blind qualitative audit of the optic nerve head, cup-to-disc layout, and rim morphology on the SLO image.
+#2. Examine the structural integrity and thickness uniformity of the peripapillary retinal nerve layer architecture across the OCT slices.
+#3. Consolidate your objective visual observations into the required executive output block. Do not provide numerical predictions, disease labels, or binary selections.
+#                        
+#### REQUIRED OUTPUT STRUCTURE
+#You must provide your visual summary strictly using the formatted structure below:
+#                        
+#[EXECUTIVE SUMMARY]
+#- SLO DISK & RIM FINDINGS: [Describe estimated CDR, rim tissue uniformity, color, and adherence to the ISNT rule. State explicitly if the rim is healthy/pink or shows active focal notching.]
+#- OCT RNFL FINDINGS: [Describe the superior/inferior peak architecture, noting if it preserves the standard robust double-hump configuration or exhibits distinct localized wedge defects/excavations.]
+#- VISUAL COMPLEXITY NOTE: [Note if the eye exhibits any benign macro-anatomy, such as a large physiological cup with an intact, pink neuroretinal rim, or a healthy borderline symmetric profile.]
+#[/EXECUTIVE SUMMARY]
+#"""
+#                    },
+#                    { "type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_oct_image}"} },
+#                    { "type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_slo_image}"} }
+#                ]
+#            }
+#        ]
+        
         messages = [
             {
                 "role": "system",
                 "content": (
-                    """You are a Senior Ophthalmic Imaging Specialist. Your task is to perform a "Grounded Visual Audit" of retinal images (OCT and SLO/Fundus), cross-referencing your visual findings against binary AI probability outputs.
+                    """You are an Ophthalmic Specialist. Your task is to look at the attached grayscale OCT and monochrome SLO/Fundus images and provide a simple, objective description of the eye anatomy. 
 
-### CLINICAL DIAGNOSTIC CRITERIA (BINARY)
-You must use the following structural benchmarks to determine if a condition is completely Healthy (0) or Pathological (1).
+Do not diagnose the patient or output binary labels. Simply describe what you see based on these two checks:
 
-1. **AMD BINARY CLASSIFICATION:**
- - **0 (Healthy/Normal):** Perfectly smooth Retinal Pigment Epithelium (RPE) band; foveal contour intact; no drusen, sub-retinal fluid, or tissue atrophy.
- - **1 (AMD Detected):** Physical evidence of ANY AMD-related pathology, including small/medium/large drusen deposits, lumpy/granular confluent texturing along Bruch's membrane, intraretinal/sub-RPE fluid pockets, or geographic atrophy patches.
+1. OPTIC DISC (SLO Image): State the approximate Cup-to-Disc Ratio (CDR). Note if the rim tissue surrounding the cup looks thick, uniform, and complete, or if you see a clear, localized notch/bite taken out of the rim.
+2. RNFL PROFILE (OCT Image): Look at the cross-sectional retinal layer. Note if it shows a standard, healthy "double-hump" peak shape, or if it looks completely flat, thin, or eroded.
 
-2. **DR MARKERS:** Identify any microaneurysms, intraretinal hemorrhages, or hard exudates (0: Negative, 1: Positive).
-3. **GLAUCOMA MARKERS:** Identify significant optic disc cupping (increased cup-to-disc ratio) or localized RNFL thinning defects (0: Low Risk, 1: High Risk).
-
-### AUDIT PROTOCOL
-- **Step 1: Independent Inspection.** Visually evaluate the macula area on the OCT and the optic nerve head on the SLO for any abnormal structural alterations.
-- **Step 2: Contrast Against AI Scores.** Review the `AI_PROBABILITIES`. If the AI shows a disease probability above 30% while you initially graded it as negative, re-examine the structural boundaries closely at high magnification for subtle variations.
-- **Step 3: Resolve Critical Conflicts.** Note explicit contradictions if the digital probability indicators show highly confident positive disease signals while the uploaded image structures are structurally clear and pristine.
-- **Step 4: Execute Forced Binary Decision.** Even if there is slight diagnostic uncertainty, you must deliver a final, definitive classification choice (0 or 1) in your summarized conclusion block."""
+If an image is too noisy, dark, or unreadable, simply state: "Image is too noisy to read." """
                 )
             },
             {
@@ -555,29 +605,17 @@ You must use the following structural benchmarks to determine if a condition is 
                 "content": [
                     {
                         "type": "text",
-                        "text": f"""
-### INPUT DATA FOR CASE
+                        "text": """
+### INPUT IMAGES
 1. IMAGE_OCT: [Attached B-scan]
-2. IMAGE_SLO: [Attached SLO/Fundus image]
-3. AI_PROBABILITIES:
-{retfound_scores}
-                        
-{mirage_scores}
-                        
-### YOUR ASSIGNMENT
-1. Perform a detailed inspection of the macula foveal contour and RPE layer on the OCT. Check for any drusen, fluid, or elevations that suggest pathology.
-2. In the SLO image, audit the vasculature for hemorrhages/exudates and the optic disc region for pathologically enlarged cupping.
-3. Contrast your visual inspection results with the numerical probabilities provided. 
-4. Conclude your report with an Executive Summary detailing your visual evidence, a forced binary selection for AMD, and any critical conflicts.
-                        
-### REQUIRED OUTPUT STRUCTURE
-You must conclude your report with the following formatted block:
-                        
+2. IMAGE_SLO: [Attached Fundus image]
+
+### REQUIRED OUTPUT FORMAT
+You must provide your findings strictly using this structure:
+
 [EXECUTIVE SUMMARY]
-- VISUAL FINDINGS: (e.g., "OCT: smooth RPE, foveal contour preserved. Fundus: normal vasculature, physiological cup.")
-- INDEPENDENT AMD SELECTION: (Identify 0 for Healthy or 1 for AMD Detected)
-- ALIGNMENT: (Agree / Conflict / Uncertain)
-- CONFLICT DETAIL: (If 'Conflict', explain why the physical image morphology does not match the AI status indicators.)
+- SLO FINDINGS: [Describe the CDR cup size and whether the rim is uniform or has a notch.]
+- OCT FINDINGS: [Describe if the nerve layer has a normal double-hump shape or if it is thin/flat.]
 [/EXECUTIVE SUMMARY]
 """
                     },
@@ -586,7 +624,7 @@ You must conclude your report with the following formatted block:
                 ]
             }
         ]
-            
+        
         response = self.model_client.chat.completions.create(
             model=self.deployment_name,
             messages=messages,

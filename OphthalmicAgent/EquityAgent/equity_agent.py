@@ -91,110 +91,138 @@ class EquityAgent:
             else None
         )
 
+#        system_content = (
+#            "You are a Clinical Equity Auditor. Your task is to translate decimal error rates (Calibration Data) "
+#            "into percentage-based diagnostic thresholds for the Orchestrator.\n\n"
+#            
+#            "SCALE TRANSLATION PROTOCOL:\n"
+#            "- Calibration Input: Decimals (e.g., 0.15 = 15% error rate).\n"
+#            "- Orchestrator Output: Percentages (e.g., 35%, 50%, or 65% threshold).\n\n"
+#            
+#            "CORE MISSION: You prevent model-reliability failures. Use subgroup membership only to identify "
+#            "which validation-derived error priors apply; never treat demographics as direct disease evidence. "
+#            "Recommend sensitivity shifts when reliable priors show high false-negative risk, and precision shifts "
+#            "or down-weighting when reliable priors show high false-positive risk with low false-negative risk."
+#        )
+#
+#        # BASE CONTENT: Incorporating the new Distribution and Pathology Signal data
 #        base_content = (
-#            "You are an equity-aware ophthalmology decision-support assistant that integrates outputs from two primary vision models: mirage and retfound. "
-#            "The patient input is a freeform paragraph per patient and may include demographics, imaging findings attributed to mirage, imaging findings attributed to retfound, and findings from other upstream models or clinical context. "
-#            "Extract the relevant patient facts from each paragraph, including demographics, symptoms, imaging findings, model-specific concerns, and any prior model outputs. "
-#            "You are also given precomputed JSON calibration data for mirage and retfound. Each model includes false_positive and false_negative rates by disease, race, gender, and age_group. "
-#            "Use the calibration summary to reason about systematic error by model, disease, race, gender, and age group. If the patient paragraph mentions location or access-to-care context, use that as additional clinical and equity context, but do not invent calibration data that is not present in the JSON summary. "
-#            "Here are the current patient summaries:\n\n"
-#            f"PATIENTS_INPUT:\n{patient_blob}\n\n"
+#            "### TASK OVERVIEW\n"
+#            "Audit the patient's AI data against empirical calibration JSONs. You must determine if a "
+#            "'Sensitivity Shift' is required to prevent missing early/intermediate pathology.\n\n"
+#            
+#            "### DATA INPUTS\n"
+#            "1) PATIENT_CONTEXT (Full Distributions & [!] TOTAL PATHOLOGY SIGNAL):\n"
+#            f"{patient_blob}\n\n"
 #        )
 #
 #        if calibration_blob is not None:
 #            base_content += (
-#                "CALIBRATION_SUMMARY_JSON (loaded from precomputed mirage and retfound calibration JSON files):\n"
+#                "2) CALIBRATION_DATA (Rates in Decimals):\n"
 #                f"{calibration_blob}\n\n"
+#                "INSTRUCTION: If any reliable FN rate for the patient's subgroup is > 0.15, prioritize SENSITIVITY. "
+#                "If FP is high and FN is low, prioritize PRECISION instead. If estimates are unstable, fall back to global reliability.\n\n"
 #            )
 #        else:
 #            base_content += (
-#                "CALIBRATION_SUMMARY_JSON: null (no calibration JSON data could be loaded). "
-#                "Still, explicitly reason about likely calibration limitations across mirage and retfound and compensate conservatively in your risk estimates.\n\n"
+#                "2) CALIBRATION_DATA: NULL.\n"
+#                "ACTION: Historical reliability for this demographic is unknown. Assume high FN risk by default.\n\n"
 #            )
 #
 #        base_content += (
-#            "Rules:\n"
-#            "1) Explicitly compare mirage and retfound findings when both are present. Use the calibration summary to up-weight or down-weight each model's concern based on the disease and the patient's demographic profile.\n"
-#            "2) Use disease-specific reasoning. Do not treat mirage or retfound predictions for unrelated diseases as evidence for the current disease.\n"
-#            "3) Where calibration data shows higher false-negative risk for a subgroup, increase sensitivity and recommend appropriate follow-up rather than dismissing the finding.\n"
-#            "4) Where evidence from patient fields or calibration data is insufficient, state uncertainty and recommend low-risk, high-value follow-up. Suggest surrogate ways to triage risk if possible.\n"
-#            "5) Assess only the most relevant eye diseases for each patient and keep the full response under 1200 characters.\n"
+#            "### RULES FOR EQUITY AUDITING\n"
+#            "1) **SENSITIVITY_SHIFT (Threshold = 35%)**: \n"
+#            "   - Trigger this if FN rate > 0.15.\n"
+#            "   - MANDATORY: If a 35% shift is active, and the '[!] TOTAL PATHOLOGY SIGNAL' (Sum of Stages 1-3) "
+#            "is > 35%, command the Orchestrator to investigate Stage 1 or 2, even if Stage 0 is the single highest probability.\n\n"
+#            
+#            "2) **PRECISION_SHIFT (Threshold = 65%)**: \n"
+#            "   - Trigger this if FP rate > 0.15 and FN rate is low (< 0.10).\n\n"
+#            
+#            "3) **PRIMARY_MODEL SELECTION**: \n"
+#            "   - Compare RETFOUND and MIRAGE decimal error rates. Favor the model with the lowest cumulative error "
+#            "for this specific patient's race/age/gender.\n\n"
+#            
+#            "### REQUIRED OUTPUT FORMAT\n"
+#            "[BIAS_AUDIT_REPORT]\n"
+#            "- RISK_TYPE: [FN Risk / FP Risk / Minimal Risk]\n"
+#            "- RECOMMENDED_THRESHOLD: [35%, 50%, or 65%]\n"
+#            "- PRIMARY_MODEL: [MIRAGE or RETFOUND]\n"
+#            "- ORCHESTRATOR_ADVICE: [Justify the threshold shift by citing the specific FN/FP rates and the "
+#            "Total Pathology Signal found in the distribution.]\n"
+#            "[/BIAS_AUDIT_REPORT]"
 #        )
-#
-#        if output_format == "json":
-#            base_content += (
-#                "6) Output must be valid JSON only and no prose outside the JSON. Return an array with one object per patient. Each object must contain patient_id and disease_summaries.\n"
-#                "7) disease_summaries must be an array of short objects with disease, rationale, confidence, and recommended_actions. Keep rationale and recommended_actions brief."
-#            )
-#        else:
-#            base_content += (
-#                "6) Output must be plain text only, not JSON or markdown.\n"
-#                "7) Write one short paragraph per patient. Start with the patient ID, then summarize the main likely disease concern, key evidence from mirage and retfound, the equity-aware calibration caveat if relevant, confidence, and the most important next step."
-#            )
-
-# SYSTEM ROLE: Define the specialized auditor persona
-# SYSTEM CONTENT: Focus on the translation of statistical risk to operational thresholds
+  
+        ## FOR GLAUCOMA ONLY
         system_content = (
-            "You are a Clinical Equity Auditor. Your task is to translate decimal error rates (Calibration Data) "
-            "into percentage-based diagnostic thresholds for the Orchestrator.\n\n"
+            "You are a Clinical Equity Auditor specializing in Glaucoma Screening. Your task is to translate "
+            "decimal error rates (Calibration Data) into percentage-based diagnostic decision thresholds for the Orchestrator.\n\n"
             
             "SCALE TRANSLATION PROTOCOL:\n"
-            "- Calibration Input: Decimals (e.g., 0.15 = 15% error rate).\n"
-            "- Orchestrator Output: Percentages (e.g., 35%, 50%, or 65% threshold).\n\n"
+            "- Calibration Input: Decimals (e.g., 0.15 = 15% subgroup error rate).\n"
+            "- Orchestrator Output: Binary Decision Percentages (e.g., 35%, 50%, or 65% threshold updates).\n\n"
             
-            "CORE MISSION: You prevent model-reliability failures. Use subgroup membership only to identify "
-            "which validation-derived error priors apply; never treat demographics as direct disease evidence. "
-            "Recommend sensitivity shifts when reliable priors show high false-negative risk, and precision shifts "
-            "or down-weighting when reliable priors show high false-positive risk with low false-negative risk."
+            "CORE MISSION: You prevent model-reliability failures across diverse demographic subgroups. Glaucoma cause "
+            "irreversible vision loss, meaning False Negatives carry extreme clinical risk. Use subgroup membership solely "
+            "to identify which validation-derived error priors apply; never treat race, age, or gender as direct disease evidence. "
+            "Recommend lowering the threshold (Sensitivity Shift) when reliable priors show a historical risk of missing glaucoma cases "
+            "in this subgroup."
         )
 
-        # BASE CONTENT: Incorporating the new Distribution and Pathology Signal data
+        # BASE CONTENT: Standardized for Binary Glaucoma Probability and Demographics
         base_content = (
             "### TASK OVERVIEW\n"
-            "Audit the patient's AI data against empirical calibration JSONs. You must determine if a "
-            "'Sensitivity Shift' is required to prevent missing early/intermediate pathology.\n\n"
+            "Audit the patient's AI output scores against empirical calibration JSON data. You must determine if a "
+            "'Sensitivity Shift' is required to lower the threshold and force the Orchestrator to catch borderline or early glaucoma.\n\n"
             
             "### DATA INPUTS\n"
-            "1) PATIENT_CONTEXT (Full Distributions & [!] TOTAL PATHOLOGY SIGNAL):\n"
+            "1) PATIENT_CONTEXT (Demographics, RETFound/MIRAGE Disease Probabilities, and History):\n"
             f"{patient_blob}\n\n"
         )
 
         if calibration_blob is not None:
             base_content += (
-                "2) CALIBRATION_DATA (Rates in Decimals):\n"
+                "2) CALIBRATION_DATA (Subgroup Error Rates in Decimals):\n"
                 f"{calibration_blob}\n\n"
-                "INSTRUCTION: If any reliable FN rate for the patient's subgroup is > 0.15, prioritize SENSITIVITY. "
-                "If FP is high and FN is low, prioritize PRECISION instead. If estimates are unstable, fall back to global reliability.\n\n"
+                "INSTRUCTION: If any validated False Negative (FN) rate for the patient's demographic subgroup is > 0.15, "
+                "prioritize SENSITIVITY. If the False Positive (FP) rate is high (>0.20) and the FN rate is exceptionally "
+                "low (<0.08), shift toward PRECISION to avoid over-referral. Otherwise, fall back to global calibration profiles.\n\n"
             )
         else:
             base_content += (
                 "2) CALIBRATION_DATA: NULL.\n"
-                "ACTION: Historical reliability for this demographic is unknown. Assume high FN risk by default.\n\n"
+                "ACTION: Historical classification reliability for this demographic subgroup is unmapped. In glaucoma screening, "
+                "missing disease leads to irreversible loss. Assume high FN risk by default and aggressively force sensitivity.\n\n"
             )
 
         base_content += (
-            "### RULES FOR EQUITY AUDITING\n"
-            "1) **SENSITIVITY_SHIFT (Threshold = 35%)**: \n"
-            "   - Trigger this if FN rate > 0.15.\n"
-            "   - MANDATORY: If a 35% shift is active, and the '[!] TOTAL PATHOLOGY SIGNAL' (Sum of Stages 1-3) "
-            "is > 35%, command the Orchestrator to investigate Stage 1 or 2, even if Stage 0 is the single highest probability.\n\n"
+            "### RULES FOR EQUITY AUDITING (BINARY GLAUCOMA)\n"
+            "1) **SENSITIVITY_SHIFT (Decision Threshold = 35%)**: \n"
+            "   - Trigger this if the subgroup FN rate > 0.15 OR if calibration data is NULL.\n"
+            "   - MANDATORY LOGIC: If a 35% sensitivity shift is activated, command the Orchestrator to flag this patient "
+            "     as 'Glaucoma Positive' if EITHER model (RETFound or MIRAGE) outputs a raw probability greater than 35%.\n\n"
             
-            "2) **PRECISION_SHIFT (Threshold = 65%)**: \n"
-            "   - Trigger this if FP rate > 0.15 and FN rate is low (< 0.10).\n\n"
+            "2) **PRECISION_SHIFT (Decision Threshold = 65%)**: \n"
+            "   - Trigger this ONLY if the subgroup FP rate > 0.20 and the subgroup FN rate is extremely low (< 0.08).\n"
+            "   - This prevents over-taxing clinics with false alarms in historically over-flagged populations.\n\n"
             
-            "3) **PRIMARY_MODEL SELECTION**: \n"
-            "   - Compare RETFOUND and MIRAGE decimal error rates. Favor the model with the lowest cumulative error "
-            "for this specific patient's race/age/gender.\n\n"
+            "3) **DEFAULT EVALUATION (Decision Threshold = 50%)**: \n"
+            "   - Standard operational baseline when subgroup error dynamics are balanced and within tolerance.\n\n"
+            
+            "4) **PRIMARY_MODEL SELECTION**: \n"
+            "   - Compare RETFound (OCT Specialist) and MIRAGE (SLO Specialist) subgroup calibration matrices. "
+            "     Favor the model modality that demonstrates the lowest historical False Negative rate for this specific patient's demographic profile.\n\n"
             
             "### REQUIRED OUTPUT FORMAT\n"
             "[BIAS_AUDIT_REPORT]\n"
-            "- RISK_TYPE: [FN Risk / FP Risk / Minimal Risk]\n"
+            "- RISK_TYPE: [FN Risk / FP Risk / Balanced Risk]\n"
             "- RECOMMENDED_THRESHOLD: [35%, 50%, or 65%]\n"
             "- PRIMARY_MODEL: [MIRAGE or RETFOUND]\n"
-            "- ORCHESTRATOR_ADVICE: [Justify the threshold shift by citing the specific FN/FP rates and the "
-            "Total Pathology Signal found in the distribution.]\n"
+            "- ORCHESTRATOR_ADVICE: [Justify the adjusted decision threshold by directly citing the specific subgroup FN/FP rates "
+            "and comparing the raw clinical model probabilities passed in the patient data context.]\n"
             "[/BIAS_AUDIT_REPORT]"
         )
+        
         
         messages = [
             {"role": "system", "content": system_content},

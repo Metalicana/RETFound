@@ -106,8 +106,9 @@
 import pandas as pd
 import numpy as np
 import os
-from PIL import Image
 import matplotlib.pyplot as plt
+import torch
+from PIL import Image
 from pprint import pprint
 
 class ExcelEyeLoader:
@@ -189,12 +190,37 @@ class ExcelEyeLoader:
         mid_idx = oct_volume.shape[0] // 2
         oct_slice = oct_volume[mid_idx]
         
-        # Contrast Intensity Normalization
-        if oct_slice.max() <= 1.0:
-            oct_slice = (oct_slice * 255).astype(np.uint8)
-        else:
-            oct_slice = oct_slice.astype(np.uint8)
-        oct_image = oct_slice.astype(np.uint8)       
+        num_slices = 8
+        
+        indices = np.linspace(
+            0,
+            oct_volume.shape[0] - 1,
+            num_slices,
+            dtype=int
+        )
+
+        selected_slices = oct_volume[indices]
+        
+#        images = []
+#
+#        for oct_slice in selected_slices:
+#            if oct_slice.max() <= 1.0:
+#                oct_slice = (oct_slice * 255).astype(np.uint8)
+#            else:
+#                oct_slice = oct_slice.astype(np.uint8)
+#        
+#            img = Image.fromarray(oct_slice).convert("RGB")
+#        
+#            images.append(img)
+#        
+#        oct_image = torch.stack(images)   # (16,3,224,224)
+#            
+#        # Contrast Intensity Normalization
+#        if oct_slice.max() <= 1.0:
+#            oct_slice = (oct_slice * 255).astype(np.uint8)
+#        else:
+#            oct_slice = oct_slice.astype(np.uint8)
+#        oct_image = oct_slice.astype(np.uint8)       
   
         fundus_img = container['slo_fundus']
         fundus_img = fundus_img.astype(np.float32)
@@ -219,5 +245,6 @@ class ExcelEyeLoader:
             "fundus_img": fundus_img,
             "directory": npz_path,
             "stage": stage,
-            "oct_img": oct_image
+            "oct_img": selected_slices,
+            "middle_oct": oct_slice
         }

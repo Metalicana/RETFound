@@ -15,6 +15,9 @@ class AgentState(TypedDict):
     slo_diagnosis: Any  
     
     vision_opinion: Dict[str, Any]
+    vision_opinion_oct: Dict[str, Any]
+    vision_opinion_slo: Dict[str, Any]
+    
     functional_opinion: Dict[str, Any]
     
     guidelines: str

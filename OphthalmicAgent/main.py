@@ -4,6 +4,10 @@ from Orchestrator.state import AgentState
 from BioProfilerAgent.bio_profiler import BioProfiler
 from EquityAgent.equity_agent import EquityAgent
 from VisionAgent.vision import VisionSpecialist
+
+from VisionAgent.vision_oct import VisionSpecialistOct
+from VisionAgent.vision_slo import VisionSpecialistSlo
+
 from VisionAgent.linear_probing_oct3 import FairVisionNPZ
 from FunctionalInterpretationAgent.function_interpreter import FunctionalSpecialist
 from GuidelinesAgent.guidelines_agent import GuidelinesAgent
@@ -18,12 +22,16 @@ import pandas as pd
 import json
 import re
 
-OUTPUT_CSV = "ophthalmic_performance_results_jun11.csv"
+OUTPUT_CSV = "ophthalmic_performance_results_jun15_2.csv"
 
 #Intiializing agents
 profiler = BioProfiler()
 equity_agent = EquityAgent()
-vision_agent = VisionSpecialist("./weights/oct_model_best_all_binary.pth", "./weights/slo_model_best_all_binary.pth")
+#vision_agent = VisionSpecialist("./weights/oct_model_best_all_binary.pth", "./weights/slo_model_best_all_binary.pth")
+
+vision_agent_oct = VisionSpecialistOct("./weights/oct_model_best_all_binary.pth", "./weights/slo_model_best_all_binary.pth")
+vision_agent_slo = VisionSpecialistSlo("./weights/oct_model_best_all_binary.pth", "./weights/slo_model_best_all_binary.pth")
+
 functional_agent = FunctionalSpecialist()
 ophthalmic_agent = Orchestrator()
 safety_agent = SafetyAgent()
@@ -38,66 +46,90 @@ def run_diagnostic_pipeline(patient_data):
     print(f"{final_state['clinical_narrative']}") 
     print("\n" + "-"*30)
     
+#    #VISION AGENT
+#    print("\n\n--- Sending Visual Data to Vision Specialist ---")
+#    final_state["vision_opinion"] = vision_agent.analyze(patient_data['oct_img'], patient_data['fundus_img'], final_state)
+#    print("\n\nProbabilities Ready: ")
+#    print("\n\nOCT DIAGNOSIS USING FINETUNED RETFOUND")
+#    
+#    oct_diagnosis = final_state['oct_diagnosis']
+#
+#    retfound_scores = final_state["vision_opinion"]["retfound_scores"]
+#    
+#    print(retfound_scores)
+#    
+#    print("\nSLO DIAGNOSIS USING FINETUNED MIRAGE")
+#    slo_diagnosis = final_state['slo_diagnosis']
+#
+#    mirage_scores = final_state["vision_opinion"]["mirage_scores"]
+#    
+#    print(mirage_scores)
+#    
+#    print("\n\nVision Specialist's Output Ready: ")
+#    print(f"{final_state['vision_opinion']['summary']}")
+#    
+#    print("\n" + "-"*30)
+    
+  
     #VISION AGENT
-    print("\n\n--- Sending Visual Data to Vision Specialist ---")
-    final_state["vision_opinion"] = vision_agent.analyze(patient_data['oct_img'], patient_data['fundus_img'], final_state)
+    print("\n\n--- Sending Visual Data to Vision Specialists ---")
+    final_state["vision_opinion_oct"] = vision_agent_oct.analyze(patient_data['oct_img'], patient_data['fundus_img'], final_state)
+    
     print("\n\nProbabilities Ready: ")
     print("\n\nOCT DIAGNOSIS USING FINETUNED RETFOUND")
-    
     oct_diagnosis = final_state['oct_diagnosis']
-
-    retfound_scores = final_state["vision_opinion"]["retfound_scores"]
-    
+    retfound_scores = final_state["vision_opinion_oct"]["retfound_scores"] 
     print(retfound_scores)
     
     print("\nSLO DIAGNOSIS USING FINETUNED MIRAGE")
     slo_diagnosis = final_state['slo_diagnosis']
-
-    mirage_scores = final_state["vision_opinion"]["mirage_scores"]
-    
+    mirage_scores = final_state["vision_opinion_oct"]["mirage_scores"]
     print(mirage_scores)
     
-    print("\n\nVision Specialist's Output Ready: ")
-    print(f"{final_state['vision_opinion']['summary']}")
+    print("\n\nVision Specialist OCT's Output Ready: ")
+    print(f"{final_state['vision_opinion_oct']['summary']}")
     
+    final_state["vision_opinion_slo"] = vision_agent_slo.analyze(patient_data['oct_img'], patient_data['fundus_img'], final_state)   
+    print("\n\nVision Specialist SLO's Output Ready: ")
+    print(f"{final_state['vision_opinion_slo']['summary']}")
     print("\n" + "-"*30)
+  
+      
+#    #FUNCTIONAL INTERPRETATION AGENT
+#    print("\n\n--- Sending Visual Field Data to Functional Interpretation Agent ---")
+#    final_state["functional_opinion"] = functional_agent.analyze(final_state)
+#    print("\n\nFunctional Vision Interpreter's Output Ready: ")
+#    print(f"{final_state['functional_opinion']['summary']}")
+#    print("\n" + "-"*30)   
     
-    #FUNCTIONAL INTERPRETATION AGENT
-    print("\n\n--- Sending Visual Field Data to Functional Interpretation Agent ---")
-    final_state["functional_opinion"] = functional_agent.analyze(final_state)
-    print("\n\nFunctional Vision Interpreter's Output Ready: ")
-    print(f"{final_state['functional_opinion']['summary']}")
-
-    print("\n" + "-"*30)   
-    
-    #EQUITY AGENT
-    print("\n\n--- Sending Narrative and Visual Findings to Equity Agent ---")
-    equity_input = f"""
-    ### PATIENT DATA 
-    Patient narrative: {final_state['clinical_narrative']}
-        
-    ### AI MODEL OUTPUTS
-    {retfound_scores} 
-        
-         
-    {mirage_scores}"""
-
-    final_state["equity_opinion"] = equity_agent.analyze_patients(equity_input, output_format="text")
-    print("\n\nEquity Agent's Output Ready: ")
-    print(f"{final_state['equity_opinion']}") 
-    print("\n" + "-"*30)
-    
-    #GUIDELINES AGENT
-    print("\n\n--- Sending Query to Guidelines Agent ---")
-    note = f"""
-    Patient Narrative: {final_state['clinical_narrative']} 
-    Functional Interpretation Agent output: {final_state['functional_opinion']['summary']}"""
-
-    final_state['guidelines'] = guidelines_agent.consult_note(note, max_results=5, diagnosis_only=True,)
-    print("\n\n Guidelines Agent's Output   Ready: ")
-    print(f"{final_state['guidelines']}")
-    
-    print("\n" + "-"*30) 
+#    #EQUITY AGENT
+#    print("\n\n--- Sending Narrative and Visual Findings to Equity Agent ---")
+#    equity_input = f"""
+#    ### PATIENT DATA 
+#    Patient narrative: {final_state['clinical_narrative']}
+#        
+#    ### AI MODEL OUTPUTS
+#    {retfound_scores} 
+#        
+#         
+#    {mirage_scores}"""
+#
+#    final_state["equity_opinion"] = equity_agent.analyze_patients(equity_input, output_format="text")
+#    print("\n\nEquity Agent's Output Ready: ")
+#    print(f"{final_state['equity_opinion']}") 
+#    print("\n" + "-"*30)
+#    
+#    #GUIDELINES AGENT
+#    print("\n\n--- Sending Query to Guidelines Agent ---")
+#    note = f"""
+#    Patient Narrative: {final_state['clinical_narrative']} 
+#    Functional Interpretation Agent output: {final_state['functional_opinion']['summary']}"""
+#
+#    final_state['guidelines'] = guidelines_agent.consult_note(note, max_results=5, diagnosis_only=True,)
+#    print("\n\n Guidelines Agent's Output   Ready: ")
+#    print(f"{final_state['guidelines']}")
+#    
+#    print("\n" + "-"*30) 
     
     #ORCHESTRATOR
     print("\n\n--- Sending Case to Orchestrator ---")
@@ -106,37 +138,36 @@ def run_diagnostic_pipeline(patient_data):
     print(f"{final_state['final_diagnosis']['decision']}")
     print("\n" + "-"*30)  
     
-    #SAFETY AGENT
-    print("\n\n--- Sending Case to Safety Agent ---")
-    final_state["safety_output"] = safety_agent.run(final_state)
-    print("\n\n Safety Agent's Output Ready: ")
-    print(f"{final_state['safety_output']}")
-    print("\n" + "-"*30)  
+#    #SAFETY AGENT
+#    print("\n\n--- Sending Case to Safety Agent ---")
+#    final_state["safety_output"] = safety_agent.run(final_state)
+#    print("\n\n Safety Agent's Output Ready: ")
+#    print(f"{final_state['safety_output']}")
+#    print("\n" + "-"*30)  
     
 def parse_agent_labels(final_state):
     label_text = final_state['final_diagnosis']['labels']
     
+    print(f"Label Text {label_text}")
+    
     patterns = {
-        "AMD": r"AMD_STAGE:\s*(-?\d+)",
-        "DR": r"DR_DETECTED:\s*(-?\d+)",
-        "GL": r"GLAUCOMA_DETECTED:\s*(-?\d+)"
+    "AMD": r"AMD_STAGE:\s*(.+)",
+    "DR": r"DR_DETECTED:\s*(.+)",
+    "GL": r"GLAUCOMA_DETECTED:\s*(.+)"
     }
     
     results = {}
     
-    try:
-        for key, pattern in patterns.items():
-            match = re.search(pattern, label_text, re.IGNORECASE)
-            if match:
-                results[key] = int(match.group(1))
-            else:
-                print(f"Warning: Could not find {key} in label text!")
-                results[key] = -1 # Default fallback
-        return results
-    except Exception as e:
-        print(f"Parsing Error: {e}")
-        return None
-        
+    for key, pattern in patterns.items():
+        match = re.search(pattern, label_text, re.IGNORECASE)
+        if match:
+            value_match = re.search(r"-?\d+", match.group(1))
+            results[key] = int(value_match.group()) if value_match else -1
+        else:
+            results[key] = -1
+    
+    return results
+       
 def initialize_state(patient_data):
     # Initialize the State
     state: AgentState = {
@@ -148,6 +179,10 @@ def initialize_state(patient_data):
         "oct_diagnosis": None,
         "slo_diagnosis": None,
         "vision_opinion": {},
+        
+        "vision_opinion_oct": {},
+        "vision_opinion_slo": {},
+        
         "functional_opinion": {},
         "final_diagnosis": {},
         "fairness_flag": False,
@@ -155,9 +190,7 @@ def initialize_state(patient_data):
         "guidelines": "",
         "equity_opinion:": ""
     }
-    
-#    Image.fromarray(state['oct_img']).save("check_my_work.png")
-#    Image.fromarray(state['fundus_img']).save("check_my_work2.png")
+
     return state
     
 if __name__ == "__main__":
@@ -170,7 +203,8 @@ if __name__ == "__main__":
     loader = ExcelEyeLoader(EXCEL_PATH)
     
     # Target conditions to run evaluation blocks on
-    diseases = ['Glaucoma', 'AMD', 'DR']
+#    diseases = ['Glaucoma', 'AMD', 'DR']
+    diseases = ['Glaucoma']
     
     for disease in diseases:
         # Pull up to 250 records from the master Excel per disease category
@@ -197,6 +231,17 @@ if __name__ == "__main__":
                     
                     # Core pipeline logic execution
                     final_state = initialize_state(patient_record)
+                    temp = patient_record['metadata']['filename']
+                        
+#                    print(f"patient id: {temp}")
+#                    if temp == "data/Glaucoma/Test/data_07010.npz": 
+#                      Image.fromarray(np.array(patient_record['oct_img'])).convert('RGB').save("oct_slice.png")
+#                      Image.fromarray(np.array(patient_record['fundus_img'])).convert('RGB').save("slo.png")
+#                      
+#                      print("MAYYYY AYAAAAA")
+#                      continue
+#      
+                    
                     run_diagnostic_pipeline(patient_record)
                     
                     pred_labels = parse_agent_labels(final_state)
@@ -239,31 +284,31 @@ if __name__ == "__main__":
                     
                     print(f"\nDisease: {disease} | Ground Truth: {ground_truth} | Row Index Checked: {index}")
                     print("END OF EXAMPLE\n" + "-"*30)
-                    
+                      
                 except Exception as e:
-                    print(f"!!! Error processing row index {index} in {disease}. Skipping... Details: {e}")
-                    
-                    # Safely map fallback structural variables during exception failures
-                    fallback_filename = patient_record['directory'] if patient_record else row_dict.get('filepath', 'Error')
-                    fallback_gt = patient_record['stage'] if patient_record else row_dict.get('ground_truth', -1)
-                    
-                    row = {
-                        "Filename": fallback_filename,
-                        "Task_Folder": disease,
-                        "Age": age,
-                        "Gender": gender,
-                        "Race": race,
-                        "Ethnicity": ethnicity,
-                        "Ground_Truth": fallback_gt,
-                        "Pred_AMD": -1,  
-                        "Pred_DR": -1,    
-                        "Pred_GL": -1,    
-                        "Is_Correct": -1
-                    }
-                    results.append(row)
-                    
-                    out_df = pd.DataFrame(results)
-                    out_df.to_csv(OUTPUT_CSV, index=False)    
+                      print(f"!!! Error processing row index {index} in {disease}. Skipping... Details: {e}")
+                      
+                      # Safely map fallback structural variables during exception failures
+                      fallback_filename = patient_record['directory'] if patient_record else row_dict.get('filepath', 'Error')
+                      fallback_gt = patient_record['stage'] if patient_record else row_dict.get('ground_truth', -1)
+                      
+                      row = {
+                          "Filename": fallback_filename,
+                          "Task_Folder": disease,
+                          "Age": age,
+                          "Gender": gender,
+                          "Race": race,
+                          "Ethnicity": ethnicity,
+                          "Ground_Truth": fallback_gt,
+                          "Pred_AMD": -1,  
+                          "Pred_DR": -1,    
+                          "Pred_GL": -1,    
+                          "Is_Correct": -1
+                      }
+                      results.append(row)
+                      
+                      out_df = pd.DataFrame(results)  
+                      out_df.to_csv(OUTPUT_CSV, index=False)    
                     
         else:
             print(f"No custom Excel rows found to process for: {disease}")

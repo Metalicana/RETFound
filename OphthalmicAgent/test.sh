@@ -5,13 +5,13 @@
 #SBATCH --job-name=Main_Script    # Name of job for the queue
 #SBATCH --output=slurm_logs/slurm-%j.out  # Standard output log file (where prints go)
 #SBATCH --error=slurm_logs/slurm-%j.err   # Standard error log file
-#SBATCH --time=20:00:00                # Maximum job run time 
+#SBATCH --time=4:00:00                # Maximum job run time 
 #SBATCH --nodes=1                      # Request 1 node
 #SBATCH --ntasks-per-node=1            # Run one main task
 #SBATCH --cpus-per-task=16              # Request 16 CPU cores (Matches your NUM_WORKERS=16 setting)
 #SBATCH --gres=gpu:1                   # Request 1 GPU (the resource needed)
 
-export SERPAPI_KEY="714e89089441f4ffa25801256a94aaf1c78b4ee60afdf0921512317f4acc6b5b"
+#export SERPAPI_KEY="714e89089441f4ffa25801256a94aaf1c78b4ee60afdf0921512317f4acc6b5b"
 
 # --- SETUP ENVIRONMENT ---
 echo "--- Starting job on node $(hostname) ---"
@@ -30,8 +30,8 @@ nvidia-smi
 cd /lustre/fs1/home/yu395012/RETFound/OphthalmicAgent
 
 # --- EXECUTE PYTHON SCRIPT ---
-echo "Running main training script: main.py"
+echo "Running main training script: main_new.py"
 
-python -u -m main
+python -u -m main_new
 
 echo "--- Job finished successfully ---"

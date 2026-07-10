@@ -233,19 +233,18 @@ def print_precomputed_result(result: dict[str, Any]) -> None:
     print(
         "task={task} model={model_name} age_group={age_group} race={race} gender={gender}".format(**result)
     )
-    print(f"source={result['source']}")
-    print(f"formula={result['score_formula']}")
-    print(f"direction={result['score_direction']}; lower final_R_bad is better")
+#    print(f"source={result['source']}")
+#    print(f"formula={result['score_formula']}")
+#    print(f"direction={result['score_direction']}; lower final_R_bad is better")
+#    print(f"arbitration_reliability_score=1-final_R_bad={scores['arbitration_reliability_score']:.6f}")
+#    print(f"rank={rank['rank']:.0f}  is_winner={rank['is_winner']}  is_runner_up={rank['is_runner_up']}  model_set={rank['model_set']}")
+#    print(f"R_global_bad={scores['R_global_bad']:.6f}")
+#    print(f"R_local_bad={scores['R_local_bad']:.6f}")
+#    print(f"R_age_bad={scores['R_age_bad']:.6f}  age_n={support['age_n']:.0f}/{support['n_total']:.0f}")
+#    print(f"R_race_bad={scores['R_race_bad']:.6f}  race_n={support['race_n']:.0f}/{support['n_total']:.0f}")
+#    print(f"R_gender_bad={scores['R_gender_bad']:.6f}  gender_n={support['gender_n']:.0f}/{support['n_total']:.0f}")
+#    print(f"intersection_n={support['intersection_n']:.0f}  lambda={support['intersection_lambda']:.6f}")
     print(f"final_R_bad={scores['final_R_bad']:.6f}")
-    print(f"arbitration_reliability_score=1-final_R_bad={scores['arbitration_reliability_score']:.6f}")
-    print(f"rank={rank['rank']:.0f}  is_winner={rank['is_winner']}  is_runner_up={rank['is_runner_up']}  model_set={rank['model_set']}")
-    print(f"R_global_bad={scores['R_global_bad']:.6f}")
-    print(f"R_local_bad={scores['R_local_bad']:.6f}")
-    print(f"R_age_bad={scores['R_age_bad']:.6f}  age_n={support['age_n']:.0f}/{support['n_total']:.0f}")
-    print(f"R_race_bad={scores['R_race_bad']:.6f}  race_n={support['race_n']:.0f}/{support['n_total']:.0f}")
-    print(f"R_gender_bad={scores['R_gender_bad']:.6f}  gender_n={support['gender_n']:.0f}/{support['n_total']:.0f}")
-    print(f"intersection_n={support['intersection_n']:.0f}  lambda={support['intersection_lambda']:.6f}")
-
 
 def prior_lookup(rows: list[dict[str, Any]]) -> dict[tuple[str, str, str, str], dict[str, Any]]:
     lookup = {}
@@ -360,8 +359,9 @@ def support_counts(rows: list[dict[str, str]], task: str, age_group: str, race: 
     }
 
 
-def main() -> None:
-    args = parse_args()
+def main(args=None) -> None:
+    if args is None:
+      args = parse_args()
     task = norm_task(args.task)
     model = norm(args.model)
     age_group = norm(args.age_group)
@@ -378,11 +378,12 @@ def main() -> None:
             gender,
         )
         result = precomputed_result(row, args, task, model, age_group, race, gender)
+        val = result["scores"]["final_R_bad"]
         if args.json:
             print(json.dumps(result, indent=2, sort_keys=True))
         else:
             print_precomputed_result(result)
-        return
+        return round(val,4)
 
     priors = prior_lookup(load_json_rows(args.priors_json))
     support = support_counts(read_csv(args.support_csv), task, age_group, race, gender)
@@ -534,7 +535,6 @@ def main() -> None:
         print("note=R_final uses raw unnormalized local lambdas.")
     else:
         print("note=R_final uses normalized local lambdas by default.")
-
 
 if __name__ == "__main__":
     main()
