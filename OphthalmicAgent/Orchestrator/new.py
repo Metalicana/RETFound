@@ -524,6 +524,7 @@
 ################################################################################### Glaucoma ###########################################################
 
 import os
+import json
 from openai import AzureOpenAI
 from dotenv import load_dotenv
 import re
@@ -543,11 +544,12 @@ class Orchestrator:
           api_version="2024-12-01-preview"
           )
 
-    def analyze(self, state, probability, v_cdr, trust_score):
+    def analyze(self, state, probability, v_cdr, trust_score, counterfactual_trace=None):
         
         narrative = state['clinical_narrative']
         vision_summary_slo = state['vision_opinion_slo']
         vision_summary_oct = state['vision_opinion_oct']
+        counterfactual_trace = counterfactual_trace or state.get('counterfactual_trace', {})
         
 #        functional_summary = state['functional_opinion']['summary']
 #        equity_output = state['equity_opinion']
@@ -572,6 +574,7 @@ Available information:
 4. OCT image analysis report.
 5. An approximate value of cup to disc ratio from a segmentation model
 6. Trust Score for RETFound based on patient demographics (age, race and ethnicity). It is between 0 and 1 and a higher score means the model is less biased.
+7. A counterfactual evidence-ablation trace showing diagnoses after individual evidence sources are made unavailable.
 
 Guiding principles:
 
@@ -588,6 +591,9 @@ Patient demographic information.
 
 * Demographic information provides clinical context but should not override imaging evidence.
 * Do not invent findings that are not present in the provided reports.
+* The counterfactual trace is a dependency audit, not additional disease evidence and not a vote.
+* Do not choose a label by taking a majority across counterfactual scenarios.
+* If a removed source changes the diagnosis, assess whether that source is reliable and corroborated by the original evidence.
 
 Interpretation scale:
 
@@ -602,7 +608,8 @@ Reasoning process:
 3. Review the OCT observations
 4. Review the SLO observations.
 5. Determine whether the SLO observations support, contradict, or are neutral with respect to the OCT findings.
-6. Produce a final assessment.
+6. Use the counterfactual trace to identify fragile evidence dependence without treating hypothetical diagnoses as observations.
+7. Produce a final assessment from the original full evidence.
 
 Output EXACTLY in the following format:
 
@@ -636,6 +643,9 @@ Reasoning:
                 
                 
                 - **Trust Score**: {trust_score}
+
+
+                - **Counterfactual Evidence-Ablation Trace**: {json.dumps(counterfactual_trace, sort_keys=True)}
                 """
             }
         ]

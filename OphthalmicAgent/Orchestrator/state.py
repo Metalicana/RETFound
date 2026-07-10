@@ -22,6 +22,7 @@ class AgentState(TypedDict):
     
     guidelines: str
     safety_output: str
+    counterfactual_trace: Dict[str, Any]
     
     final_diagnosis: Dict[str, Any]
     fairness_flag: bool

@@ -704,6 +704,7 @@ from FunctionalInterpretationAgent.function_interpreter import FunctionalSpecial
 from GuidelinesAgent.guidelines_agent import GuidelinesAgent
 from SafetyAgent.safety_agent import SafetyAgent
 from Orchestrator.new import Orchestrator
+from CounterfactualAgent.counterfactual_agent import CounterfactualAgent
 
 from data.loader import ExcelEyeLoader
 
@@ -715,8 +716,10 @@ from PIL import Image
 import pandas as pd
 import json
 import re
+import os
 
-OUTPUT_CSV = "ophthalmic_performance_results_jul04_glaucoma_4.csv" #CHANGE
+OUTPUT_CSV = os.getenv("OUTPUT_CSV", "ophthalmic_performance_results_jul04_glaucoma_4.csv")
+MAX_CASES = int(os.getenv("MAX_CASES", "250"))
 
 #Intiializing agents
 profiler = BioProfiler()
@@ -728,6 +731,7 @@ vision_agent_slo = VisionSpecialistSlo("./weights/oct_model_best_all_binary.pth"
 
 functional_agent = FunctionalSpecialist()
 ophthalmic_agent = Orchestrator()
+counterfactual_agent = CounterfactualAgent()
 safety_agent = SafetyAgent()
 guidelines_agent = GuidelinesAgent()
 
@@ -805,10 +809,32 @@ def run_diagnostic_pipeline(patient_data):
       trust_score = 1 - main(args)
       
       print(f"Trust Score is: {trust_score}")
+
+      print("\n\n--- Running Counterfactual Evidence Audit ---")
+      counterfactual_result = counterfactual_agent.analyze(
+          case_id=str(final_state["patient_id"]),
+          patient_narrative=final_state["clinical_narrative"],
+          retfound_probability=probability,
+          oct_report=final_state["vision_opinion_oct"],
+          slo_report=final_state["vision_opinion_slo"],
+          cdr=v_cdr,
+          trust_score=trust_score,
+      )
+      final_state["counterfactual_trace"] = counterfactual_agent.concise_trace(counterfactual_result)
+      print(
+          f"Counterfactual trace ready (cache_hit={counterfactual_result['cache_hit']}, "
+          f"evidence_sensitive={counterfactual_result['evidence_sensitive']})"
+      )
       
       #ORCHESTRATOR
       print("\n\n--- Sending Case to Orchestrator ---")
-      final_state["final_diagnosis"] = ophthalmic_agent.analyze(final_state, probability, v_cdr, trust_score)
+      final_state["final_diagnosis"] = ophthalmic_agent.analyze(
+          final_state,
+          probability,
+          v_cdr,
+          trust_score,
+          final_state["counterfactual_trace"],
+      )
       print("\n\n Ophthalmic Agent's Final Diagnosis Ready: ")
       print(f"{final_state['final_diagnosis']['decision']}")
       print("\n" + "-"*30)  
@@ -899,6 +925,7 @@ def initialize_state(patient_data):
         "fairness_flag": False,
         "safety_output": "",
         "guidelines": "",
+        "counterfactual_trace": {},
         "equity_opinion:": ""
     }
 
@@ -921,7 +948,7 @@ if __name__ == "__main__":
     
     for disease in diseases:
         # Pull up to 250 records from the master Excel per disease category
-        test_rows = loader.get_records_by_disease(disease, limit=250)
+        test_rows = loader.get_records_by_disease(disease, limit=MAX_CASES)
         
         if not test_rows.empty:
             # Iterate through every row explicitly returned by the Excel filter block
