@@ -22,7 +22,15 @@ def allocate(ids, rng):
     return {x: "train" if i < train else "val" if i < train + val else "test" for i, x in enumerate(ids)}
 
 def rel(path, root):
-    return str(path.resolve().relative_to(root.resolve()))
+    # Keep the repository-facing path when `data_gamma/raw` is a symlink into
+    # cluster storage. Resolving first would turn it into `/data/...` and make
+    # the otherwise valid path appear to be outside OphthalmicAgent.
+    path = path.expanduser().absolute()
+    root = root.expanduser().absolute()
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        return str(path.resolve())
 
 def main():
     args = arguments()
