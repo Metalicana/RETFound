@@ -3,7 +3,7 @@ import numpy as np
 from sklearn.metrics import classification_report, precision_recall_fscore_support
 
 # --- CONFIGURATION ---
-CSV_PATH = "ophthalmic_performance_results_jul04_glaucoma_1.csv"  # Path to your main results output file
+CSV_PATH = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/outputs/glaucoma_counterfactual_250/predictions.csv"  # Path to your main results output file
 
 def print_subset_report(df_subset, title):
 

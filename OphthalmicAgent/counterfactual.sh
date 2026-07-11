@@ -12,25 +12,30 @@
 # --- SETUP ENVIRONMENT ---
 echo "--- Starting job on node $(hostname) ---"
 
-# Load the required modules
+## Load the required modules
 module load anaconda
 
 # Activate your conda environment
 source $(conda info --base)/etc/profile.d/conda.sh
+
 conda activate eyeAgent
 
-# Navigate to working directory
-cd /lustre/fs1/home/yu395012/RETFound/OphthalmicAgent
-
-# Create output directory
-mkdir -p outputs/glaucoma_counterfactual_250
+## Load the required modules
+#module load anaconda
+#
+## Activate environment
+#conda activate eyeAgent
+#
+## Navigate to working directory
+#cd /lustre/fs1/home/yu395012/RETFound/OphthalmicAgent
+#
+## Create output directory
+#mkdir -p outputs/glaucoma_counterfactual_2
 
 # --- RUN EXECUTION ---
-# Running in the foreground allows Slurm to monitor the process properly.
-# Standard output/error will go directly to your Slurm log file.
 
-OUTPUT_CSV="outputs/glaucoma_counterfactual_250/predictions.csv" \
-COUNTERFACTUAL_CACHE_PATH="outputs/glaucoma_counterfactual_250/counterfactual_traces.jsonl" \
+OUTPUT_CSV="outputs/glaucoma_counterfactual_2/predictions.csv" \
+COUNTERFACTUAL_CACHE_PATH="outputs/glaucoma_counterfactual_2/counterfactual_traces.jsonl" \
 python -u -m main_new
 
 echo "--- Job finished successfully ---"

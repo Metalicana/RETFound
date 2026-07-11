@@ -15,7 +15,7 @@ from VisionAgent.linear_probing_fundus import get_model_cfp
 
 
 DATA_ROOT = Path(os.getenv("DRISHTI_DATA_ROOT", "./data_drishti"))
-CFP_WEIGHTS = os.getenv("CFP_WEIGHTS", "./cfp_glaucoma_best.pth")
+CFP_WEIGHTS = os.getenv("CFP_WEIGHTS", "./weights/cfp_glaucoma_best.pth")
 OUTPUT_CSV = os.getenv("OUTPUT_CSV", "drishti_retfound_cfp_predictions.csv")
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "32"))
 NUM_WORKERS = int(os.getenv("NUM_WORKERS", "8"))
@@ -26,7 +26,7 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
 class DrishtiCFPDataset(Dataset):
     def __init__(self, root):
         self.samples = []
-        for folder_name, label in (("normal", 0), ("glaucoma", 1)):
+        for folder_name, label in (("Normal", 0), ("Glaucoma", 1)):
             folder = root / folder_name
             if not folder.is_dir():
                 raise FileNotFoundError(f"Required Drishti folder not found: {folder}")
