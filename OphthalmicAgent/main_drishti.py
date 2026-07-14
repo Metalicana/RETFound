@@ -11,7 +11,7 @@ from VisionAgent.vision_cfp import VisionSpecialistCFP
 
 
 DATA_ROOT = Path(os.getenv("DRISHTI_DATA_ROOT", "./data_drishti"))
-CFP_WEIGHTS = os.getenv("CFP_WEIGHTS", "./cfp_glaucoma_best.pth")
+CFP_WEIGHTS = os.getenv("CFP_WEIGHTS", "./weights/cfp_glaucoma_best.pth")
 OUTPUT_CSV = os.getenv("OUTPUT_CSV", "ophthalmic_performance_results_drishti_cfp.csv")
 MAX_CASES = int(os.getenv("MAX_CASES", "0"))
 
@@ -30,7 +30,7 @@ ophthalmic_agent = DrishtiOrchestrator()
 def discover_cases(root):
     """Return images from ``normal`` and ``glaucoma`` folders recursively."""
     cases = []
-    for folder_name, label in (("normal", 0), ("glaucoma", 1)):
+    for folder_name, label in (("Normal", 0), ("Glaucoma", 1)):
         folder = root / folder_name
         if not folder.is_dir():
             raise FileNotFoundError(f"Required Drishti folder not found: {folder}")

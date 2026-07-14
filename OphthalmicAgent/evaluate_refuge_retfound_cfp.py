@@ -23,7 +23,7 @@ from VisionAgent.linear_probing_fundus import get_model_cfp
 
 DATA_ROOT = Path(os.getenv("REFUGE_DATA_ROOT", "./"))
 CSV_PATH = Path(os.getenv("REFUGE_CSV", "./data_refuge/data.csv"))
-CFP_WEIGHTS = os.getenv("CFP_WEIGHTS", "./cfp_glaucoma_best.pth")
+CFP_WEIGHTS = os.getenv("CFP_WEIGHTS", "./weights/cfp_glaucoma_best.pth")
 OUTPUT_CSV = os.getenv("OUTPUT_CSV", "refuge_test_retfound_cfp_predictions.csv")
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "32"))
 NUM_WORKERS = int(os.getenv("NUM_WORKERS", "8"))
