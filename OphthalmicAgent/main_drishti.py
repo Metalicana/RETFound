@@ -48,6 +48,7 @@ def initialize_state(case):
         "retfound_scores": "",
         "vision_opinion_cfp": "",
         "vertical_cdr": None,
+        "cdr_segmentation_path": None,
         "counterfactual_trace": {},
         "final_diagnosis": {},
     }
@@ -63,13 +64,15 @@ def run_diagnostic_pipeline(case, state):
     print(f"\n{state['retfound_scores']}")
     print(f"\nCFP Specialist Report:\n{state['vision_opinion_cfp']}")
     print(f"Vertical cup-to-disc ratio: {state['vertical_cdr'] if state['vertical_cdr'] is not None else 'Not Available'}")
+    if state["cdr_segmentation_path"]:
+        print(f"CDR segmentation saved to: {state['cdr_segmentation_path']}")
 
-    if probability >= 90:
-        state["final_diagnosis"] = {"labels": "GLAUCOMA_DETECTED: 1"}
-        return
-    if probability <= 10:
-        state["final_diagnosis"] = {"labels": "GLAUCOMA_DETECTED: 0"}
-        return
+    # if probability >= 90:
+    #     state["final_diagnosis"] = {"labels": "GLAUCOMA_DETECTED: 1"}
+    #     return
+    # if probability <= 10:
+    #     state["final_diagnosis"] = {"labels": "GLAUCOMA_DETECTED: 0"}
+    #     return
 
     audit = counterfactual_agent.analyze(
         case_id=state["patient_id"],

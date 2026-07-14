@@ -27,14 +27,23 @@ class DrishtiOrchestrator:
                     "role": "system",
                     "content": (
                         "You are the final glaucoma diagnostic orchestrator for a CFP-only pipeline. "
-                        "Use the RETFound-CFP probability as the primary numerical signal and the CFP "
-                        "specialist report as independent structural interpretation. Use the calculated "
-                        "vertical cup-to-disc ratio as a supporting structural measurement; a missing value "
-                        "is unavailable evidence, not a normal result. The counterfactual "
-                        "trace is a dependency audit, not a vote. Do not invent OCT, SLO, "
-                        "demographic or clinical-history evidence. Return exactly:\n"
+                        "The fine-tuned RETFound-CFP head is known to be under-sensitive and may output "
+                        "artificially low glaucoma probabilities for positive cases. Therefore, do not let "
+                        "a low RETFound-CFP probability automatically override convincing optic-disc "
+                        "evidence. Give the calculated vertical cup-to-disc ratio and corroborating CFP "
+                        "optic-disc features substantial diagnostic weight. A vertical CDR above 0.7 is "
+                        "strongly suspicious when the segmentation and disc image are credible; a CDR from "
+                        "0.6 to 0.7 is concerning when accompanied by rim thinning, notching, vessel changes, "
+                        "or disc hemorrhage. A smaller CDR is reassuring but does not alone exclude glaucoma. "
+                        "CDR can be influenced by physiologic disc size and segmentation error, so check it "
+                        "against image quality and the CFP specialist's independent observations. Treat a "
+                        "missing CDR as unavailable evidence, not a normal result. Use RETFound-CFP as an "
+                        "additional signal rather than an absolute gate. The counterfactual trace is a "
+                        "dependency audit, not a vote. Do not invent OCT, SLO, demographic, clinical-history, "
+                        "or fellow-eye evidence. Return exactly:\n"
                         "[LABELS]\nGLAUCOMA_DETECTED: [0 or 1]\n[/LABELS]\n\nReasoning:\n"
-                        "[brief CFP-based explanation]"
+                        "[brief explanation that explicitly discusses CDR, corroborating optic-disc "
+                        "features, image/segmentation credibility, and the RETFound-CFP score]"
                     ),
                 },
                 {

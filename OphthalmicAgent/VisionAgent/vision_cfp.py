@@ -1,6 +1,8 @@
 import base64
 import io
 import os
+import re
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -44,6 +46,12 @@ class VisionSpecialistCFP:
         self.cdr_model = SegformerForSemanticSegmentation.from_pretrained(
             self.cdr_model_name
         ).to(self.device).eval()
+        self.cdr_output_dir = Path(
+            os.getenv("CDR_OUTPUT_DIR", "outputs/drishti_cfp/cdr_segmentations")
+        )
+        self.save_cdr_segmentations = os.getenv(
+            "SAVE_CDR_SEGMENTATIONS", "1"
+        ).lower() not in {"0", "false", "no"}
 
     @staticmethod
     def _image(value):
@@ -81,7 +89,33 @@ class VisionSpecialistCFP:
             return None
         return round(cup_height / disc_height, 3)
 
-    def calculate_cdr(self, image):
+    def _save_cdr_segmentation(self, image, mask, case_id):
+        self.cdr_output_dir.mkdir(parents=True, exist_ok=True)
+        safe_case_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(case_id)).strip("._")
+        safe_case_id = safe_case_id or "cfp"
+
+        original = np.asarray(image.convert("RGB"), dtype=np.uint8)
+        overlay = original.copy()
+        disc_only = mask == 1
+        cup = mask == 2
+
+        # Red = optic disc, blue = optic cup.
+        overlay[disc_only] = (
+            0.55 * overlay[disc_only] + 0.45 * np.array([255, 0, 0])
+        ).astype(np.uint8)
+        overlay[cup] = (
+            0.45 * overlay[cup] + 0.55 * np.array([0, 80, 255])
+        ).astype(np.uint8)
+
+        # Place the unmodified CFP and segmentation overlay side by side.
+        combined = Image.new("RGB", (image.width * 2, image.height))
+        combined.paste(image.convert("RGB"), (0, 0))
+        combined.paste(Image.fromarray(overlay), (image.width, 0))
+        output_path = self.cdr_output_dir / f"{safe_case_id}_cdr_overlay.png"
+        combined.save(output_path)
+        return output_path
+
+    def calculate_cdr(self, image, case_id):
         equalized = ImageOps.equalize(image.convert("RGB"))
         inputs = self.cdr_processor(images=equalized, return_tensors="pt").to(self.device)
         with torch.no_grad():
@@ -93,7 +127,11 @@ class VisionSpecialistCFP:
             align_corners=False,
         )
         mask = logits.argmax(dim=1)[0].cpu().numpy()
-        return self._vertical_cdr(mask)
+        cdr = self._vertical_cdr(mask)
+        output_path = None
+        if self.save_cdr_segmentations:
+            output_path = self._save_cdr_segmentation(image, mask, case_id)
+        return cdr, output_path
 
     def analyze(self, cfp_image, state):
         image = self._image(cfp_image)
@@ -101,7 +139,12 @@ class VisionSpecialistCFP:
         with torch.no_grad():
             probability = float(torch.sigmoid(self.model(tensor)).reshape(-1)[0]) * 100
         probability = round(probability, 2)
-        vertical_cdr = self.calculate_cdr(image)
+        vertical_cdr, cdr_output_path = self.calculate_cdr(
+            image, state.get("patient_id", "cfp")
+        )
+        state["cdr_segmentation_path"] = (
+            str(cdr_output_path) if cdr_output_path is not None else None
+        )
         state["cfp_diagnosis"] = {
             "Glaucoma": {
                 "Prob_Pct": probability,
@@ -117,11 +160,16 @@ class VisionSpecialistCFP:
                     "role": "system",
                     "content": (
                         "You are an ophthalmic imaging specialist reviewing one color fundus photograph "
-                        "for glaucoma. Describe image quality, optic-disc appearance, neuroretinal rim, "
-                        "cupping, disc asymmetry visible in this image, peripapillary changes, hemorrhage, "
-                        "and other glaucoma-relevant findings. Do not invent measurements or use the AI "
-                        "score or calculated CDR as visual evidence. End with IMPRESSION: supports glaucoma, supports normal, "
-                        "or indeterminate."
+                        "for glaucoma. Give the optic nerve head and glaucomatous cupping the highest "
+                        "attention. First assess whether the disc is sufficiently visible and gradable. "
+                        "Then describe vertical cupping, neuroretinal-rim width and focal thinning or "
+                        "notching, superior-inferior asymmetry, vessel displacement or bayoneting, laminar "
+                        "dot visibility, disc hemorrhage, and peripapillary atrophy. Mention other retinal "
+                        "findings only when relevant. Do not invent a numerical cup-to-disc ratio, do not "
+                        "infer findings from the AI score or calculated CDR, and do not call an image normal "
+                        "merely because obvious advanced cupping is absent. End with IMPRESSION: supports "
+                        "glaucoma, supports normal, or indeterminate, and state which optic-disc features "
+                        "most influenced that impression."
                     ),
                 },
                 {
