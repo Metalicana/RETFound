@@ -1,0 +1,32 @@
+{
+  "official_split_sizes": {
+    "train": 400,
+    "validation": 400,
+    "test": 400
+  },
+  "training_strategy": "single fixed run on Train+Validation; one final evaluation on Test",
+  "fixed_training_epochs": 30,
+  "fixed_threshold": 0.5,
+  "combined_train_validation_pos_weight": 9.0,
+  "head_learning_rate": 0.001,
+  "unfrozen_backbone_blocks": 0,
+  "backbone_learning_rate": null,
+  "global_pool": true,
+  "drop_path_rate": 0.0,
+  "frozen_backbone_eval_mode": true,
+  "final_test_metrics": {
+    "auroc": 0.8443055555555556,
+    "accuracy": 0.7875,
+    "precision": 0.2857142857142857,
+    "sensitivity": 0.75,
+    "specificity": 0.7916666666666666,
+    "f1": 0.41379310344827586,
+    "tn": 285,
+    "fp": 75,
+    "fn": 10,
+    "tp": 30
+  },
+  "final_weights": "./weights/cfp_glaucoma_best.pth",
+  "test_predictions": "refuge_test_retfound_cfp_predictions.csv",
+  "threshold_note": "The threshold was fixed before Test evaluation and was not selected on Test."
+}

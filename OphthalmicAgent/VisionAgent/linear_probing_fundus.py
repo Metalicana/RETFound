@@ -110,7 +110,7 @@ def get_model_cfp():
         img_size=224,
         num_classes=0, 
         drop_path_rate=0.0,
-        global_pool=True,
+        global_pool='',
     )
     
     # Freeze the backbone
