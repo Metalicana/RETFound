@@ -113,7 +113,7 @@ def get_model_cfp():
     backbone = RETFound_mae(
         img_size=224,
         num_classes=0, 
-        drop_path_rate=0.2,
+        drop_path_rate=0.0,
         global_pool='',
     )
     
@@ -241,6 +241,7 @@ def _train_epochs(frame, epochs, output_path=None, validation_loader=None):
 
     for epoch in range(epochs):
         model.train()
+        model.backbone.eval()
         running_loss = 0.0
         loop = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{epochs}")
         for images, labels, _ in loop:
