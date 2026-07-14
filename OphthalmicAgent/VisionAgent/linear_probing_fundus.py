@@ -15,7 +15,6 @@ from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
     f1_score,
-    fbeta_score,
     precision_score,
     recall_score,
     roc_auc_score,
@@ -34,13 +33,10 @@ NUM_WORKERS = int(os.getenv("NUM_WORKERS", "8"))
 LR = float(os.getenv("HEAD_LR", "1e-3"))
 BACKBONE_LR = float(os.getenv("BACKBONE_LR", "1e-5"))
 UNFREEZE_BLOCKS = int(os.getenv("UNFREEZE_BLOCKS", "0"))
-EPOCHS = int(os.getenv("EPOCHS", "60"))
-TARGET_SENSITIVITY = float(os.getenv("TARGET_SENSITIVITY", "0.90"))
+EPOCHS = int(os.getenv("EPOCHS", "30"))
+THRESHOLD = float(os.getenv("THRESHOLD", "0.5"))
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 PATH = os.getenv("CFP_OUTPUT_WEIGHTS", "./weights/cfp_glaucoma_best.pth")
-DEVELOPMENT_PATH = os.getenv(
-    "CFP_DEVELOPMENT_WEIGHTS", "./weights/cfp_glaucoma_development_best.pth"
-)
 METADATA_PATH = os.getenv("CFP_TRAINING_METADATA", "cfp_glaucoma_training_metadata.json")
 TEST_PREDICTIONS_PATH = os.getenv("CFP_TEST_PREDICTIONS", "refuge_test_retfound_cfp_predictions.csv")
 
@@ -114,7 +110,7 @@ def get_model_cfp():
         img_size=224,
         num_classes=0, 
         drop_path_rate=0.0,
-        global_pool='',
+        global_pool=True,
     )
     
     # Freeze the backbone
@@ -130,13 +126,19 @@ def get_model_cfp():
         if k in state_dict:
             del state_dict[k]
             
-    backbone.load_state_dict(state_dict, strict=False)
+    load_result = backbone.load_state_dict(state_dict, strict=False)
+    print(f"RETFound missing checkpoint keys: {load_result.missing_keys}")
+    print(f"RETFound unexpected checkpoint keys: {load_result.unexpected_keys}")
     
     # Wrap backbone with the single binary glaucoma head
     model = RETFoundGlaucoma(backbone)
     
     # Unfreeze head
     for param in model.glaucoma_head.parameters():
+        param.requires_grad = True
+    # fc_norm is created for downstream global pooling and is not learned by
+    # the MAE pretraining objective, so train it together with the CFP head.
+    for param in model.backbone.fc_norm.parameters():
         param.requires_grad = True
     
     return model
@@ -194,34 +196,14 @@ def _predict(model, loader):
     return np.asarray(targets), np.asarray(probabilities), filenames
 
 
-def select_threshold(targets, probabilities, target_sensitivity):
-    """Choose the most specific validation threshold meeting the sensitivity target."""
-    candidates = np.unique(np.concatenate(([0.0], probabilities, [1.0])))
-    rows = []
-    for threshold in candidates:
-        predictions = (probabilities >= threshold).astype(int)
-        tn, fp, fn, tp = confusion_matrix(targets, predictions, labels=[0, 1]).ravel()
-        sensitivity = tp / (tp + fn) if tp + fn else 0.0
-        specificity = tn / (tn + fp) if tn + fp else 0.0
-        rows.append({
-            "threshold": float(threshold),
-            "sensitivity": sensitivity,
-            "specificity": specificity,
-            "f2": fbeta_score(targets, predictions, beta=2, zero_division=0),
-        })
-
-    eligible = [row for row in rows if row["sensitivity"] >= target_sensitivity]
-    if eligible:
-        return max(eligible, key=lambda row: (row["specificity"], row["f2"], row["threshold"]))
-    # Defensive fallback if an invalid sensitivity target greater than 1 is supplied.
-    return max(rows, key=lambda row: (row["sensitivity"] + row["specificity"] - 1, row["f2"]))
-
-
 def _train_epochs(frame, epochs, output_path=None, validation_loader=None):
     train_transform, _ = _transforms()
     train_loader = _loader(frame, train_transform, shuffle=True)
     model = get_model_cfp().to(DEVICE)
-    parameter_groups = [{"params": model.glaucoma_head.parameters(), "lr": LR}]
+    head_parameters = list(model.glaucoma_head.parameters()) + list(
+        model.backbone.fc_norm.parameters()
+    )
+    parameter_groups = [{"params": head_parameters, "lr": LR}]
     if UNFREEZE_BLOCKS > 0:
         blocks = model.backbone.blocks
         if UNFREEZE_BLOCKS > len(blocks):
@@ -291,33 +273,27 @@ def train():
     test_df = master[_contains_split(master["filename"], "Test")].copy()
     if any(frame.empty for frame in (train_df, validation_df, test_df)):
         raise ValueError("REFUGE Train, Validation, and Test splits must all be present")
-    print(f"Official splits: Train={len(train_df)}, Validation={len(validation_df)}, Test={len(test_df)}")
-
-    _, evaluation_transform = _transforms()
-    validation_loader = _loader(validation_df, evaluation_transform, shuffle=False)
-    _, best_epoch, best_auc, train_pos_weight = _train_epochs(
-        train_df, EPOCHS, DEVELOPMENT_PATH, validation_loader
+    print(
+        f"Official splits: Train={len(train_df)}, Validation={len(validation_df)}, "
+        f"Test={len(test_df)}"
     )
-
-    development_model = get_model_cfp().to(DEVICE)
-    development_model.load_state_dict(torch.load(DEVELOPMENT_PATH, map_location=DEVICE, weights_only=False))
-    validation_targets, validation_probabilities, _ = _predict(development_model, validation_loader)
-    threshold_result = select_threshold(
-        validation_targets, validation_probabilities, TARGET_SENSITIVITY
-    )
-    threshold = threshold_result["threshold"]
-    print(f"Selected threshold={threshold:.6f} on Validation: {threshold_result}")
-
     combined_df = pd.concat([train_df, validation_df], ignore_index=True)
+    print(
+        f"Training once on Train+Validation: {len(combined_df)} images for "
+        f"{EPOCHS} fixed epochs. Test remains untouched."
+    )
     _, _, _, combined_pos_weight = _train_epochs(
-        combined_df, best_epoch, PATH, validation_loader=None
+        combined_df, EPOCHS, PATH, validation_loader=None
     )
 
     final_model = get_model_cfp().to(DEVICE)
     final_model.load_state_dict(torch.load(PATH, map_location=DEVICE, weights_only=False))
+    _, evaluation_transform = _transforms()
     test_loader = _loader(test_df, evaluation_transform, shuffle=False)
     test_targets, test_probabilities, test_filenames = _predict(final_model, test_loader)
-    test_predictions, test_metrics = _metrics(test_targets, test_probabilities, threshold)
+    test_predictions, test_metrics = _metrics(
+        test_targets, test_probabilities, THRESHOLD
+    )
     pd.DataFrame({
         "Filename": test_filenames,
         "Ground_Truth": test_targets,
@@ -328,23 +304,20 @@ def train():
 
     metadata = {
         "official_split_sizes": {"train": len(train_df), "validation": len(validation_df), "test": len(test_df)},
-        "development_best_epoch": best_epoch,
-        "development_validation_auroc": best_auc,
-        "target_sensitivity": TARGET_SENSITIVITY,
-        "selected_validation_threshold": threshold,
-        "validation_threshold_metrics": threshold_result,
-        "train_pos_weight": train_pos_weight,
+        "training_strategy": "single fixed run on Train+Validation; one final evaluation on Test",
+        "fixed_training_epochs": EPOCHS,
+        "fixed_threshold": THRESHOLD,
         "combined_train_validation_pos_weight": combined_pos_weight,
         "head_learning_rate": LR,
         "unfrozen_backbone_blocks": UNFREEZE_BLOCKS,
         "backbone_learning_rate": BACKBONE_LR if UNFREEZE_BLOCKS else None,
+        "global_pool": True,
+        "drop_path_rate": 0.0,
+        "frozen_backbone_eval_mode": True,
         "final_test_metrics": test_metrics,
         "final_weights": PATH,
         "test_predictions": TEST_PREDICTIONS_PATH,
-        "threshold_transfer_note": (
-            "The threshold was selected on the development model's Validation predictions, then applied "
-            "unchanged after retraining a fresh head on Train+Validation. Retraining can shift calibration."
-        ),
+        "threshold_note": "The threshold was fixed before Test evaluation and was not selected on Test.",
     }
     with open(METADATA_PATH, "w", encoding="utf-8") as handle:
         json.dump(metadata, handle, indent=2)

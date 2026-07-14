@@ -39,9 +39,11 @@ def resolve_threshold():
     if TRAINING_METADATA.exists():
         with TRAINING_METADATA.open(encoding="utf-8") as handle:
             metadata = json.load(handle)
-        threshold = metadata.get("selected_validation_threshold")
+        threshold = metadata.get(
+            "fixed_threshold", metadata.get("selected_validation_threshold")
+        )
         if threshold is not None:
-            print(f"Using validation-selected threshold from {TRAINING_METADATA}: {threshold}")
+            print(f"Using saved training threshold from {TRAINING_METADATA}: {threshold}")
             return float(threshold)
     print("No saved validation threshold found; falling back to 0.5")
     return 0.5
