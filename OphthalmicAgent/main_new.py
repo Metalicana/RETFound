@@ -718,7 +718,7 @@ import json
 import re
 import os
 
-OUTPUT_CSV = os.getenv("OUTPUT_CSV", "ophthalmic_performance_results_jul04_glaucoma_4.csv")
+OUTPUT_CSV = os.getenv("OUTPUT_CSV", "ophthalmic_performance_results_jul14_glaucoma.csv")
 MAX_CASES = int(os.getenv("MAX_CASES", "250"))
 
 #Intiializing agents
@@ -727,7 +727,7 @@ profiler = BioProfiler()
 #vision_agent = VisionSpecialist("./weights/oct_model_best_all_binary.pth", "./weights/slo_model_best_all_binary.pth")
 
 vision_agent_oct = VisionSpecialistOct("./weights/oct_model_8_slices_not_center.pth")
-vision_agent_slo = VisionSpecialistSlo("./weights/oct_model_best_all_binary.pth", "./weights/slo_model_best_all_binary.pth")
+vision_agent_slo = VisionSpecialistSlo("./weights/slo_model_best_all_binary.pth")
 
 functional_agent = FunctionalSpecialist()
 ophthalmic_agent = Orchestrator()

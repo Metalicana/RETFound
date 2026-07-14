@@ -533,7 +533,7 @@ import re
 load_dotenv() 
 api_key = os.getenv("AZURE_OPENAI_API_KEY")
 endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-DEPLOYMENT = "gpt-5.1"
+DEPLOYMENT = "gpt-5.6-luna"
         
 class Orchestrator:
     def __init__(self, model_client=None):
@@ -821,7 +821,7 @@ Reasoning:
         response = self.model_client.chat.completions.create(
             model=DEPLOYMENT,
             messages=messages,
-            temperature=0.3
+#            temperature=0.3
         )
 
         raw_response = response.choices[0].message.content

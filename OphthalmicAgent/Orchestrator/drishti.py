@@ -11,7 +11,7 @@ load_dotenv()
 
 class DrishtiOrchestrator:
     def __init__(self, model_client=None):
-        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.1")
+        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.6-luna")
         self.model_client = model_client or AzureOpenAI(
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
             api_key=os.getenv("AZURE_OPENAI_API_KEY"),
@@ -21,7 +21,7 @@ class DrishtiOrchestrator:
     def analyze(self, probability, cfp_report, cdr, counterfactual_trace=None):
         response = self.model_client.chat.completions.create(
             model=self.deployment,
-            temperature=0.2,
+#            temperature=0.2,
             messages=[
                 {
                     "role": "system",
@@ -40,6 +40,7 @@ class DrishtiOrchestrator:
                         * The counterfactual trace is a dependency audit, not additional disease evidence and not a vote.
                         * Do not choose a label by taking a majority across counterfactual scenarios.
                         * If a removed source changes the diagnosis, assess whether that source is reliable and corroborated by the original evidence.
+                        * If cup to disc ratio is greater than 0.48, consider it suspicious and look for more signs for positive glaucoma"
                         """
                         
                         "Return exactly:\n"

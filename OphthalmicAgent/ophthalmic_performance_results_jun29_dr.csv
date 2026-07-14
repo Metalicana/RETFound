@@ -1,6 +1,0 @@
-Filename,Task_Folder,Age,Gender,Race,Ethnicity,Ground_Truth,Pred_AMD,Pred_DR,Pred_GL,Is_Correct
-data/DR/Test/data_07003.npz,DR,50.43,female,asian,non-hispanic,0.0,-1,0,-1,1
-data/DR/Test/data_07004.npz,DR,80.51,male,asian,non-hispanic,0.0,-1,0,-1,1
-data/DR/Test/data_07010.npz,DR,64.97,male,white,non-hispanic,0.0,-1,0,-1,1
-data/DR/Test/data_07076.npz,DR,62.12,female,white,non-hispanic,0.0,-1,0,-1,1
-data/DR/Test/data_07086.npz,DR,64.12,male,white,non-hispanic,0.0,-1,0,-1,1

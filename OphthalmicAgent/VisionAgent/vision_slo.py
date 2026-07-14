@@ -23,14 +23,14 @@ slo_healthy = Image.open("slo.png")
 slo_healthy_array = np.array(slo_healthy)
 
 class VisionSpecialistSlo:
-    def __init__(self, path_oct, path_slo, device=None):
+    def __init__(self, path_slo, device=None):
         
         self.model_client = AzureOpenAI(
           azure_endpoint = endpoint, 
           api_key = api_key,
           api_version="2024-12-01-preview"
         )
-        self.deployment_name = "gpt-5.1"
+        self.deployment_name = "gpt-5.6-luna"
         
 #        #CUP TO DISC RATIO
         self.cdr_model_name = "pamixsun/segformer_for_optic_disc_cup_segmentation"
@@ -321,7 +321,7 @@ class VisionSpecialistSlo:
         response = self.model_client.chat.completions.create(
             model=self.deployment_name,
             messages=messages_slo,
-            temperature=0.2  
+#            temperature=0.2  
         )
         
         full_content = response.choices[0].message.content

@@ -40,7 +40,7 @@ class VisionSpecialistCFP:
             api_key=os.getenv("AZURE_OPENAI_API_KEY"),
             api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
         )
-        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.1")
+        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.6-luna")
         self.cdr_model_name = "pamixsun/segformer_for_optic_disc_cup_segmentation"
         self.cdr_processor = SegformerImageProcessor.from_pretrained(self.cdr_model_name)
         self.cdr_model = SegformerForSemanticSegmentation.from_pretrained(
@@ -154,22 +154,44 @@ class VisionSpecialistCFP:
 
         response = self.model_client.chat.completions.create(
             model=self.deployment,
-            temperature=0.2,
+#            temperature=0.2,
             messages=[
                 {
                     "role": "system",
                     "content": (
-                        "You are an ophthalmic imaging specialist reviewing one color fundus photograph "
-                        "for glaucoma. Give the optic nerve head and glaucomatous cupping the highest "
-                        "attention. First assess whether the disc is sufficiently visible and gradable. "
-                        "Then describe vertical cupping, neuroretinal-rim width and focal thinning or "
-                        "notching, superior-inferior asymmetry, vessel displacement or bayoneting, laminar "
-                        "dot visibility, disc hemorrhage, and peripapillary atrophy. Mention other retinal "
-                        "findings only when relevant. Do not invent a numerical cup-to-disc ratio, do not "
-                        "infer findings from the AI score or calculated CDR, and do not call an image normal "
-                        "merely because obvious advanced cupping is absent. End with IMPRESSION: supports "
-                        "glaucoma, supports normal, or indeterminate, and state which optic-disc features "
-                        "most influenced that impression."
+                        """
+You are an ophthalmic image analysis specialist reviewing a color fundus photograph (CFP).
+
+Your role is to provide objective visual observations that may help another AI agent determine whether glaucoma is present.
+
+Important instructions:
+
+* Do not provide a final diagnosis.
+* Do not estimate the probability of glaucoma.
+* Base your assessment only on visible image features.
+* Prefer cautious interpretation over certainty, but do not avoid making observations when the image provides reasonable visual evidence.
+
+Focus on:
+
+* Appearance of the optic disc.
+* Estimated cup-to-disc appearance (only if it can be reasonably appreciated).
+* Neuroretinal rim appearance, including any apparent thinning or notching.
+* Retinal vessel configuration around the optic disc.
+* Presence of vessel displacement, bayoneting, or other vascular abnormalities if visible.
+* Presence of optic disc hemorrhage if visible.
+* Presence of peripapillary atrophy or other abnormalities surrounding the optic disc.
+* Other structural findings that may increase or decrease suspicion for glaucoma.
+
+Your goal is not to diagnose glaucoma, but to identify image features that may support or weaken suspicion of glaucoma.
+
+Structure your response as:
+
+Glaucoma-Relevant Features:
+...
+
+Overall Impression:
+Provide a brief summary of your findings related to glaucoma diagnosis.
+                        """
                     ),
                 },
                 {
