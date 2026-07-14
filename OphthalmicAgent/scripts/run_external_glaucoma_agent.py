@@ -36,8 +36,8 @@ def parse_label(value):
 def main():
     a=arguments()
     from openai import AzureOpenAI
-    from CounterfactualAgent.counterfactual_cfp import CounterfactualCFPAgent
-    from Orchestrator.drishti import DrishtiOrchestrator
+    from CounterfactualAgent.external_glaucoma import ExternalCounterfactualAgent
+    from Orchestrator.external_glaucoma import ExternalGlaucomaOrchestrator
     client=AzureOpenAI(azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),api_key=os.getenv("AZURE_OPENAI_API_KEY"),
                        api_version=os.getenv("AZURE_OPENAI_API_VERSION","2024-12-01-preview"))
     probabilities={r["case_id"]:r for r in read(a.probabilities) if r.get("split","").lower()==a.split.lower()}
@@ -49,8 +49,9 @@ def main():
     if missing_probability or missing_cdr:raise SystemExit(f"Join failure: probability={missing_probability[:5]}, cdr={missing_cdr[:5]}")
     a.out_dir.mkdir(parents=True,exist_ok=True);output=a.out_dir/"predictions.csv"
     rows=read(output) if output.exists() else [];completed={r["case_id"] for r in rows if r.get("Pred_GL") in {"0","1"}}
-    counterfactual=CounterfactualCFPAgent(cache_path=a.out_dir/"counterfactual_traces.jsonl")
-    orchestrator=DrishtiOrchestrator()
+    evidence_modality="oct" if a.dataset.lower()=="gamma" else "cfp"
+    counterfactual=ExternalCounterfactualAgent(evidence_modality,cache_path=a.out_dir/"counterfactual_traces.jsonl")
+    orchestrator=ExternalGlaucomaOrchestrator(evidence_modality)
     for index,case in enumerate(cases,start=1):
         case_id=case["case_id"]
         if case_id in completed:
