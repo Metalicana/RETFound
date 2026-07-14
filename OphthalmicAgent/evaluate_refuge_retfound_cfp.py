@@ -1,5 +1,6 @@
 """Evaluate the fine-tuned RETFound-CFP glaucoma model on REFUGE/Test."""
 
+import json
 import os
 from pathlib import Path
 
@@ -27,7 +28,23 @@ CFP_WEIGHTS = os.getenv("CFP_WEIGHTS", "./weights/cfp_glaucoma_best.pth")
 OUTPUT_CSV = os.getenv("OUTPUT_CSV", "refuge_test_retfound_cfp_predictions.csv")
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "32"))
 NUM_WORKERS = int(os.getenv("NUM_WORKERS", "8"))
-THRESHOLD = float(os.getenv("THRESHOLD", "0.5"))
+TRAINING_METADATA = Path(
+    os.getenv("CFP_TRAINING_METADATA", "cfp_glaucoma_training_metadata.json")
+)
+
+
+def resolve_threshold():
+    if "THRESHOLD" in os.environ:
+        return float(os.environ["THRESHOLD"])
+    if TRAINING_METADATA.exists():
+        with TRAINING_METADATA.open(encoding="utf-8") as handle:
+            metadata = json.load(handle)
+        threshold = metadata.get("selected_validation_threshold")
+        if threshold is not None:
+            print(f"Using validation-selected threshold from {TRAINING_METADATA}: {threshold}")
+            return float(threshold)
+    print("No saved validation threshold found; falling back to 0.5")
+    return 0.5
 
 
 class RefugeTestDataset(Dataset):
@@ -75,6 +92,7 @@ def load_model(device):
 
 
 def main():
+    threshold = resolve_threshold()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     dataset = RefugeTestDataset(CSV_PATH, DATA_ROOT)
     loader = DataLoader(
@@ -91,7 +109,7 @@ def main():
     with torch.no_grad():
         for images, labels, paths in loader:
             probabilities = torch.sigmoid(model(images.to(device))).reshape(-1).cpu().numpy()
-            predictions = (probabilities >= THRESHOLD).astype(np.int64)
+            predictions = (probabilities >= threshold).astype(np.int64)
             for path, label, probability, prediction in zip(
                 paths, labels.numpy(), probabilities, predictions
             ):
@@ -112,7 +130,7 @@ def main():
 
     metrics = {
         "images": len(results),
-        "threshold": THRESHOLD,
+        "threshold": threshold,
         "accuracy": accuracy_score(y_true, y_prediction),
         "precision": precision_score(y_true, y_prediction, zero_division=0),
         "recall_sensitivity": recall_score(y_true, y_prediction, zero_division=0),

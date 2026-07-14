@@ -1,7 +1,7 @@
-# Pure Binary Glaucoma Classification for Color Fundus Photography (CFP)
-# Merges Train + Test folders for training, and uses Validation folder for validation
+# Binary glaucoma classification for CFP using the official REFUGE splits.
 
 import os
+import json
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -11,7 +11,15 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from PIL import Image
 from tqdm import tqdm
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    f1_score,
+    fbeta_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
 
 try:
     from VisionAgent.models_vit import RETFound_mae
@@ -19,13 +27,22 @@ except ImportError:
     raise ImportError("Error: 'models_vit.py' not found.")
 
 # --- CONFIGURATION ---
-DATA_ROOT = "./"
-CSV_PATH = "data_refuge/data.csv"
-BATCH_SIZE = 64
-LR = 1e-3
-EPOCHS = 60
+DATA_ROOT = os.getenv("REFUGE_DATA_ROOT", "./")
+CSV_PATH = os.getenv("REFUGE_CSV", "data_refuge/data.csv")
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", "64"))
+NUM_WORKERS = int(os.getenv("NUM_WORKERS", "8"))
+LR = float(os.getenv("HEAD_LR", "1e-3"))
+BACKBONE_LR = float(os.getenv("BACKBONE_LR", "1e-5"))
+UNFREEZE_BLOCKS = int(os.getenv("UNFREEZE_BLOCKS", "0"))
+EPOCHS = int(os.getenv("EPOCHS", "60"))
+TARGET_SENSITIVITY = float(os.getenv("TARGET_SENSITIVITY", "0.90"))
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-PATH = "cfp_glaucoma_best.pth"
+PATH = os.getenv("CFP_OUTPUT_WEIGHTS", "./weights/cfp_glaucoma_best.pth")
+DEVELOPMENT_PATH = os.getenv(
+    "CFP_DEVELOPMENT_WEIGHTS", "./weights/cfp_glaucoma_development_best.pth"
+)
+METADATA_PATH = os.getenv("CFP_TRAINING_METADATA", "cfp_glaucoma_training_metadata.json")
+TEST_PREDICTIONS_PATH = os.getenv("CFP_TEST_PREDICTIONS", "refuge_test_retfound_cfp_predictions.csv")
 
 
 class RefugeCFPDataset(Dataset):
@@ -125,93 +142,212 @@ def get_model_cfp():
     return model
 
 
-def train():
-    # 1. Image Transforms
+def _contains_split(series, split):
+    return series.astype(str).str.contains(
+        rf"[\\/]{split}[\\/]", case=False, regex=True
+    )
+
+
+def _transforms():
     train_transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.RandomHorizontalFlip(),
         transforms.RandomRotation(15),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
     ])
-    
-    val_transform = transforms.Compose([
+    evaluation_transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
     ])
+    return train_transform, evaluation_transform
 
-    # 2. Filter CSV into training and validation splits
-    master_df = pd.read_csv(CSV_PATH)
-    
-    # Combine rows containing 'Train' or 'Test' for training
-    train_df = master_df[master_df['filename'].str.contains('/Train/|/Validation', case=False, regex=True)]
-    # Use rows containing 'Validation' for validation
-    val_df = master_df[master_df['filename'].str.contains('/Test/', case=False)]
-    
-    print(f"Dataset summary: Training on {len(train_df)} images | Validating on {len(val_df)} images.")
 
-    # 3. Create DataLoaders
-    train_ds = RefugeCFPDataset(train_df, DATA_ROOT, transform=train_transform)
-    val_ds = RefugeCFPDataset(val_df, DATA_ROOT, transform=val_transform)
-    
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=16, pin_memory=True)
-    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=8, pin_memory=True)
-    
-    # 4. Initialize Model, Loss, and Optimizer
+def _loader(frame, transform, shuffle):
+    return DataLoader(
+        RefugeCFPDataset(frame, DATA_ROOT, transform=transform),
+        batch_size=BATCH_SIZE,
+        shuffle=shuffle,
+        num_workers=NUM_WORKERS,
+        pin_memory=DEVICE.type == "cuda",
+    )
+
+
+def _positive_weight(frame):
+    positives = int((frame["Ground_Truth"] == 1).sum())
+    negatives = int((frame["Ground_Truth"] == 0).sum())
+    if positives == 0 or negatives == 0:
+        raise ValueError("Training data must contain both positive and negative cases")
+    return negatives / positives
+
+
+def _predict(model, loader):
+    model.eval()
+    targets, probabilities, filenames = [], [], []
+    with torch.no_grad():
+        for images, labels, metadata in loader:
+            logits = model(images.to(DEVICE))
+            targets.extend(labels.reshape(-1).numpy().astype(int).tolist())
+            probabilities.extend(torch.sigmoid(logits).reshape(-1).cpu().numpy().tolist())
+            filenames.extend(list(metadata["filename"]))
+    return np.asarray(targets), np.asarray(probabilities), filenames
+
+
+def select_threshold(targets, probabilities, target_sensitivity):
+    """Choose the most specific validation threshold meeting the sensitivity target."""
+    candidates = np.unique(np.concatenate(([0.0], probabilities, [1.0])))
+    rows = []
+    for threshold in candidates:
+        predictions = (probabilities >= threshold).astype(int)
+        tn, fp, fn, tp = confusion_matrix(targets, predictions, labels=[0, 1]).ravel()
+        sensitivity = tp / (tp + fn) if tp + fn else 0.0
+        specificity = tn / (tn + fp) if tn + fp else 0.0
+        rows.append({
+            "threshold": float(threshold),
+            "sensitivity": sensitivity,
+            "specificity": specificity,
+            "f2": fbeta_score(targets, predictions, beta=2, zero_division=0),
+        })
+
+    eligible = [row for row in rows if row["sensitivity"] >= target_sensitivity]
+    if eligible:
+        return max(eligible, key=lambda row: (row["specificity"], row["f2"], row["threshold"]))
+    # Defensive fallback if an invalid sensitivity target greater than 1 is supplied.
+    return max(rows, key=lambda row: (row["sensitivity"] + row["specificity"] - 1, row["f2"]))
+
+
+def _train_epochs(frame, epochs, output_path=None, validation_loader=None):
+    train_transform, _ = _transforms()
+    train_loader = _loader(frame, train_transform, shuffle=True)
     model = get_model_cfp().to(DEVICE)
-    optimizer = torch.optim.AdamW(model.glaucoma_head.parameters(), lr=LR, weight_decay=0.05)
-    criterion = nn.BCEWithLogitsLoss()
-    
-    best_auc = 0.0
+    parameter_groups = [{"params": model.glaucoma_head.parameters(), "lr": LR}]
+    if UNFREEZE_BLOCKS > 0:
+        blocks = model.backbone.blocks
+        if UNFREEZE_BLOCKS > len(blocks):
+            raise ValueError(f"UNFREEZE_BLOCKS={UNFREEZE_BLOCKS} exceeds {len(blocks)} ViT blocks")
+        backbone_parameters = []
+        for block in blocks[-UNFREEZE_BLOCKS:]:
+            for parameter in block.parameters():
+                parameter.requires_grad = True
+                backbone_parameters.append(parameter)
+        parameter_groups.append({"params": backbone_parameters, "lr": BACKBONE_LR})
+    optimizer = torch.optim.AdamW(parameter_groups, weight_decay=0.05)
+    pos_weight = _positive_weight(frame)
+    criterion = nn.BCEWithLogitsLoss(
+        pos_weight=torch.tensor([pos_weight], device=DEVICE)
+    )
+    best_auc, best_epoch = -np.inf, epochs
 
-    # 5. Training Loop
-    for epoch in range(EPOCHS):
+    for epoch in range(epochs):
         model.train()
-        train_loss = 0.0
-        loop = tqdm(train_loader, desc=f"Epoch {epoch+1}/{EPOCHS}")
-        
-        for imgs, labels, _ in loop:
-            imgs, labels = imgs.to(DEVICE), labels.to(DEVICE)
+        running_loss = 0.0
+        loop = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{epochs}")
+        for images, labels, _ in loop:
+            images, labels = images.to(DEVICE), labels.to(DEVICE)
             optimizer.zero_grad()
-            
-            outputs = model(imgs) 
-            loss = criterion(outputs, labels)
-                
+            loss = criterion(model(images), labels)
             loss.backward()
             optimizer.step()
-        
-            train_loss += loss.item()
+            running_loss += loss.item()
             loop.set_postfix(loss=loss.item())
 
-        # 6. Validation Pass
-        model.eval()
-        val_preds = []
-        val_targets = []
-        
-        with torch.no_grad():
-            for imgs, labels, _ in val_loader:
-                imgs = imgs.to(DEVICE)
-                outputs = model(imgs)
-                
-                # Apply sigmoid to convert logits to probabilities [0.0 - 1.0]
-                val_preds.append(torch.sigmoid(outputs).cpu().numpy())
-                val_targets.append(labels.cpu().numpy())
-
-        all_targets = np.vstack(val_targets)
-        all_preds = np.vstack(val_preds)
-
-        # 7. Evaluate Performance
-        if len(np.unique(all_targets)) > 1:
-            auc = roc_auc_score(all_targets, all_preds)
-            print(f"\n[Epoch {epoch+1}] Avg Loss: {train_loss/len(train_loader):.4f} | Validation AUC: {auc:.4f}")
-            
+        message = f"loss={running_loss / len(train_loader):.4f}"
+        if validation_loader is not None:
+            targets, probabilities, _ = _predict(model, validation_loader)
+            auc = roc_auc_score(targets, probabilities)
+            message += f" validation_AUROC={auc:.4f}"
             if auc > best_auc:
-                best_auc = auc
-                torch.save(model.state_dict(), PATH)
-                print(f"--> Saved New Best CFP Model! (AUC: {best_auc:.4f})")
-        else:
-            print(f"\n[Epoch {epoch+1}] Avg Loss: {train_loss/len(train_loader):.4f} | Cannot calculate AUC (only 1 class present in batch).")
+                best_auc, best_epoch = auc, epoch + 1
+                os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+                torch.save(model.state_dict(), output_path)
+        print(f"Epoch {epoch + 1}: {message}")
+
+    if validation_loader is None and output_path:
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+        torch.save(model.state_dict(), output_path)
+    return model, best_epoch, best_auc, pos_weight
+
+
+def _metrics(targets, probabilities, threshold):
+    predictions = (probabilities >= threshold).astype(int)
+    tn, fp, fn, tp = confusion_matrix(targets, predictions, labels=[0, 1]).ravel()
+    return predictions, {
+        "auroc": roc_auc_score(targets, probabilities),
+        "accuracy": accuracy_score(targets, predictions),
+        "precision": precision_score(targets, predictions, zero_division=0),
+        "sensitivity": recall_score(targets, predictions, zero_division=0),
+        "specificity": tn / (tn + fp) if tn + fp else float("nan"),
+        "f1": f1_score(targets, predictions, zero_division=0),
+        "tn": int(tn), "fp": int(fp), "fn": int(fn), "tp": int(tp),
+    }
+
+
+def train():
+    master = pd.read_csv(CSV_PATH)
+    train_df = master[_contains_split(master["filename"], "Train")].copy()
+    validation_df = master[_contains_split(master["filename"], "Validation")].copy()
+    test_df = master[_contains_split(master["filename"], "Test")].copy()
+    if any(frame.empty for frame in (train_df, validation_df, test_df)):
+        raise ValueError("REFUGE Train, Validation, and Test splits must all be present")
+    print(f"Official splits: Train={len(train_df)}, Validation={len(validation_df)}, Test={len(test_df)}")
+
+    _, evaluation_transform = _transforms()
+    validation_loader = _loader(validation_df, evaluation_transform, shuffle=False)
+    _, best_epoch, best_auc, train_pos_weight = _train_epochs(
+        train_df, EPOCHS, DEVELOPMENT_PATH, validation_loader
+    )
+
+    development_model = get_model_cfp().to(DEVICE)
+    development_model.load_state_dict(torch.load(DEVELOPMENT_PATH, map_location=DEVICE, weights_only=False))
+    validation_targets, validation_probabilities, _ = _predict(development_model, validation_loader)
+    threshold_result = select_threshold(
+        validation_targets, validation_probabilities, TARGET_SENSITIVITY
+    )
+    threshold = threshold_result["threshold"]
+    print(f"Selected threshold={threshold:.6f} on Validation: {threshold_result}")
+
+    combined_df = pd.concat([train_df, validation_df], ignore_index=True)
+    _, _, _, combined_pos_weight = _train_epochs(
+        combined_df, best_epoch, PATH, validation_loader=None
+    )
+
+    final_model = get_model_cfp().to(DEVICE)
+    final_model.load_state_dict(torch.load(PATH, map_location=DEVICE, weights_only=False))
+    test_loader = _loader(test_df, evaluation_transform, shuffle=False)
+    test_targets, test_probabilities, test_filenames = _predict(final_model, test_loader)
+    test_predictions, test_metrics = _metrics(test_targets, test_probabilities, threshold)
+    pd.DataFrame({
+        "Filename": test_filenames,
+        "Ground_Truth": test_targets,
+        "Probability_GL": test_probabilities,
+        "Pred_GL": test_predictions,
+        "Is_Correct": (test_predictions == test_targets).astype(int),
+    }).to_csv(TEST_PREDICTIONS_PATH, index=False)
+
+    metadata = {
+        "official_split_sizes": {"train": len(train_df), "validation": len(validation_df), "test": len(test_df)},
+        "development_best_epoch": best_epoch,
+        "development_validation_auroc": best_auc,
+        "target_sensitivity": TARGET_SENSITIVITY,
+        "selected_validation_threshold": threshold,
+        "validation_threshold_metrics": threshold_result,
+        "train_pos_weight": train_pos_weight,
+        "combined_train_validation_pos_weight": combined_pos_weight,
+        "head_learning_rate": LR,
+        "unfrozen_backbone_blocks": UNFREEZE_BLOCKS,
+        "backbone_learning_rate": BACKBONE_LR if UNFREEZE_BLOCKS else None,
+        "final_test_metrics": test_metrics,
+        "final_weights": PATH,
+        "test_predictions": TEST_PREDICTIONS_PATH,
+        "threshold_transfer_note": (
+            "The threshold was selected on the development model's Validation predictions, then applied "
+            "unchanged after retraining a fresh head on Train+Validation. Retraining can shift calibration."
+        ),
+    }
+    with open(METADATA_PATH, "w", encoding="utf-8") as handle:
+        json.dump(metadata, handle, indent=2)
+    print(json.dumps(metadata, indent=2))
 
 if __name__ == "__main__":
     train()
