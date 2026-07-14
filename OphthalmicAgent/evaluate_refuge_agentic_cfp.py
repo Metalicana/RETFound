@@ -1,5 +1,6 @@
 """Evaluate the CFP agentic glaucoma pipeline on the REFUGE Test split."""
 
+import json
 import os
 import re
 from pathlib import Path
@@ -18,7 +19,9 @@ CFP_WEIGHTS = os.getenv("CFP_WEIGHTS", "./weights/cfp_glaucoma_best.pth")
 OUTPUT_CSV = os.getenv("OUTPUT_CSV", "refuge_test_agentic_cfp_predictions.csv")
 MAX_CASES = int(os.getenv("MAX_CASES", "0"))
 
-os.environ.setdefault("CDR_OUTPUT_DIR", "outputs/refuge_cfp/cdr_segmentations")
+# Segmentation overlays are not needed for the REFUGE agentic evaluation.
+# Remove this line or set SAVE_CDR_SEGMENTATIONS=1 before launching to save them.
+os.environ.setdefault("SAVE_CDR_SEGMENTATIONS", "0")
 
 vision_agent = VisionSpecialistCFP(CFP_WEIGHTS)
 counterfactual_agent = CounterfactualCFPAgent(
@@ -134,8 +137,32 @@ def main():
     print(f"Evaluating agentic CFP pipeline on {len(cases)} REFUGE Test images")
     rows = []
     for index, case in enumerate(cases, start=1):
+        print("\n" + "=" * 90)
+        print(f"CASE {index}/{len(cases)}")
+        print(f"Filename: {case['path']}")
+        print(
+            f"Ground truth: {case['ground_truth']} "
+            f"({'Glaucoma' if case['ground_truth'] == 1 else 'Normal'})"
+        )
+        print("=" * 90)
         try:
             state, probability, prediction = run_case(case)
+            print(f"\nRETFound-CFP glaucoma probability: {probability:.2f}%")
+            print(
+                "Vertical cup-to-disc ratio: "
+                f"{state['vertical_cdr'] if state['vertical_cdr'] is not None else 'Not Available'}"
+            )
+            print("\nCFP specialist report:")
+            print(state["vision_opinion_cfp"])
+            print("\nCounterfactual evidence-ablation trace:")
+            print(json.dumps(state["counterfactual_trace"], indent=2, default=str))
+            print("\nFinal orchestrator output:")
+            print(state["final_diagnosis"].get("decision", ""))
+            print(
+                f"\nParsed prediction: {prediction} "
+                f"({'Glaucoma' if prediction == 1 else 'Normal' if prediction == 0 else 'Invalid'})"
+            )
+            print(f"Correct: {prediction == case['ground_truth']}")
             row = {
                 "Filename": str(case["path"]),
                 "Ground_Truth": case["ground_truth"],
@@ -160,7 +187,7 @@ def main():
             }
         rows.append(row)
         pd.DataFrame(rows).to_csv(OUTPUT_CSV, index=False)
-        print(f"Completed {index}/{len(cases)}")
+        print(f"\nCompleted {index}/{len(cases)} | Checkpoint CSV: {OUTPUT_CSV}")
 
     results = pd.DataFrame(rows)
     print_metrics(results)
