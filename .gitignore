@@ -158,11 +158,15 @@ OphthalmicAgent/data_papila/raw/
 OphthalmicAgent/VisionAgent/MIRAGE/
 OphthalmicAgent/*.jpg
 OphthalmicAgent/*.png
+OphthalmicAgent/*.csv
 
-OphthalmicAgent/slurm_logs/
-OphthalmicAgent/prompts/
-OphthalmicAgent/CSVs/
+OphthalmicAgent/slurm_logs/*
+OphthalmicAgent/prompts/*
+OphthalmicAgent/CSVs/*
 
+OphthalmicAgent/outputs/glaucoma_counterfactual_250/*
+OphthalmicAgent/outputs/glaucoma_counterfactual_2/*
+OphthalmicAgent/outputs/refuge_cfp/cdr_segmentations/*
 
 Datasets/*
 
