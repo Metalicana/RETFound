@@ -18,7 +18,7 @@ class DrishtiOrchestrator:
             api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
         )
 
-    def analyze(self, probability, cfp_report, counterfactual_trace=None):
+    def analyze(self, probability, cfp_report, cdr, counterfactual_trace=None):
         response = self.model_client.chat.completions.create(
             model=self.deployment,
             temperature=0.2,
@@ -28,9 +28,11 @@ class DrishtiOrchestrator:
                     "content": (
                         "You are the final glaucoma diagnostic orchestrator for a CFP-only pipeline. "
                         "Use the RETFound-CFP probability as the primary numerical signal and the CFP "
-                        "specialist report as independent structural interpretation. The counterfactual "
+                        "specialist report as independent structural interpretation. Use the calculated "
+                        "vertical cup-to-disc ratio as a supporting structural measurement; a missing value "
+                        "is unavailable evidence, not a normal result. The counterfactual "
                         "trace is a dependency audit, not a vote. Do not invent OCT, SLO, "
-                        "demographic, clinical-history, or measured CDR evidence. Return exactly:\n"
+                        "demographic or clinical-history evidence. Return exactly:\n"
                         "[LABELS]\nGLAUCOMA_DETECTED: [0 or 1]\n[/LABELS]\n\nReasoning:\n"
                         "[brief CFP-based explanation]"
                     ),
@@ -40,6 +42,7 @@ class DrishtiOrchestrator:
                     "content": (
                         f"RETFound-CFP glaucoma probability: {probability}%\n\n"
                         f"CFP specialist report: {cfp_report}\n\n"
+                        f"Calculated vertical cup-to-disc ratio: {cdr if cdr is not None else 'Not Available'}\n\n"
                         "Counterfactual trace: " + json.dumps(counterfactual_trace or {}, sort_keys=True)
                     ),
                 },

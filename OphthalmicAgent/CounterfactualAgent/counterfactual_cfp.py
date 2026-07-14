@@ -5,7 +5,7 @@ class CounterfactualCFPAgent(CounterfactualAgent):
     """CFP-only evidence ablation using the existing validated cache machinery."""
 
     def _messages(self, evidence):
-        scenarios = "full_evidence, without_retfound_probability, without_visual_interpretation"
+        scenarios = "full_evidence, without_retfound_probability, without_visual_interpretation, without_cdr_tool"
         return [
             {
                 "role": "system",
@@ -13,7 +13,7 @@ class CounterfactualCFPAgent(CounterfactualAgent):
                     "You are a glaucoma counterfactual evidence-audit agent for a CFP-only pipeline. "
                     "Return JSON only with scenarios (name, diagnosis, confidence, reasoning) and "
                     f"interpretation. Use exactly: {scenarios}. Diagnosis is 1, 0, or -1. Missing evidence "
-                    "means unavailable, not normal. Never introduce OCT, SLO, demographics, history, or CDR."
+                    "means unavailable, not normal. Never introduce OCT, SLO, demographics, or history."
                 ),
             },
             {"role": "user", "content": "Audit this CFP evidence:\n" + self._canonical(evidence)},
@@ -30,6 +30,7 @@ class CounterfactualCFPAgent(CounterfactualAgent):
             "full_evidence",
             "without_retfound_probability",
             "without_visual_interpretation",
+            "without_cdr_tool",
         )
         by_name = {item.get("name"): item for item in trace.get("scenarios", []) if isinstance(item, dict)}
         missing = [name for name in names if name not in by_name]
@@ -51,10 +52,11 @@ class CounterfactualCFPAgent(CounterfactualAgent):
                 "label_flip_count": len(flips), "evidence_sensitive": bool(flips),
                 "interpretation": str(trace.get("interpretation", ""))}
 
-    def analyze(self, *, case_id, retfound_probability, cfp_report):
+    def analyze(self, *, case_id, retfound_probability, cfp_report, cdr):
         evidence = {
             "retfound_cfp_glaucoma_probability_percent": retfound_probability,
             "cfp_specialist_report": cfp_report,
+            "vertical_cup_to_disc_ratio": cdr,
         }
         fingerprint = self._fingerprint(case_id, evidence)
         cached = self._cache.get(fingerprint)

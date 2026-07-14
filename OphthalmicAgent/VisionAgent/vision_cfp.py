@@ -4,7 +4,9 @@ import os
 
 import numpy as np
 import torch
-from PIL import Image
+from PIL import Image, ImageOps
+from scipy.ndimage import find_objects
+from transformers import SegformerForSemanticSegmentation, SegformerImageProcessor
 from dotenv import load_dotenv
 from openai import AzureOpenAI
 from torchvision import transforms
@@ -37,6 +39,11 @@ class VisionSpecialistCFP:
             api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
         )
         self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.1")
+        self.cdr_model_name = "pamixsun/segformer_for_optic_disc_cup_segmentation"
+        self.cdr_processor = SegformerImageProcessor.from_pretrained(self.cdr_model_name)
+        self.cdr_model = SegformerForSemanticSegmentation.from_pretrained(
+            self.cdr_model_name
+        ).to(self.device).eval()
 
     @staticmethod
     def _image(value):
@@ -60,12 +67,41 @@ class VisionSpecialistCFP:
         encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
         return f"data:image/jpeg;base64,{encoded}"
 
+    @staticmethod
+    def _vertical_cdr(mask):
+        disc_mask = (mask == 1) | (mask == 2)
+        cup_mask = mask == 2
+        if not np.any(disc_mask) or not np.any(cup_mask):
+            return None
+        disc_box = find_objects(disc_mask)[0]
+        cup_box = find_objects(cup_mask)[0]
+        disc_height = disc_box[0].stop - disc_box[0].start
+        cup_height = cup_box[0].stop - cup_box[0].start
+        if disc_height <= 0:
+            return None
+        return round(cup_height / disc_height, 3)
+
+    def calculate_cdr(self, image):
+        equalized = ImageOps.equalize(image.convert("RGB"))
+        inputs = self.cdr_processor(images=equalized, return_tensors="pt").to(self.device)
+        with torch.no_grad():
+            logits = self.cdr_model(**inputs).logits
+        logits = torch.nn.functional.interpolate(
+            logits,
+            size=(equalized.height, equalized.width),
+            mode="bilinear",
+            align_corners=False,
+        )
+        mask = logits.argmax(dim=1)[0].cpu().numpy()
+        return self._vertical_cdr(mask)
+
     def analyze(self, cfp_image, state):
         image = self._image(cfp_image)
         tensor = self.transform(image).unsqueeze(0).to(self.device)
         with torch.no_grad():
             probability = float(torch.sigmoid(self.model(tensor)).reshape(-1)[0]) * 100
         probability = round(probability, 2)
+        vertical_cdr = self.calculate_cdr(image)
         state["cfp_diagnosis"] = {
             "Glaucoma": {
                 "Prob_Pct": probability,
@@ -84,7 +120,7 @@ class VisionSpecialistCFP:
                         "for glaucoma. Describe image quality, optic-disc appearance, neuroretinal rim, "
                         "cupping, disc asymmetry visible in this image, peripapillary changes, hemorrhage, "
                         "and other glaucoma-relevant findings. Do not invent measurements or use the AI "
-                        "score as visual evidence. End with IMPRESSION: supports glaucoma, supports normal, "
+                        "score or calculated CDR as visual evidence. End with IMPRESSION: supports glaucoma, supports normal, "
                         "or indeterminate."
                     ),
                 },
@@ -99,4 +135,4 @@ class VisionSpecialistCFP:
         )
         report = response.choices[0].message.content
         scores = f"Glaucoma probability from RETFound-CFP: {probability}%"
-        return scores, report, probability
+        return scores, report, probability, vertical_cdr

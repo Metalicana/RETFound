@@ -47,17 +47,22 @@ def initialize_state(case):
         "cfp_diagnosis": None,
         "retfound_scores": "",
         "vision_opinion_cfp": "",
+        "vertical_cdr": None,
         "counterfactual_trace": {},
         "final_diagnosis": {},
     }
 
 
 def run_diagnostic_pipeline(case, state):
-    state["retfound_scores"], state["vision_opinion_cfp"], probability = vision_agent.analyze(
-        case["path"], state
-    )
+    (
+        state["retfound_scores"],
+        state["vision_opinion_cfp"],
+        probability,
+        state["vertical_cdr"],
+    ) = vision_agent.analyze(case["path"], state)
     print(f"\n{state['retfound_scores']}")
     print(f"\nCFP Specialist Report:\n{state['vision_opinion_cfp']}")
+    print(f"Vertical cup-to-disc ratio: {state['vertical_cdr'] if state['vertical_cdr'] is not None else 'Not Available'}")
 
     if probability >= 90:
         state["final_diagnosis"] = {"labels": "GLAUCOMA_DETECTED: 1"}
@@ -70,11 +75,13 @@ def run_diagnostic_pipeline(case, state):
         case_id=state["patient_id"],
         retfound_probability=probability,
         cfp_report=state["vision_opinion_cfp"],
+        cdr=state["vertical_cdr"],
     )
     state["counterfactual_trace"] = counterfactual_agent.concise_trace(audit)
     state["final_diagnosis"] = ophthalmic_agent.analyze(
         probability,
         state["vision_opinion_cfp"],
+        state["vertical_cdr"],
         state["counterfactual_trace"],
     )
     print(f"\nFinal Diagnosis:\n{state['final_diagnosis']['decision']}")
