@@ -32,6 +32,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--dropout", type=float, default=0.25)
     parser.add_argument("--hidden-dim", type=int, default=256)
+    parser.add_argument("--head-type", choices=("linear", "mlp"), default="mlp")
+    parser.add_argument("--unfreeze-blocks", type=int, default=0)
+    parser.add_argument("--backbone-lr", type=float, default=1e-5)
+    parser.add_argument("--patience", type=int, default=12)
     parser.add_argument("--oct-slices", type=int, default=8)
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--seed", type=int, default=2026)
@@ -167,7 +171,20 @@ def main() -> None:
             self.backbone.load_state_dict(state, strict=False)
             for parameter in self.backbone.parameters():
                 parameter.requires_grad = False
-            self.head = nn.Sequential(nn.Linear(1024, args.hidden_dim), nn.ReLU(), nn.Dropout(args.dropout), nn.Linear(args.hidden_dim, 1))
+            if args.unfreeze_blocks:
+                if args.unfreeze_blocks > len(self.backbone.blocks):
+                    raise ValueError(f"unfreeze-blocks exceeds {len(self.backbone.blocks)}")
+                for block in self.backbone.blocks[-args.unfreeze_blocks:]:
+                    for parameter in block.parameters():
+                        parameter.requires_grad = True
+                # The final normalization participates in the adapted feature.
+                for name in ("norm", "fc_norm"):
+                    module = getattr(self.backbone, name, None)
+                    if module is not None:
+                        for parameter in module.parameters():
+                            parameter.requires_grad = True
+            self.head = (nn.Linear(1024, 1) if args.head_type == "linear" else
+                nn.Sequential(nn.Linear(1024, args.hidden_dim), nn.ReLU(), nn.Dropout(args.dropout), nn.Linear(args.hidden_dim, 1)))
         def forward(self, images):
             if args.modality == "oct":
                 batch, slices, channels, height, width = images.shape
@@ -197,13 +214,18 @@ def main() -> None:
     val_loader = DataLoader(ManifestDataset(split_rows["val"], eval_transform), batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
     model = Model().to(device)
-    optimizer = torch.optim.AdamW(model.head.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    backbone_parameters = [parameter for parameter in model.backbone.parameters() if parameter.requires_grad]
+    parameter_groups = [{"params": model.head.parameters(), "lr": args.lr}]
+    if backbone_parameters:
+        parameter_groups.append({"params": backbone_parameters, "lr": args.backbone_lr})
+    optimizer = torch.optim.AdamW(parameter_groups, weight_decay=args.weight_decay)
     # The sampler already balances classes; adding pos_weight here would count
     # class imbalance twice and distort probability calibration.
     loss_fn = nn.BCEWithLogitsLoss()
     args.out_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = args.out_dir / "best_head.pth"
     best_auc = -1.0
+    epochs_without_improvement = 0
 
     def predict(loader):
         model.eval(); probs=[]; targets=[]; ids=[]
@@ -225,14 +247,29 @@ def main() -> None:
         print(f"epoch={epoch} loss={np.mean(losses):.6f} val_auc={auc:.6f}", flush=True)
         if np.isfinite(auc) and auc > best_auc:
             best_auc = float(auc)
-            torch.save({"head": model.head.state_dict(), "epoch": epoch, "val_auc": best_auc, "args": vars(args)}, checkpoint_path)
+            epochs_without_improvement = 0
+            trainable_state = {
+                name: value.detach().cpu()
+                for name, value in model.state_dict().items()
+                if name.startswith("head.") or name in {
+                    parameter_name for parameter_name, parameter in model.named_parameters()
+                    if parameter.requires_grad
+                }
+            }
+            torch.save({"trainable_state": trainable_state, "epoch": epoch, "val_auc": best_auc, "args": vars(args)}, checkpoint_path)
+        else:
+            epochs_without_improvement += 1
+            if epochs_without_improvement >= args.patience:
+                print(f"early_stop epoch={epoch} best_val_auc={best_auc:.6f}", flush=True)
+                break
 
     saved = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    model.head.load_state_dict(saved["head"])
+    model.load_state_dict(saved["trainable_state"], strict=False)
     _, val_targets, val_probs = predict(val_loader)
     candidates = np.unique(np.concatenate(([0.0], val_probs, [1.0])))
     threshold = max(candidates, key=lambda value: balanced_accuracy_score(val_targets, val_probs >= value))
 
+    metrics = {}
     for split in ("val", "test"):
         if not split_rows[split]:
             continue
@@ -244,7 +281,22 @@ def main() -> None:
             for case_id, target, prob in zip(ids, targets, probs):
                 writer.writerow({"dataset": args.dataset, "task": "glaucoma", "model_name": f"retfound_{args.modality}", "case_id": case_id, "split": split, "y_true": int(target), "y_prob": float(prob), "threshold": float(threshold), "y_pred": int(prob >= threshold)})
 
-    summary = {"dataset": args.dataset, "modality": args.modality, "best_val_auc": best_auc, "threshold": float(threshold), "rows": {k: len(v) for k, v in split_rows.items()}, "seed": args.seed, "checkpoint": str(checkpoint_path)}
+        predictions = (probs >= threshold).astype(int)
+        tn = int(((targets == 0) & (predictions == 0)).sum())
+        fp = int(((targets == 0) & (predictions == 1)).sum())
+        fn = int(((targets == 1) & (predictions == 0)).sum())
+        tp = int(((targets == 1) & (predictions == 1)).sum())
+        divide = lambda numerator, denominator: float(numerator / denominator) if denominator else None
+        metrics[split] = {
+            "auroc": float(roc_auc_score(targets, probs)) if len(np.unique(targets)) == 2 else None,
+            "accuracy": divide(tp + tn, len(targets)),
+            "f1": divide(2 * tp, 2 * tp + fp + fn),
+            "sensitivity": divide(tp, tp + fn),
+            "specificity": divide(tn, tn + fp),
+            "tn": tn, "fp": fp, "fn": fn, "tp": tp,
+        }
+
+    summary = {"dataset": args.dataset, "modality": args.modality, "best_val_auc": best_auc, "threshold": float(threshold), "rows": {k: len(v) for k, v in split_rows.items()}, "seed": args.seed, "checkpoint": str(checkpoint_path), "head_type": args.head_type, "unfreeze_blocks": args.unfreeze_blocks, "metrics": metrics}
     (args.out_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True, default=str) + "\n")
     print(json.dumps(summary, indent=2, sort_keys=True))
 
