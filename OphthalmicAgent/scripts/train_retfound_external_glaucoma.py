@@ -26,6 +26,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--modality", choices=("cfp", "oct"), required=True)
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--backbone-weights", type=Path, default=None)
+    parser.add_argument("--init-model-weights", type=Path, default=None)
     parser.add_argument("--epochs", type=int, default=60)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
@@ -213,7 +214,23 @@ def main() -> None:
     train_loader = DataLoader(ManifestDataset(split_rows["train"], train_transform), batch_size=args.batch_size, sampler=sampler, num_workers=args.num_workers, pin_memory=device.type == "cuda", generator=generator)
     val_loader = DataLoader(ManifestDataset(split_rows["val"], eval_transform), batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
-    model = Model().to(device)
+    model = Model()
+    if args.init_model_weights:
+        if not args.init_model_weights.exists():
+            raise SystemExit(f"Initial model weights not found: {args.init_model_weights}")
+        initial = torch.load(args.init_model_weights, map_location="cpu", weights_only=False)
+        initial = initial.get("model", initial)
+        if args.modality == "cfp" and any(name.startswith("glaucoma_head.") for name in initial):
+            initial = {
+                ("head." + name.removeprefix("glaucoma_head.")) if name.startswith("glaucoma_head.") else name: value
+                for name, value in initial.items()
+                if not name.startswith(("amd_head.", "dr_head."))
+            }
+        missing, unexpected = model.load_state_dict(initial, strict=False)
+        if missing or unexpected:
+            raise SystemExit(f"Initial checkpoint mismatch: missing={missing}, unexpected={unexpected}")
+        print(f"initialized_model={args.init_model_weights}", flush=True)
+    model = model.to(device)
     backbone_parameters = [parameter for parameter in model.backbone.parameters() if parameter.requires_grad]
     parameter_groups = [{"params": model.head.parameters(), "lr": args.lr}]
     if backbone_parameters:
