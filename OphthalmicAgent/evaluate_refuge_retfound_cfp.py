@@ -10,6 +10,7 @@ import torch
 from PIL import Image
 from sklearn.metrics import (
     accuracy_score,
+    classification_report,
     confusion_matrix,
     f1_score,
     precision_score,
@@ -144,6 +145,17 @@ def main():
         "fn": int(fn),
         "tp": int(tp),
     }
+    print("\nPer-class classification report:")
+    print(
+        classification_report(
+            y_true,
+            y_prediction,
+            labels=[0, 1],
+            target_names=["Normal", "Glaucoma"],
+            digits=4,
+            zero_division=0,
+        )
+    )
     print(pd.Series(metrics).to_string())
     print(f"\nPredictions saved to {OUTPUT_CSV}")
 
