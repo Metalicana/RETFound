@@ -589,8 +589,8 @@ class RETFoundMultiHead(nn.Module):
             'glaucoma': self.glaucoma_head(features)
         }
 
-def get_model_oct():
-    weight_path = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/VisionAgent/weights/RETFound_mae_natureOCT.pth"
+def get_model_oct(weight_path=None):
+    weight_path = weight_path or "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/VisionAgent/weights/RETFound_mae_natureOCT.pth"
         
     backbone = RETFound_mae(
         img_size=224,
