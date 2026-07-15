@@ -50,7 +50,14 @@ class GDPDataset(Dataset):
 
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    source = GDPTestLoader(CSV_PATH, BSCAN_DIR, RNFLT_DIR, OCT_SLICES, MAX_CASES)
+    source = GDPTestLoader(
+        CSV_PATH,
+        BSCAN_DIR,
+        RNFLT_DIR,
+        OCT_SLICES,
+        MAX_CASES,
+        require_rnflt=False,
+    )
     dataset = GDPDataset(source)
     dataloader = DataLoader(
         dataset,

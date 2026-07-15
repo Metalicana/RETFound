@@ -52,7 +52,14 @@ def print_metrics(results):
 
 
 def main():
-    loader = GDPTestLoader(CSV_PATH, BSCAN_DIR, RNFLT_DIR, OCT_SLICES, MAX_CASES)
+    loader = GDPTestLoader(
+        CSV_PATH,
+        BSCAN_DIR,
+        RNFLT_DIR,
+        OCT_SLICES,
+        MAX_CASES,
+        require_rnflt=True,
+    )
     rows = []
     print(f"Evaluating GDP agentic pipeline on {len(loader)} Test cases")
     for index in range(len(loader)):
