@@ -34,6 +34,9 @@ class RNFLTSpecialist:
         axis.axis("off")
         figure.colorbar(image, ax=axis, fraction=0.046, pad=0.04, label="Thickness value")
         figure.tight_layout()
+        
+        figure.savefig("rnflt_thickness_map.png", bbox_inches="tight")
+        
         buffer = io.BytesIO()
         figure.savefig(buffer, format="png", bbox_inches="tight")
         plt.close(figure)

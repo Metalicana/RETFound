@@ -18,7 +18,7 @@ from VisionAgent.linear_probing_oct3 import get_model_oct
 CSV_PATH = os.getenv("GDP_CSV", "./data_gdp/data_summary.csv")
 BSCAN_DIR = os.getenv("GDP_BSCAN_DIR", "./data_gdp/BScan")
 RNFLT_DIR = os.getenv("GDP_RNFLT_DIR", "./data_gdp/RNFLT")
-OCT_WEIGHTS = os.getenv("OCT_WEIGHTS", "./weights/oct_model_8_slices_not_center.pth")
+OCT_WEIGHTS = os.getenv("OCT_WEIGHTS", "./weights/gdp_oct_glaucoma_head_best.pth")
 OUTPUT_CSV = os.getenv("OUTPUT_CSV", "gdp_test_retfound_oct_predictions.csv")
 THRESHOLD = float(os.getenv("THRESHOLD", "0.5"))
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "8"))

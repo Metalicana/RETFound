@@ -15,7 +15,7 @@ from VisionAgent.vision_rnflt import RNFLTSpecialist
 CSV_PATH = os.getenv("GDP_CSV", "./data_gdp/data_summary.csv")
 BSCAN_DIR = os.getenv("GDP_BSCAN_DIR", "./data_gdp/BScan")
 RNFLT_DIR = os.getenv("GDP_RNFLT_DIR", "./data_gdp/RNFLT")
-OCT_WEIGHTS = os.getenv("OCT_WEIGHTS", "./weights/oct_model_8_slices_not_center.pth")
+OCT_WEIGHTS = os.getenv("OCT_WEIGHTS", "./weights/gdp_oct_glaucoma_head_best.pth")
 OUTPUT_CSV = os.getenv("OUTPUT_CSV", "gdp_test_agentic_predictions.csv")
 MAX_CASES = int(os.getenv("MAX_CASES", "0"))
 OCT_SLICES = int(os.getenv("OCT_SLICES", "8"))

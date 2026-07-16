@@ -2,8 +2,13 @@ import pandas as pd
 import numpy as np
 from sklearn.metrics import classification_report, precision_recall_fscore_support
 
-# --- CONFIGURATION ---
-CSV_PATH = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/outputs/glaucoma_counterfactual_250/predictions.csv"  # Path to your main results output file
+## --- CONFIGURATION ---
+#CSV_PATH = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/outputs/glaucoma_counterfactual_250/predictions.csv"  # Path to your main results output file
+#CSV_PATH = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/fairvision_glaucoma_gpt51_predictions.csv"
+
+#CSV_PATH = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/ophthalmic_performance_results_jul04_glaucoma_1.csv"
+
+CSV_PATH = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/ophthalmic_performance_results_jul14_glaucoma.csv"
 
 def print_subset_report(df_subset, title):
 

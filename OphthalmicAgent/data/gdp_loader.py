@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
+from PIL import Image
 
 class GDPTestLoader:
     def __init__(

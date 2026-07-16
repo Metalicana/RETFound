@@ -23,7 +23,7 @@ load_dotenv()
 INPUT_CSV = Path(os.getenv("FAIRVISION_CSV", "./data/fairvision_250each.csv"))
 OUTPUT_CSV = os.getenv("OUTPUT_CSV", "fairvision_glaucoma_gpt51_predictions.csv")
 MAX_CASES = int(os.getenv("MAX_CASES", "0"))
-DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.1")
+DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.6-luna")
 API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
 OCT_SLICES = int(os.getenv("GPT_OCT_SLICES", "8"))
 
@@ -136,7 +136,7 @@ class StandaloneGPTGlaucomaEvaluator:
     def analyze(self, case):
         response = self.client.chat.completions.create(
             model=DEPLOYMENT,
-            temperature=0.2,
+#            temperature=0.2,
             response_format={"type": "json_object"},
             messages=[
                 {

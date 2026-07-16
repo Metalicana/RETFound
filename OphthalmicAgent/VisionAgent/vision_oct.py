@@ -777,16 +777,18 @@ class VisionSpecialistOct:
     def analyze(self, oct_img, middle_slice, state):
         state["oct_diagnosis"] = self.get_features_oct(oct_img) 
         
-        ##only middle slice experiment
-        if middle_slice.max() <= 1:
-          middle = (middle_slice * 255).astype(np.uint8)
-        else:
-          middle = middle_slice.astype(np.uint8)
-        montage = Image.fromarray(middle)
-        
-#        montage = self._create_clahe_montage(oct_img, middle_slice)
-#        self._save_clahe_montage(oct_img)
+#        ##only middle slice experiment
+#        if middle_slice.max() <= 1:
+#          middle = (middle_slice * 255).astype(np.uint8)
+#        else:
+#          middle = middle_slice.astype(np.uint8)
+#        
+#        montage = Image.fromarray(middle)
+
+        montage = self._create_clahe_montage(oct_img, middle_slice)
         base64_oct = self._prepare_image(montage)
+#        self._save_clahe_montage(oct_img)
+
          
         
 #        You are given one representative central OCT B-scan (displayed as the large image) along with four adjacent B-scans from the same OCT volume (displayed below).
