@@ -113,6 +113,20 @@ def load_mhd_volume(path: Path) -> np.ndarray:
     return values.reshape(tuple(reversed(dimensions)))
 
 
+def external_glaucoma_initial_state(checkpoint: dict) -> dict:
+    """Map the FairVision multi-head checkpoint to this binary glaucoma model."""
+    state = checkpoint.get("model", checkpoint)
+    if not any(name.startswith("glaucoma_head.") for name in state):
+        return state
+    return {
+        ("head." + name.removeprefix("glaucoma_head."))
+        if name.startswith("glaucoma_head.")
+        else name: value
+        for name, value in state.items()
+        if not name.startswith(("amd_head.", "dr_head."))
+    }
+
+
 def load_oct_slices(path: Path, count: int) -> list[np.ndarray]:
     from PIL import Image
 
@@ -259,14 +273,9 @@ def main() -> None:
     if args.init_model_weights:
         if not args.init_model_weights.exists():
             raise SystemExit(f"Initial model weights not found: {args.init_model_weights}")
-        initial = torch.load(args.init_model_weights, map_location="cpu", weights_only=False)
-        initial = initial.get("model", initial)
-        if args.modality == "cfp" and any(name.startswith("glaucoma_head.") for name in initial):
-            initial = {
-                ("head." + name.removeprefix("glaucoma_head.")) if name.startswith("glaucoma_head.") else name: value
-                for name, value in initial.items()
-                if not name.startswith(("amd_head.", "dr_head."))
-            }
+        initial = external_glaucoma_initial_state(
+            torch.load(args.init_model_weights, map_location="cpu", weights_only=False)
+        )
         missing, unexpected = model.load_state_dict(initial, strict=False)
         if missing or unexpected:
             raise SystemExit(f"Initial checkpoint mismatch: missing={missing}, unexpected={unexpected}")
