@@ -33,7 +33,9 @@ def _scenario_rows(trace):
         rows = []
         for name, value in raw.items():
             row = dict(value) if isinstance(value, dict) else {"diagnosis": value}
-            row.setdefault("name", name)
+            # The mapping key defines the scenario. Nested `name` values are
+            # often free-text descriptions rather than stable identifiers.
+            row["name"] = name
             rows.append(row)
         if rows:
             return rows
@@ -49,7 +51,7 @@ def _scenario_rows(trace):
         if value is None:
             continue
         row = dict(value) if isinstance(value, dict) else {"diagnosis": value}
-        row.setdefault("name", name)
+        row["name"] = name
         rows.append(row)
     return rows
 
