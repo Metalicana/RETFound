@@ -19,6 +19,7 @@ from typing import Any
 
 
 AUDIT_FIELDS = [
+    "dataset",
     "case_id",
     "split",
     "y_true",
@@ -306,6 +307,7 @@ def audit_row(baseline: dict[str, str], agent: dict[str, str] | None, split: str
         error_parts.append("missing_agent_row")
 
     row = {
+        "dataset": baseline.get("dataset", agent.get("dataset", "")),
         "case_id": case_id,
         "split": split,
         "y_true": truth,
@@ -449,19 +451,43 @@ def build_report(summary: dict[str, Any], rows: list[dict[str, Any]]) -> str:
     rescues = [row for row in rows if row["comparison_category"] == "rescue"]
     invalid = [row for row in rows if row["comparison_category"] == "invalid"]
     valid = [row for row in rows if row["comparison_category"] != "invalid"]
+    dataset = str(summary.get("dataset", "external")).strip().lower()
+    if dataset == "gamma":
+        pipeline = [
+            "1. RETFound receives the GAMMA OCT volume and supplies one numeric glaucoma probability.",
+            "2. The vision LLM receives the paired CFP image and supplies a free-text CFP report.",
+            "3. The CDR tool receives the paired CFP and supplies vertical CDR.",
+            "4. The evidence counterfactual agent receives the OCT-derived RETFound score, CFP report, and CFP-derived CDR; it produces four leave-one-evidence-out diagnoses to measure which evidence source controls the diagnosis.",
+            "5. The final orchestrator receives the complementary OCT and CFP representations plus the evidence-ablation trace and emits the final label.",
+        ]
+        guardrail = (
+            "On GAMMA, RETFound is OCT-derived while the visual report and CDR are CFP-derived. "
+            "OCT and CFP are complementary modalities, but the CFP report and CDR remain correlated "
+            "representations of the same photograph. The ablation labels diagnose evidence dependence; "
+            "they are not additional observations."
+        )
+    else:
+        pipeline = [
+            "1. RETFound receives the CFP and supplies one numeric glaucoma probability.",
+            "2. The vision LLM receives the same CFP image and supplies a free-text CFP report.",
+            "3. The CDR tool receives the same CFP and supplies vertical CDR.",
+            "4. The evidence counterfactual agent receives the RETFound score, CFP report, and CDR; it produces four leave-one-evidence-out diagnoses to measure which evidence source controls the diagnosis.",
+            "5. The final orchestrator receives all three CFP-derived representations plus the evidence-ablation trace and emits the final label.",
+        ]
+        guardrail = (
+            "RETFound probability, CFP specialist text, and CDR are all derived from the same photograph. "
+            "Their agreement is correlated evidence, not three independent votes. The ablation labels "
+            "diagnose which representation influenced the LLM; they are not additional observations."
+        )
 
     lines = [
-        "# External Glaucoma Agent Regression Audit",
+        f"# {dataset.upper()} Glaucoma Agent Regression Audit",
         "",
         "This is a retrospective decision audit. It does not rerun models, call an LLM, or use test labels to alter predictions.",
         "",
         "## Actual Pipeline",
         "",
-        "1. RETFound receives the PAPILA CFP and supplies one numeric glaucoma probability.",
-        "2. The vision LLM receives the same CFP image and supplies a free-text CFP report.",
-        "3. The CDR tool receives the same CFP and supplies vertical CDR.",
-        "4. The evidence counterfactual agent receives the RETFound score, CFP report, and CDR; it produces four leave-one-evidence-out diagnoses to measure which evidence source controls the diagnosis.",
-        "5. The final orchestrator receives all three CFP-derived representations plus the evidence-ablation trace and emits the final label.",
+        *pipeline,
         "",
         "## Result",
         "",
@@ -515,7 +541,7 @@ def build_report(summary: dict[str, Any], rows: list[dict[str, Any]]) -> str:
             "",
             "## Interpretation Guardrail",
             "",
-            "RETFound probability, CFP specialist text, and CDR are all derived from the same photograph on PAPILA. Their agreement is correlated evidence, not three independent votes. The ablation labels diagnose which representation influenced the LLM; they are not additional ground-truth observations.",
+            guardrail,
             "",
         ]
     )
@@ -542,6 +568,21 @@ def main() -> None:
     ]
 
     summary = {
+        "dataset": next(
+            (
+                str(row.get("dataset", "")).strip().lower()
+                for row in baseline_by_case.values()
+                if str(row.get("dataset", "")).strip()
+            ),
+            next(
+                (
+                    str(row.get("dataset", "")).strip().lower()
+                    for row in agent_by_case.values()
+                    if str(row.get("dataset", "")).strip()
+                ),
+                "external",
+            ),
+        ),
         "baseline_path": str(args.baseline),
         "agent_path": str(args.agent),
         "split": args.split,
