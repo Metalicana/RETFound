@@ -74,6 +74,45 @@ def load_rows(manifest: Path, dataset: str, modality: str) -> list[dict[str, str
     return selected
 
 
+def load_mhd_volume(path: Path) -> np.ndarray:
+    header: dict[str, str] = {}
+    for line in path.read_text(errors="replace").splitlines():
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        header[key.strip()] = value.strip()
+    required = {"DimSize", "ElementType", "ElementDataFile"}
+    missing = required - set(header)
+    if missing:
+        raise ValueError(f"Missing MHD fields {sorted(missing)}: {path}")
+
+    dimensions = [int(value) for value in header["DimSize"].split()]
+    if len(dimensions) != 3:
+        raise ValueError(f"Expected three MHD dimensions, got {dimensions}: {path}")
+    data_types = {
+        "MET_UCHAR": np.uint8,
+        "MET_CHAR": np.int8,
+        "MET_USHORT": np.uint16,
+        "MET_SHORT": np.int16,
+        "MET_UINT": np.uint32,
+        "MET_INT": np.int32,
+        "MET_FLOAT": np.float32,
+        "MET_DOUBLE": np.float64,
+    }
+    if header["ElementType"] not in data_types:
+        raise ValueError(f"Unsupported MHD ElementType {header['ElementType']!r}: {path}")
+    data_type = np.dtype(data_types[header["ElementType"]])
+    if header.get("ElementByteOrderMSB", "False").lower() == "true":
+        data_type = data_type.newbyteorder(">")
+    raw_path = path.parent / header["ElementDataFile"]
+    values = np.fromfile(raw_path, dtype=data_type)
+    expected = int(np.prod(dimensions))
+    if values.size != expected:
+        raise ValueError(f"Expected {expected} MHD voxels, found {values.size}: {raw_path}")
+    # MetaImage dimensions are X Y Z; model input is Z Y X.
+    return values.reshape(tuple(reversed(dimensions)))
+
+
 def load_oct_slices(path: Path, count: int) -> list[np.ndarray]:
     from PIL import Image
 
@@ -85,6 +124,8 @@ def load_oct_slices(path: Path, count: int) -> list[np.ndarray]:
             raise ValueError(f"No B-scan images found in {path}")
         arrays = [np.asarray(Image.open(item).convert("L")) for item in files]
         volume = np.stack(arrays)
+    elif path.suffix.lower() == ".mhd":
+        volume = load_mhd_volume(path)
     elif path.suffix.lower() == ".npz":
         with np.load(path) as data:
             key = next((candidate for candidate in ("oct_bscans", "volume", "oct", "bscans") if candidate in data), None)
