@@ -1,6 +1,83 @@
 from CounterfactualAgent.counterfactual_agent import CounterfactualAgent
 
 
+SCENARIO_NAMES = (
+    "full_evidence",
+    "without_retfound_probability",
+    "without_visual_interpretation",
+    "without_cdr_tool",
+)
+
+
+def _canonical_scenario_name(value):
+    import re
+
+    name = re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower()).strip("_")
+    aliases = {
+        "full": "full_evidence",
+        "with_full_evidence": "full_evidence",
+        "without_retfound": "without_retfound_probability",
+        "without_probability": "without_retfound_probability",
+        "without_retfound_score": "without_retfound_probability",
+        "without_visual": "without_visual_interpretation",
+        "without_cfp": "without_visual_interpretation",
+        "without_cfp_interpretation": "without_visual_interpretation",
+        "without_cdr": "without_cdr_tool",
+    }
+    return aliases.get(name, name)
+
+
+def _scenario_rows(trace):
+    raw = trace.get("scenarios", [])
+    if isinstance(raw, dict):
+        rows = []
+        for name, value in raw.items():
+            row = dict(value) if isinstance(value, dict) else {"diagnosis": value}
+            row.setdefault("name", name)
+            rows.append(row)
+        if rows:
+            return rows
+    if isinstance(raw, list):
+        rows = [row for row in raw if isinstance(row, dict)]
+        if rows:
+            return rows
+
+    # Some JSON responses place the four named scenarios at the top level.
+    rows = []
+    for name in SCENARIO_NAMES:
+        value = trace.get(name)
+        if value is None:
+            continue
+        row = dict(value) if isinstance(value, dict) else {"diagnosis": value}
+        row.setdefault("name", name)
+        rows.append(row)
+    return rows
+
+
+def _diagnosis(value):
+    if isinstance(value, bool):
+        return int(value)
+    try:
+        diagnosis = int(value)
+    except (TypeError, ValueError):
+        normalized = str(value or "").strip().lower()
+        labels = {
+            "glaucoma": 1,
+            "glaucoma_detected": 1,
+            "positive": 1,
+            "no_glaucoma": 0,
+            "normal": 0,
+            "negative": 0,
+            "inconclusive": -1,
+            "indeterminate": -1,
+            "uncertain": -1,
+        }
+        diagnosis = labels.get(_canonical_scenario_name(normalized), -2)
+    if diagnosis not in (-1, 0, 1):
+        raise ValueError(f"Invalid counterfactual diagnosis: {value!r}")
+    return diagnosis
+
+
 class CounterfactualCFPAgent(CounterfactualAgent):
     """CFP-only evidence ablation using the existing validated cache machinery."""
 
@@ -26,22 +103,21 @@ class CounterfactualCFPAgent(CounterfactualAgent):
 
     @staticmethod
     def _validate_trace(trace, case_id):
-        names = (
-            "full_evidence",
-            "without_retfound_probability",
-            "without_visual_interpretation",
-            "without_cdr_tool",
-        )
-        by_name = {item.get("name"): item for item in trace.get("scenarios", []) if isinstance(item, dict)}
-        missing = [name for name in names if name not in by_name]
+        by_name = {}
+        for item in _scenario_rows(trace):
+            supplied_name = item.get("name", item.get("scenario", item.get("scenario_name")))
+            name = _canonical_scenario_name(supplied_name)
+            if name in SCENARIO_NAMES:
+                by_name[name] = item
+        missing = [name for name in SCENARIO_NAMES if name not in by_name]
         if missing:
             raise ValueError(f"Counterfactual response omitted scenarios: {missing}")
         scenarios = []
-        for name in names:
+        for name in SCENARIO_NAMES:
             item = by_name[name]
-            diagnosis = int(item.get("diagnosis", -1))
-            if diagnosis not in (-1, 0, 1):
-                raise ValueError(f"Invalid diagnosis for {name}: {diagnosis}")
+            diagnosis = _diagnosis(
+                item.get("diagnosis", item.get("label", item.get("prediction", -1)))
+            )
             scenarios.append({"name": name, "diagnosis": diagnosis,
                               "confidence": str(item.get("confidence", "uncertain")),
                               "reasoning": str(item.get("reasoning", ""))})

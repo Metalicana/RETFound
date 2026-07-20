@@ -24,7 +24,11 @@ class ExternalCounterfactualAgent(CounterfactualCFPAgent):
             result=dict(cached);result["cache_hit"]=True;return result
         response=self.model_client.chat.completions.create(model=self.deployment,messages=self._messages(evidence),temperature=0,response_format={"type":"json_object"})
         from CounterfactualAgent.counterfactual_agent import _canonical_json,_extract_json_object
-        raw=response.choices[0].message.content;trace=self._validate_trace(_extract_json_object(raw),case_id)
+        raw=response.choices[0].message.content
+        try:
+            trace=self._validate_trace(_extract_json_object(raw),case_id)
+        except Exception as exc:
+            raise ValueError(f"{exc}; raw_response={raw[:4000]!r}") from exc
         result={**trace,"fingerprint":fingerprint,"prompt_version":f"external_glaucoma_{self.modality}_ablation_v1","deployment":self.deployment,"evidence":evidence,"raw_response":raw}
         self.cache_path.parent.mkdir(parents=True,exist_ok=True)
         with self.cache_path.open("a",encoding="utf-8") as handle:handle.write(_canonical_json(result)+"\n")
