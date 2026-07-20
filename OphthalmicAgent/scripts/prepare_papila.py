@@ -17,6 +17,12 @@ NEGATIVE_LABELS = {"healthy", "no glaucoma/healthy eye"}
 POSITIVE_LABELS = {"glaucoma present"}
 SUSPECT_LABELS = {"glaucoma suspect", "glaucoma-suspicious"}
 IMAGE_FIELDS = ("retina", "cup_exp1", "cup_exp2", "disc_exp1", "disc_exp2", "opht_cont")
+GENDER_MAP = {
+    "0": "male",
+    "male": "male",
+    "1": "female",
+    "female": "female",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -52,6 +58,13 @@ def label_kind(value: str) -> str:
     if normalized in SUSPECT_LABELS:
         return "suspect"
     raise ValueError(f"Unknown PAPILA label: {value!r}")
+
+
+def normalize_gender(value: object) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized not in GENDER_MAP:
+        raise ValueError(f"Unknown PAPILA gender value: {value!r}")
+    return GENDER_MAP[normalized]
 
 
 def allocate_group(values: list[str], rng: random.Random) -> dict[str, str]:
@@ -169,7 +182,7 @@ def main() -> None:
             "cup_mask_exp2_path": paths["cup_exp2"],
             "opht_cont_path": paths["opht_cont"],
             "age": metadata.get("age", ""),
-            "gender_code": metadata.get("gender", ""),
+            "gender_code": normalize_gender(metadata.get("gender", "")),
             "pneumatic": metadata.get("pneumatic", ""),
             "perkins": metadata.get("perkins", ""),
             "pachymetry": metadata.get("pachymetry", ""),
@@ -200,6 +213,7 @@ def main() -> None:
         "suspect_eyes": len(suspect_rows),
         "binary_split_counts": dict(Counter(row["split"] for row in binary_rows)),
         "binary_label_counts": dict(Counter(str(row["label"]) for row in binary_rows)),
+        "binary_gender_counts": dict(Counter(row["gender_code"] for row in binary_rows)),
         "binary_split_label_counts": {
             f"{split}|{label}": count
             for (split, label), count in sorted(Counter((row["split"], str(row["label"])) for row in binary_rows).items())
