@@ -24,6 +24,7 @@ from typing import Any, Callable
 
 
 MODELS = ("retfound", "mirage", "ret_clip", "retizero", "urfound")
+FEATURE_EXTRACTOR_VERSION = 2
 GENDER_MAP = {
     "0": "male",
     "male": "male",
@@ -338,18 +339,32 @@ def mirage_feature_module(torch, model, requested: str | None):
         if not isinstance(module, torch.nn.Linear):
             continue
         lower = name.lower()
-        score = 0
-        if "glaucoma" in lower:
-            score += 10000
-        elif "glau" in lower or lower.startswith("gl") or ".gl" in lower:
-            score += 5000
-        if getattr(module, "out_features", 0) in {1, 3}:
-            score += 1000
-        score += int(getattr(module, "in_features", 0))
-        candidates.append((score, name, module))
+        disease_head = "glaucoma" in lower or "glau" in lower or lower.startswith("gl") or ".gl" in lower
+        candidates.append((disease_head, name, module))
     if not candidates:
         raise RuntimeError("No MIRAGE linear head found; pass --mirage-feature-module")
-    _, name, module = max(candidates, key=lambda item: item[0])
+
+    disease_candidates = [item for item in candidates if item[0]]
+    if disease_candidates:
+        # Capture the shared foundation representation entering the task head,
+        # not a hidden activation entering its final classifier layer.
+        _, name, module = max(
+            disease_candidates,
+            key=lambda item: (
+                int(getattr(item[2], "in_features", 0)),
+                -item[1].count("."),
+            ),
+        )
+    else:
+        output_candidates = [
+            item for item in candidates if int(getattr(item[2], "out_features", 0)) in {1, 3}
+        ]
+        if not output_candidates:
+            raise RuntimeError("No MIRAGE disease head found; pass --mirage-feature-module")
+        _, name, module = max(
+            output_candidates,
+            key=lambda item: int(getattr(item[2], "in_features", 0)),
+        )
     return name, module
 
 
@@ -552,6 +567,7 @@ def feature_cache_signature(args, model_name: str) -> str:
     weight_stat = weights.stat()
     manifest_stat = args.manifest.stat()
     payload = {
+        "feature_extractor_version": FEATURE_EXTRACTOR_VERSION,
         "model_name": model_name,
         "weights": str(weights.resolve()),
         "weights_size": weight_stat.st_size,
