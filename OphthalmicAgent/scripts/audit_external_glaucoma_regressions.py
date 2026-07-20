@@ -460,7 +460,7 @@ def build_report(summary: dict[str, Any], rows: list[dict[str, Any]]) -> str:
         "1. RETFound receives the PAPILA CFP and supplies one numeric glaucoma probability.",
         "2. The vision LLM receives the same CFP image and supplies a free-text CFP report.",
         "3. The CDR tool receives the same CFP and supplies vertical CDR.",
-        "4. The so-called counterfactual agent receives the RETFound score, CFP report, and CDR; it produces four leave-one-evidence-out diagnoses. It does not generate demographic counterfactual patients on PAPILA.",
+        "4. The evidence counterfactual agent receives the RETFound score, CFP report, and CDR; it produces four leave-one-evidence-out diagnoses to measure which evidence source controls the diagnosis.",
         "5. The final orchestrator receives all three CFP-derived representations plus the evidence-ablation trace and emits the final label.",
         "",
         "## Result",
