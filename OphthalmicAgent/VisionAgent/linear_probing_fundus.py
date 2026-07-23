@@ -4,10 +4,9 @@ import os
 import json
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import numpy as np
 import pandas as pd
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from torchvision import transforms
 from PIL import Image
 from tqdm import tqdm
@@ -34,7 +33,6 @@ LR = float(os.getenv("HEAD_LR", "1e-3"))
 BACKBONE_LR = float(os.getenv("BACKBONE_LR", "1e-5"))
 UNFREEZE_BLOCKS = int(os.getenv("UNFREEZE_BLOCKS", "0"))
 EPOCHS = int(os.getenv("EPOCHS", "30"))
-THRESHOLD = float(os.getenv("THRESHOLD", "0.5"))
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 PATH = os.getenv("CFP_OUTPUT_WEIGHTS", "./weights/cfp_glaucoma_best.pth")
 METADATA_PATH = os.getenv("CFP_TRAINING_METADATA", "cfp_glaucoma_training_metadata.json")
@@ -98,7 +96,11 @@ class RETFoundGlaucoma(nn.Module):
                     m.bias.data.zero_()
 
     def forward(self, x):
-        features = self.backbone(x)
+        # models_vit.VisionTransformer.forward_features() already performs
+        # global average pooling when global_pool=True. Calling backbone(x)
+        # would send the pooled [B, 1024] tensor through timm.forward_head(),
+        # which attempts to pool it again and incorrectly reduces it to [B].
+        features = self.backbone.forward_features(x)
         return self.glaucoma_head(features)
 
 
@@ -110,7 +112,7 @@ def get_model_cfp():
         img_size=224,
         num_classes=0, 
         drop_path_rate=0.0,
-        global_pool='',
+        global_pool=True,
     )
     
     # Freeze the backbone
@@ -166,22 +168,28 @@ def _transforms():
     return train_transform, evaluation_transform
 
 
-def _loader(frame, transform, shuffle):
+def _loader(frame, transform, shuffle=False, balanced=False):
+    sampler = None
+    if balanced:
+        labels = frame["Ground_Truth"].astype(int).to_numpy()
+        counts = np.bincount(labels, minlength=2)
+        if np.any(counts == 0):
+            raise ValueError("Balanced sampling requires both classes")
+        sample_weights = np.asarray([1.0 / counts[label] for label in labels])
+        sampler = WeightedRandomSampler(
+            weights=torch.as_tensor(sample_weights, dtype=torch.double),
+            num_samples=len(frame),
+            replacement=True,
+        )
+        shuffle = False
     return DataLoader(
         RefugeCFPDataset(frame, DATA_ROOT, transform=transform),
         batch_size=BATCH_SIZE,
         shuffle=shuffle,
+        sampler=sampler,
         num_workers=NUM_WORKERS,
         pin_memory=DEVICE.type == "cuda",
     )
-
-
-def _positive_weight(frame):
-    positives = int((frame["Ground_Truth"] == 1).sum())
-    negatives = int((frame["Ground_Truth"] == 0).sum())
-    if positives == 0 or negatives == 0:
-        raise ValueError("Training data must contain both positive and negative cases")
-    return negatives / positives
 
 
 def _predict(model, loader):
@@ -198,7 +206,7 @@ def _predict(model, loader):
 
 def _train_epochs(frame, epochs, output_path=None, validation_loader=None):
     train_transform, _ = _transforms()
-    train_loader = _loader(frame, train_transform, shuffle=True)
+    train_loader = _loader(frame, train_transform, balanced=True)
     model = get_model_cfp().to(DEVICE)
     head_parameters = list(model.glaucoma_head.parameters()) + list(
         model.backbone.fc_norm.parameters()
@@ -215,10 +223,10 @@ def _train_epochs(frame, epochs, output_path=None, validation_loader=None):
                 backbone_parameters.append(parameter)
         parameter_groups.append({"params": backbone_parameters, "lr": BACKBONE_LR})
     optimizer = torch.optim.AdamW(parameter_groups, weight_decay=0.05)
-    pos_weight = _positive_weight(frame)
-    criterion = nn.BCEWithLogitsLoss(
-        pos_weight=torch.tensor([pos_weight], device=DEVICE)
-    )
+    # The sampler already presents approximately balanced batches. Applying
+    # pos_weight as well would correct the same imbalance twice.
+    criterion = nn.BCEWithLogitsLoss()
+    pos_weight = 1.0
     best_auc, best_epoch = -np.inf, epochs
 
     for epoch in range(epochs):
@@ -252,6 +260,20 @@ def _train_epochs(frame, epochs, output_path=None, validation_loader=None):
     return model, best_epoch, best_auc, pos_weight
 
 
+def _select_f1_threshold(targets, probabilities):
+    """Select a validation-only threshold that maximizes positive-class F1."""
+    candidates = np.unique(np.concatenate(([0.0], probabilities, [1.0])))
+    scores = np.asarray([
+        f1_score(targets, probabilities >= threshold, zero_division=0)
+        for threshold in candidates
+    ])
+    best_score = scores.max()
+    # If several thresholds tie, prefer the one closest to 0.5.
+    tied = candidates[scores == best_score]
+    threshold = float(tied[np.argmin(np.abs(tied - 0.5))])
+    return threshold, float(best_score)
+
+
 def _metrics(targets, probabilities, threshold):
     predictions = (probabilities >= threshold).astype(int)
     tn, fp, fn, tp = confusion_matrix(targets, predictions, labels=[0, 1]).ravel()
@@ -277,22 +299,35 @@ def train():
         f"Official splits: Train={len(train_df)}, Validation={len(validation_df)}, "
         f"Test={len(test_df)}"
     )
-    combined_df = pd.concat([train_df, validation_df], ignore_index=True)
     print(
-        f"Training once on Train+Validation: {len(combined_df)} images for "
-        f"{EPOCHS} fixed epochs. Test remains untouched."
+        f"Training on Train ({len(train_df)} images) with balanced sampling. "
+        f"Selecting the best checkpoint on Validation AUROC; Test remains untouched."
     )
-    _, _, _, combined_pos_weight = _train_epochs(
-        combined_df, EPOCHS, PATH, validation_loader=None
+    _, evaluation_transform = _transforms()
+    validation_loader = _loader(
+        validation_df, evaluation_transform, shuffle=False
+    )
+    _, best_epoch, best_validation_auc, training_pos_weight = _train_epochs(
+        train_df, EPOCHS, PATH, validation_loader=validation_loader
     )
 
     final_model = get_model_cfp().to(DEVICE)
     final_model.load_state_dict(torch.load(PATH, map_location=DEVICE, weights_only=False))
-    _, evaluation_transform = _transforms()
+    validation_targets, validation_probabilities, _ = _predict(
+        final_model, validation_loader
+    )
+    selected_threshold, validation_f1 = _select_f1_threshold(
+        validation_targets, validation_probabilities
+    )
+    print(
+        f"Best epoch={best_epoch}, validation AUROC={best_validation_auc:.4f}, "
+        f"selected validation threshold={selected_threshold:.6f}, "
+        f"validation F1={validation_f1:.4f}"
+    )
     test_loader = _loader(test_df, evaluation_transform, shuffle=False)
     test_targets, test_probabilities, test_filenames = _predict(final_model, test_loader)
     test_predictions, test_metrics = _metrics(
-        test_targets, test_probabilities, THRESHOLD
+        test_targets, test_probabilities, selected_threshold
     )
     pd.DataFrame({
         "Filename": test_filenames,
@@ -304,10 +339,14 @@ def train():
 
     metadata = {
         "official_split_sizes": {"train": len(train_df), "validation": len(validation_df), "test": len(test_df)},
-        "training_strategy": "single fixed run on Train+Validation; one final evaluation on Test",
-        "fixed_training_epochs": EPOCHS,
-        "fixed_threshold": THRESHOLD,
-        "combined_train_validation_pos_weight": combined_pos_weight,
+        "training_strategy": "balanced sampling on Train; best checkpoint by Validation AUROC; one final evaluation on Test",
+        "maximum_training_epochs": EPOCHS,
+        "best_epoch": best_epoch,
+        "best_validation_auroc": best_validation_auc,
+        "selected_validation_threshold": selected_threshold,
+        "validation_f1_at_selected_threshold": validation_f1,
+        "training_pos_weight": training_pos_weight,
+        "balanced_training_sampler": True,
         "head_learning_rate": LR,
         "unfrozen_backbone_blocks": UNFREEZE_BLOCKS,
         "backbone_learning_rate": BACKBONE_LR if UNFREEZE_BLOCKS else None,
@@ -317,7 +356,7 @@ def train():
         "final_test_metrics": test_metrics,
         "final_weights": PATH,
         "test_predictions": TEST_PREDICTIONS_PATH,
-        "threshold_note": "The threshold was fixed before Test evaluation and was not selected on Test.",
+        "threshold_note": "Threshold maximized positive-class F1 on Validation and was not selected on Test.",
     }
     with open(METADATA_PATH, "w", encoding="utf-8") as handle:
         json.dump(metadata, handle, indent=2)
