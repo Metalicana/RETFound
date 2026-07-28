@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Benchmark frozen foundation-model CFP features on the locked PAPILA split.
+"""Benchmark frozen foundation-model CFP features on a locked external split.
 
 Each model uses its native image preprocessing and pretrained checkpoint, but
 all models share the same downstream probe search, validation-F1 threshold
@@ -41,6 +41,11 @@ def repo_root() -> Path:
 def parse_args() -> argparse.Namespace:
     root = repo_root()
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--dataset",
+        default="papila",
+        help="Dataset identifier written to outputs. PAPILA demographics are normalized when available.",
+    )
     parser.add_argument(
         "--manifest",
         type=Path,
@@ -161,12 +166,18 @@ def resolve_image_path(manifest: Path, value: str) -> Path:
     return manifest.parent / path
 
 
-def load_manifest(np, path: Path, limit_per_split: int | None) -> tuple[dict[str, list[dict[str, Any]]], list[float]]:
+def load_manifest(
+    np,
+    path: Path,
+    limit_per_split: int | None,
+    dataset: str = "papila",
+) -> tuple[dict[str, list[dict[str, Any]]], list[float], list[str]]:
     if not path.exists():
-        raise FileNotFoundError(f"PAPILA manifest not found: {path}")
+        raise FileNotFoundError(f"{dataset} manifest not found: {path}")
     with path.open(newline="", encoding="utf-8-sig") as handle:
         source_rows = list(csv.DictReader(handle))
 
+    dataset = str(dataset).strip().lower()
     rows: list[dict[str, Any]] = []
     for source in source_rows:
         split = str(source.get("split", "")).strip().lower()
@@ -174,6 +185,12 @@ def load_manifest(np, path: Path, limit_per_split: int | None) -> tuple[dict[str
         if split not in SPLITS or label not in {"0", "1"}:
             continue
         image_path = resolve_image_path(path, str(source.get("cfp_path", "")))
+        gender_value = source.get("sex_gender", source.get("gender_code", ""))
+        sex_gender = (
+            normalize_gender(gender_value)
+            if dataset == "papila"
+            else str(gender_value or "").strip().lower()
+        )
         row = dict(source)
         row.update(
             {
@@ -182,12 +199,12 @@ def load_manifest(np, path: Path, limit_per_split: int | None) -> tuple[dict[str
                 "case_id": str(source.get("case_id", "")).strip(),
                 "patient_id": str(source.get("patient_id", "")).strip(),
                 "image_path": str(image_path),
-                "sex_gender": normalize_gender(source.get("gender_code", "")),
+                "sex_gender": sex_gender,
                 "age_value": optional_float(source.get("age")),
             }
         )
         if not row["case_id"] or not row["patient_id"]:
-            raise ValueError("Every PAPILA row must have case_id and patient_id")
+            raise ValueError(f"Every {dataset} row must have case_id and patient_id")
         rows.append(row)
 
     patient_splits: dict[str, set[str]] = defaultdict(set)
@@ -201,29 +218,44 @@ def load_manifest(np, path: Path, limit_per_split: int | None) -> tuple[dict[str
         [row["age_value"] for row in rows if row["split"] == "train" and row["age_value"] is not None],
         dtype=float,
     )
-    if len(train_ages) < 3:
-        raise ValueError("At least three training ages are required for age groups")
-    lower, upper = [float(value) for value in np.quantile(train_ages, [1 / 3, 2 / 3])]
-    if lower >= upper:
-        raise ValueError(f"Training age tertiles collapsed: lower={lower}, upper={upper}")
+    age_bounds: list[float] = []
+    if len(train_ages) >= 3:
+        lower, upper = [float(value) for value in np.quantile(train_ages, [1 / 3, 2 / 3])]
+        if lower < upper:
+            age_bounds = [lower, upper]
 
     for row in rows:
         age = row["age_value"]
-        if age is None:
+        if not age_bounds:
+            row["age_group"] = ""
+        elif age is None:
             row["age_group"] = "unknown"
-        elif age <= lower:
-            row["age_group"] = f"age_le_{lower:g}"
-        elif age <= upper:
-            row["age_group"] = f"age_{lower:g}_to_{upper:g}"
+        elif age <= age_bounds[0]:
+            row["age_group"] = f"age_le_{age_bounds[0]:g}"
+        elif age <= age_bounds[1]:
+            row["age_group"] = f"age_{age_bounds[0]:g}_to_{age_bounds[1]:g}"
         else:
-            row["age_group"] = f"age_gt_{upper:g}"
+            row["age_group"] = f"age_gt_{age_bounds[1]:g}"
+
+    if dataset == "papila" and not age_bounds:
+        raise ValueError("PAPILA requires at least three non-collapsed training ages")
 
     by_split = {split: [row for row in rows if row["split"] == split] for split in SPLITS}
     if limit_per_split:
         by_split = {split: values[:limit_per_split] for split, values in by_split.items()}
     if any(not by_split[split] for split in SPLITS):
         raise ValueError(f"Missing split rows: { {key: len(value) for key, value in by_split.items()} }")
-    return by_split, [lower, upper]
+    subgroup_attributes = []
+    for attribute in ("sex_gender", "age_group"):
+        values = {
+            str(row.get(attribute, "")).strip()
+            for split_rows in by_split.values()
+            for row in split_rows
+            if str(row.get(attribute, "")).strip() not in {"", "unknown"}
+        }
+        if len(values) >= 2:
+            subgroup_attributes.append(attribute)
+    return by_split, age_bounds, subgroup_attributes
 
 
 def set_seed(np, torch, seed: int) -> None:
@@ -563,7 +595,7 @@ def model_weight_path(args, model_name: str) -> Path:
 def feature_cache_signature(args, model_name: str) -> str:
     weights = model_weight_path(args, model_name)
     require_file(weights, f"{model_name} checkpoint")
-    require_file(args.manifest, "PAPILA manifest")
+    require_file(args.manifest, f"{args.dataset} manifest")
     weight_stat = weights.stat()
     manifest_stat = args.manifest.stat()
     payload = {
@@ -868,10 +900,16 @@ def train_probe_search(np, torch, args, features, by_split, device, model_dir: P
 
 def subgroup_metrics(np, rows, probabilities, threshold, args):
     output = []
-    for attribute in ("sex_gender", "age_group"):
-        values = sorted({str(row.get(attribute, "unknown")) for row in rows})
+    for attribute in getattr(args, "subgroup_attributes", []):
+        values = sorted(
+            {
+                str(row.get(attribute, ""))
+                for row in rows
+                if str(row.get(attribute, "")).strip()
+            }
+        )
         for value in values:
-            indices = [index for index, row in enumerate(rows) if str(row.get(attribute, "unknown")) == value]
+            indices = [index for index, row in enumerate(rows) if str(row.get(attribute, "")) == value]
             labels = np.asarray([rows[index]["y_true"] for index in indices], dtype=int)
             probs = np.asarray([probabilities[index] for index in indices], dtype=float)
             metrics = confusion_metrics(np, labels, probs, threshold)
@@ -924,7 +962,7 @@ def bootstrap_intervals(np, rows, probabilities, threshold, args):
     }
 
 
-def write_predictions(path, model_name, rows, probabilities, threshold):
+def write_predictions(path, model_name, rows, probabilities, threshold, dataset="papila"):
     fields = [
         "dataset",
         "task",
@@ -947,7 +985,7 @@ def write_predictions(path, model_name, rows, probabilities, threshold):
         for row, probability in zip(rows, probabilities):
             writer.writerow(
                 {
-                    "dataset": "papila",
+                    "dataset": dataset,
                     "task": "glaucoma",
                     "model_name": model_name,
                     "patient_id": row["patient_id"],
@@ -975,7 +1013,7 @@ def write_csv_rows(path: Path, rows: list[dict[str, Any]]) -> None:
 
 
 def run_model(np, torch, Image, DataLoader, transforms, tqdm, args, model_name, by_split, age_bounds, device):
-    print(f"\n=== PAPILA model={model_name} ===", flush=True)
+    print(f"\n=== {args.dataset.upper()} model={model_name} ===", flush=True)
     model_dir = args.out_dir / model_name
     model_dir.mkdir(parents=True, exist_ok=True)
     features, provenance = extract_model_features(
@@ -1008,7 +1046,14 @@ def run_model(np, torch, Image, DataLoader, transforms, tqdm, args, model_name, 
         split_metrics[split] = metrics
         for group in groups:
             all_subgroups.append({"split": split, **group})
-        write_predictions(model_dir / f"predictions_{split}.csv", model_name, rows, probs, threshold)
+        write_predictions(
+            model_dir / f"predictions_{split}.csv",
+            model_name,
+            rows,
+            probs,
+            threshold,
+            dataset=args.dataset,
+        )
 
     intervals = bootstrap_intervals(
         np,
@@ -1019,13 +1064,13 @@ def run_model(np, torch, Image, DataLoader, transforms, tqdm, args, model_name, 
     )
     write_csv_rows(model_dir / "subgroup_metrics.csv", all_subgroups)
     summary = {
-        "dataset": "papila",
+        "dataset": args.dataset,
         "task": "glaucoma",
         "model_name": model_name,
         "manifest": str(args.manifest),
         "rows": {split: len(rows) for split, rows in by_split.items()},
         "age_group_train_tertiles": age_bounds,
-        "gender_normalization": GENDER_MAP,
+        "gender_normalization": GENDER_MAP if args.dataset == "papila" else {},
         "selected_probe": {
             "candidate": selected["candidate"],
             "kind": selected["kind"],
@@ -1037,8 +1082,12 @@ def run_model(np, torch, Image, DataLoader, transforms, tqdm, args, model_name, 
         "metrics": split_metrics,
         "test_patient_bootstrap_95_ci": intervals,
         "worst_group_policy": {
-            "attributes": ["sex_gender", "age_group"],
-            "age_groups": "tertiles derived from training ages only",
+            "attributes": args.subgroup_attributes,
+            "age_groups": (
+                "tertiles derived from training ages only"
+                if "age_group" in args.subgroup_attributes
+                else "not available"
+            ),
             "minimum_n": args.min_subgroup_n,
             "minimum_positive": args.min_subgroup_positive,
             "minimum_negative": args.min_subgroup_negative,
@@ -1053,13 +1102,15 @@ def run_model(np, torch, Image, DataLoader, transforms, tqdm, args, model_name, 
     print(json.dumps({"model": model_name, "selected_probe": summary["selected_probe"], "test": split_metrics["test"]}, indent=2))
 
 
-def summarize_results(out_dir: Path) -> None:
+def summarize_results(out_dir: Path, dataset: str | None = None) -> None:
     rows = []
+    datasets = set()
     for model_name in MODELS:
         path = out_dir / model_name / "summary.json"
         if not path.exists():
             continue
         summary = json.loads(path.read_text(encoding="utf-8"))
+        datasets.add(str(summary.get("dataset", dataset or "papila")).strip().lower())
         metrics = summary["metrics"]["test"]
         intervals = summary.get("test_patient_bootstrap_95_ci", {})
         row = {
@@ -1078,10 +1129,19 @@ def summarize_results(out_dir: Path) -> None:
         rows.append(row)
     if not rows:
         raise FileNotFoundError(f"No model summaries found under {out_dir}")
+    if dataset is None:
+        if len(datasets) != 1:
+            raise ValueError(f"Expected one dataset under {out_dir}, found {sorted(datasets)}")
+        dataset = next(iter(datasets))
+    dataset = str(dataset).strip().lower()
+    if datasets != {dataset}:
+        raise ValueError(
+            f"Requested dataset {dataset!r}, but summaries contain {sorted(datasets)}"
+        )
     out_dir.mkdir(parents=True, exist_ok=True)
-    write_csv_rows(out_dir / "papila_glaucoma_benchmark.csv", rows)
+    write_csv_rows(out_dir / f"{dataset}_glaucoma_benchmark.csv", rows)
     lines = [
-        "# PAPILA Glaucoma Foundation Benchmark",
+        f"# {dataset.upper()} Glaucoma Foundation Benchmark",
         "",
         "| Model | F1 | Worst-group F1 | Sensitivity | Specificity | Balanced accuracy | AUROC |",
         "|---|---:|---:|---:|---:|---:|---:|",
@@ -1093,14 +1153,15 @@ def summarize_results(out_dir: Path) -> None:
             f"{value('sensitivity')} | {value('specificity')} | "
             f"{value('balanced_accuracy')} | {value('auroc')} |"
         )
-    (out_dir / "papila_glaucoma_benchmark.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (out_dir / f"{dataset}_glaucoma_benchmark.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
 
 
 def main() -> None:
     args = parse_args()
+    args.dataset = str(args.dataset).strip().lower()
     if args.summarize_only:
-        summarize_results(args.out_dir)
+        summarize_results(args.out_dir, args.dataset)
         return
 
     import numpy as np
@@ -1112,10 +1173,17 @@ def main() -> None:
 
     set_seed(np, torch, args.seed)
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
-    by_split, age_bounds = load_manifest(np, args.manifest, args.limit_per_split)
+    by_split, age_bounds, subgroup_attributes = load_manifest(
+        np,
+        args.manifest,
+        args.limit_per_split,
+        args.dataset,
+    )
+    args.subgroup_attributes = subgroup_attributes
     args.out_dir.mkdir(parents=True, exist_ok=True)
     protocol = {
         "manifest": str(args.manifest),
+        "dataset": args.dataset,
         "models": args.models,
         "split_rows": {split: len(rows) for split, rows in by_split.items()},
         "split_labels": {
@@ -1123,7 +1191,10 @@ def main() -> None:
             for split, rows in by_split.items()
         },
         "age_group_train_tertiles": age_bounds,
-        "gender_mapping_verified_from_244_bilateral_pairs": GENDER_MAP,
+        "subgroup_attributes": subgroup_attributes,
+        "gender_mapping_verified_from_244_bilateral_pairs": (
+            GENDER_MAP if args.dataset == "papila" else {}
+        ),
         "selection_objective": "validation_f1",
         "test_used_for_selection": False,
         "device": str(device),
@@ -1142,7 +1213,7 @@ def main() -> None:
     if args.extract_only:
         print("Feature extraction smoke test complete.")
     elif set(args.models) == set(MODELS):
-        summarize_results(args.out_dir)
+        summarize_results(args.out_dir, args.dataset)
     else:
         print(
             "Partial model set complete. After all jobs finish, run with "

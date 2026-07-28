@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refit PAPILA probes using patient-grouped development-set OOF selection."""
+"""Refit external glaucoma probes using patient-grouped development-set OOF selection."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ import benchmark_papila_foundation_models as benchmark
 def parse_args() -> argparse.Namespace:
     root = benchmark.repo_root()
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dataset", default="papila")
     parser.add_argument(
         "--manifest",
         type=Path,
@@ -261,6 +262,7 @@ def run_model(np, args, model_name, by_split, age_bounds):
         development_rows,
         oof_probs,
         threshold,
+        dataset=args.dataset,
     )
     benchmark.write_predictions(
         model_dir / "predictions_test.csv",
@@ -268,6 +270,7 @@ def run_model(np, args, model_name, by_split, age_bounds):
         by_split["test"],
         test_probs,
         threshold,
+        dataset=args.dataset,
     )
 
     test_labels = np.asarray([row["y_true"] for row in by_split["test"]], dtype=int)
@@ -285,7 +288,7 @@ def run_model(np, args, model_name, by_split, age_bounds):
     oof_metrics = dict(oof_metrics)
     oof_metrics["auroc"] = oof_auc
     summary = {
-        "dataset": "papila",
+        "dataset": args.dataset,
         "task": "glaucoma",
         "model_name": model_name,
         "manifest": str(args.manifest),
@@ -295,7 +298,7 @@ def run_model(np, args, model_name, by_split, age_bounds):
             "test": len(by_split["test"]),
         },
         "age_group_train_tertiles": age_bounds,
-        "gender_normalization": benchmark.GENDER_MAP,
+        "gender_normalization": benchmark.GENDER_MAP if args.dataset == "papila" else {},
         "selection_protocol": {
             "name": "patient_grouped_development_oof",
             "folds": args.folds,
@@ -315,8 +318,12 @@ def run_model(np, args, model_name, by_split, age_bounds):
         },
         "test_patient_bootstrap_95_ci": intervals,
         "worst_group_policy": {
-            "attributes": ["sex_gender", "age_group"],
-            "age_groups": "tertiles derived from original training ages only",
+            "attributes": args.subgroup_attributes,
+            "age_groups": (
+                "tertiles derived from original training ages only"
+                if "age_group" in args.subgroup_attributes
+                else "not available"
+            ),
             "minimum_n": args.min_subgroup_n,
             "minimum_positive": args.min_subgroup_positive,
             "minimum_negative": args.min_subgroup_negative,
@@ -343,16 +350,24 @@ def run_model(np, args, model_name, by_split, age_bounds):
 
 def main() -> None:
     args = parse_args()
+    args.dataset = str(args.dataset).strip().lower()
     if args.summarize_only:
-        benchmark.summarize_results(args.out_dir)
+        benchmark.summarize_results(args.out_dir, args.dataset)
         return
 
     import numpy as np
 
-    by_split, age_bounds = benchmark.load_manifest(np, args.manifest, None)
+    by_split, age_bounds, subgroup_attributes = benchmark.load_manifest(
+        np,
+        args.manifest,
+        None,
+        args.dataset,
+    )
+    args.subgroup_attributes = subgroup_attributes
     args.out_dir.mkdir(parents=True, exist_ok=True)
     protocol = {
         "manifest": str(args.manifest),
+        "dataset": args.dataset,
         "feature_source": str(args.source_dir),
         "models": args.models,
         "development_rows": len(by_split["train"]) + len(by_split["val"]),
@@ -365,6 +380,7 @@ def main() -> None:
         ),
         "test_rows": len(by_split["test"]),
         "folds": args.folds,
+        "subgroup_attributes": subgroup_attributes,
         "selection_objective": "patient_grouped_development_oof_f1",
         "test_used_for_selection": False,
         "seed": args.seed,
@@ -378,7 +394,7 @@ def main() -> None:
     for model_name in args.models:
         run_model(np, args, model_name, by_split, age_bounds)
     if set(args.models) == set(benchmark.MODELS):
-        benchmark.summarize_results(args.out_dir)
+        benchmark.summarize_results(args.out_dir, args.dataset)
 
 
 if __name__ == "__main__":
