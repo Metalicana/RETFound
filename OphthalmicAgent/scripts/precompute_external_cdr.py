@@ -16,12 +16,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--model", default="pamixsun/segformer_for_optic_disc_cup_segmentation")
     parser.add_argument("--device", default=None)
-    parser.add_argument(
-        "--split",
-        default=None,
-        choices=("train", "val", "test"),
-        help="Optionally process only one manifest split.",
-    )
     parser.add_argument("--limit", type=int, default=None)
     return parser.parse_args()
 
@@ -55,15 +49,7 @@ def main() -> None:
     from transformers import SegformerForSemanticSegmentation, SegformerImageProcessor
 
     with args.manifest.open(newline="", encoding="utf-8-sig") as handle:
-        rows = [
-            row
-            for row in csv.DictReader(handle)
-            if row.get("cfp_path", "").strip()
-            and (
-                args.split is None
-                or row.get("split", "").strip().lower() == args.split
-            )
-        ]
+        rows = [row for row in csv.DictReader(handle) if row.get("cfp_path", "").strip()]
     if args.limit:
         rows = rows[: args.limit]
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))

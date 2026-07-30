@@ -41,11 +41,7 @@ def repo_root() -> Path:
 def parse_args() -> argparse.Namespace:
     root = repo_root()
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--dataset",
-        choices=("papila", "drishti", "refuge"),
-        default="papila",
-    )
+    parser.add_argument("--dataset", choices=("papila", "drishti"), default="papila")
     parser.add_argument(
         "--manifest",
         type=Path,

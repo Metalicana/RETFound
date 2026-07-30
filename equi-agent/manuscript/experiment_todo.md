@@ -78,12 +78,11 @@ are owned by a collaborator and are outside this execution queue.
       protocol.
 - [x] Run the five CFP foundation models and the unchanged agent pipeline on
       Drishti-GS.
-- [x] Separate the unlabeled REFUGE2 mirror from the labeled 1,200-image
-      REFUGE source used for classification.
-- [ ] Run the four CFP foundation models and unchanged agent pipeline using
-      official REFUGE Train/Validation/Test partitions.
-- [ ] Either obtain legitimate REFUGE2 classification labels or replace that
-      table with the completed repeated-holdout structural CDR validation.
+- [x] Separate original REFUGE from the collaborator's REFUGE2 experiment.
+- [ ] Recover the collaborator's locked REFUGE2 manifest, split definition,
+      labels, and existing prediction artifacts.
+- [ ] Run the missing CFP foundation models and unchanged agent pipeline on
+      that exact REFUGE2 cohort.
 
 ## 7. Add Statistical Support
 
