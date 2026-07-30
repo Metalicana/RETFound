@@ -1,0 +1,26 @@
+{
+  "cases": 101,
+  "dataset": "drishti",
+  "label_counts": {
+    "0": 31,
+    "1": 70
+  },
+  "manifest": "/Users/metalicana/projects_spring_2026/RETFound/OphthalmicAgent/data_drishti/manifest.csv",
+  "official_split_rule": "IDs 001-050 development; IDs 051-101 held-out test",
+  "seed": 2026,
+  "split_counts": {
+    "test": 51,
+    "train": 40,
+    "val": 10
+  },
+  "split_label_counts": {
+    "test|0": 17,
+    "test|1": 34,
+    "train|0": 11,
+    "train|1": 29,
+    "val|0": 3,
+    "val|1": 7
+  },
+  "test_used_for_selection": false,
+  "validation_fraction": 0.2
+}
