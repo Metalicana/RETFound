@@ -49,8 +49,9 @@ are owned by a collaborator and are outside this execution queue.
       and the current validation-threshold metric artifacts.
 - [x] Define whether worst-group F1 includes supported intersections or only
       single demographic attributes.
-- [x] Report RetinAgent forced performance separately from accepted-case
-      performance and include coverage for the accepted row.
+- [x] Report full-cohort RetinAgent performance in the main table. Keep
+      accepted-case performance and coverage, if retained, in a secondary
+      selective-prediction analysis.
 - [ ] Generate the LaTeX rows from the audited CSV rather than editing manually.
 
 ## 4. Complete the Harvard GDP Glaucoma Table
@@ -75,10 +76,12 @@ are owned by a collaborator and are outside this execution queue.
 
 - [x] Build and validate a locked Drishti-GS manifest and split/evaluation
       protocol.
-- [ ] Run the five CFP foundation models and the unchanged agent pipeline on
+- [x] Run the five CFP foundation models and the unchanged agent pipeline on
       Drishti-GS.
-- [ ] Do not present the current Kaggle REFUGE2 mirror as official test
-      classification: only train labels are available.
+- [x] Separate the unlabeled REFUGE2 mirror from the labeled 1,200-image
+      REFUGE source used for classification.
+- [ ] Run the four CFP foundation models and unchanged agent pipeline using
+      official REFUGE Train/Validation/Test partitions.
 - [ ] Either obtain legitimate REFUGE2 classification labels or replace that
       table with the completed repeated-holdout structural CDR validation.
 
