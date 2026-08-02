@@ -22,7 +22,7 @@ load_dotenv()
 class VisionSpecialistCFP:
     """RETFound-CFP glaucoma scoring plus CFP-specific visual interpretation."""
 
-    def __init__(self, weights_path, device=None, model_client=None):
+    def __init__(self, weights_path, device=None, model_client=None, threshold=0.5):
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = get_model_cfp()
         checkpoint = torch.load(weights_path, map_location=self.device, weights_only=False)
@@ -30,6 +30,9 @@ class VisionSpecialistCFP:
             checkpoint = checkpoint["model"]
         self.model.load_state_dict(checkpoint)
         self.model.to(self.device).eval()
+        self.threshold = float(threshold)
+        if not 0.0 <= self.threshold <= 1.0:
+            raise ValueError(f"CFP threshold must be in [0, 1], got {self.threshold}")
         self.transform = transforms.Compose([
             transforms.Resize((224, 224)),
             transforms.ToTensor(),
@@ -148,7 +151,8 @@ class VisionSpecialistCFP:
         state["cfp_diagnosis"] = {
             "Glaucoma": {
                 "Prob_Pct": probability,
-                "Status": "Positive" if probability >= 50 else "Negative",
+                "Status": "Positive" if probability >= self.threshold * 100 else "Negative",
+                "Threshold": self.threshold,
             }
         }
 

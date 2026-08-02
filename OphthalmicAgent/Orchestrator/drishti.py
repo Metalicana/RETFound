@@ -18,7 +18,7 @@ class DrishtiOrchestrator:
             api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
         )
 
-    def analyze(self, probability, cfp_report, cdr, counterfactual_trace=None):
+    def analyze(self, probability, cfp_report, cdr, counterfactual_trace=None, threshold=0.5):
         response = self.model_client.chat.completions.create(
             model=self.deployment,
 #            temperature=0.2,
@@ -29,7 +29,7 @@ class DrishtiOrchestrator:
                         "You are the final glaucoma diagnostic orchestrator for a CFP-only pipeline. "
                         "Your task is to integrate evidence from multiple sources and produce a final assessment for Glaucoma."
                         "Available information:"
-                        "1. CFP-based RETFound glaucoma probability (threshold = 0.344)"
+                        f"1. CFP-based RETFound glaucoma probability (validation-selected threshold = {float(threshold):.4f})"
                         "2. CFP image analysis report"
                         "3. An approximate value of cup to disc ratio from a segmentation model"
                         "4. A counterfactual evidence-ablation trace showing diagnoses after individual evidence sources are made unavailable."
@@ -53,6 +53,7 @@ class DrishtiOrchestrator:
                     "role": "user",
                     "content": (
                         f"RETFound-CFP glaucoma probability: {probability}%\n\n"
+                        f"Validation-selected RETFound decision threshold: {float(threshold) * 100:.2f}%\n\n"
                         f"CFP specialist report: {cfp_report}\n\n"
                         f"Calculated vertical cup-to-disc ratio: {cdr if cdr is not None else 'Not Available'}\n\n"
                         "Counterfactual trace: " + json.dumps(counterfactual_trace or {}, sort_keys=True)
