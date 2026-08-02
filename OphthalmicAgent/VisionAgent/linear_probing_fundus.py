@@ -34,7 +34,7 @@ BACKBONE_LR = float(os.getenv("BACKBONE_LR", "1e-5"))
 UNFREEZE_BLOCKS = int(os.getenv("UNFREEZE_BLOCKS", "0"))
 EPOCHS = int(os.getenv("EPOCHS", "30"))
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-PATH = os.getenv("CFP_OUTPUT_WEIGHTS", "./weights/cfp_glaucoma_best.pth")
+PATH = os.getenv("CFP_OUTPUT_WEIGHTS", "./weights/cfp_glaucoma.pth")
 METADATA_PATH = os.getenv("CFP_TRAINING_METADATA", "cfp_glaucoma_training_metadata.json")
 TEST_PREDICTIONS_PATH = os.getenv("CFP_TEST_PREDICTIONS", "refuge_test_retfound_cfp_predictions.csv")
 

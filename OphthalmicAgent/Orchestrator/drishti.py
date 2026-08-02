@@ -11,7 +11,7 @@ load_dotenv()
 
 class DrishtiOrchestrator:
     def __init__(self, model_client=None):
-        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.6-luna")
+        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.1")
         self.model_client = model_client or AzureOpenAI(
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
             api_key=os.getenv("AZURE_OPENAI_API_KEY"),
@@ -29,7 +29,7 @@ class DrishtiOrchestrator:
                         "You are the final glaucoma diagnostic orchestrator for a CFP-only pipeline. "
                         "Your task is to integrate evidence from multiple sources and produce a final assessment for Glaucoma."
                         "Available information:"
-                        "1. CFP-based RETFound glaucoma probability"
+                        "1. CFP-based RETFound glaucoma probability (threshold = 0.344)"
                         "2. CFP image analysis report"
                         "3. An approximate value of cup to disc ratio from a segmentation model"
                         "4. A counterfactual evidence-ablation trace showing diagnoses after individual evidence sources are made unavailable."

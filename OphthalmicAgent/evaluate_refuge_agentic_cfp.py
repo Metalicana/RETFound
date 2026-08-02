@@ -15,7 +15,7 @@ from VisionAgent.vision_cfp import VisionSpecialistCFP
 
 DATA_ROOT = Path(os.getenv("REFUGE_DATA_ROOT", "./"))
 CSV_PATH = Path(os.getenv("REFUGE_CSV", "./data_refuge/data.csv"))
-CFP_WEIGHTS = os.getenv("CFP_WEIGHTS", "./weights/cfp_glaucoma_best.pth")
+CFP_WEIGHTS = os.getenv("CFP_WEIGHTS", "./weights/refuge_cfp_glaucoma.pth")
 OUTPUT_CSV = os.getenv("OUTPUT_CSV", "refuge_test_agentic_cfp_predictions.csv")
 MAX_CASES = int(os.getenv("MAX_CASES", "0"))
 

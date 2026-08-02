@@ -40,7 +40,7 @@ class VisionSpecialistCFP:
             api_key=os.getenv("AZURE_OPENAI_API_KEY"),
             api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
         )
-        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.6-luna")
+        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.1")
         self.cdr_model_name = "pamixsun/segformer_for_optic_disc_cup_segmentation"
         self.cdr_processor = SegformerImageProcessor.from_pretrained(self.cdr_model_name)
         self.cdr_model = SegformerForSemanticSegmentation.from_pretrained(
@@ -50,7 +50,7 @@ class VisionSpecialistCFP:
             os.getenv("CDR_OUTPUT_DIR", "outputs/drishti_cfp/cdr_segmentations")
         )
         self.save_cdr_segmentations = os.getenv(
-            "SAVE_CDR_SEGMENTATIONS", "1"
+            "SAVE_CDR_SEGMENTATIONS", "0"
         ).lower() not in {"0", "false", "no"}
 
     @staticmethod

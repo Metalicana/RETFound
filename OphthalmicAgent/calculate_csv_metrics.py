@@ -144,7 +144,8 @@ def calculate_metrics(frame, truth_column, prediction_column, probability_column
 
 def main():
     args = parse_args()
-    frame = pd.read_csv(args.csv_path, nrows = 170)
+#    frame = pd.read_csv(args.csv_path, nrows = 170)
+    frame = pd.read_csv(args.csv_path)
     probability_column = find_probability_column(frame, args.probability_column)
     report, summary, matrix = calculate_metrics(
         frame,
