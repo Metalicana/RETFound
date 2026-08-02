@@ -127,6 +127,16 @@ def get_model_cfp():
     for k in keys_to_remove:
         if k in state_dict:
             del state_dict[k]
+    # RETFound MAE checkpoints contain the learned final LayerNorm as `norm`,
+    # while the globally pooled downstream model names the equivalent module
+    # `fc_norm`. Reuse those learned parameters instead of starting fc_norm
+    # randomly, then discard the now-inapplicable source names.
+    if hasattr(backbone, "fc_norm"):
+        for suffix in ("weight", "bias"):
+            source_key = f"norm.{suffix}"
+            target_key = f"fc_norm.{suffix}"
+            if source_key in state_dict:
+                state_dict[target_key] = state_dict.pop(source_key)
             
     load_result = backbone.load_state_dict(state_dict, strict=False)
     print(f"RETFound missing checkpoint keys: {load_result.missing_keys}")
