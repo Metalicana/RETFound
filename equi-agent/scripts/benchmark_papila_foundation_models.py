@@ -674,7 +674,7 @@ def extract_model_features(np, torch, Image, DataLoader, transforms, tqdm, args,
             )
             for split, rows in by_split.items()
         }
-    if all(cached.get(split) is not None for split in SPLITS):
+    if all(cached.get(split) is not None for split in by_split):
         print(f"model={model_name} feature_cache=hit")
         return cached, {"feature_cache": "reused"}
 
