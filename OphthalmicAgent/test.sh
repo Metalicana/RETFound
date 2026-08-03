@@ -2,7 +2,7 @@
 #
 # SLURM DIRECTIVES: Configure the resources needed for your final job.
 #
-#SBATCH --job-name=refuge_agentic    # Name of job for the queue
+#SBATCH --job-name=gdp_gpt56    # Name of job for the queue
 #SBATCH --output=slurm_logs/slurm-%j.out  # Standard output log file (where prints go)
 #SBATCH --error=slurm_logs/slurm-%j.err   # Standard error log file
 #SBATCH --time=6:00:00                # Maximum job run time 
@@ -30,6 +30,6 @@ cd /lustre/fs1/home/yu395012/RETFound/OphthalmicAgent
 # --- EXECUTE PYTHON SCRIPT ---
 echo "Running script"
 
-python -u -m evaluate_refuge_agentic_cfp
+python -u -m evaluate_drishti_gpt51_baseline
 
 echo "--- Job finished successfully ---"

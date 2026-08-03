@@ -12,7 +12,7 @@ from sklearn.metrics import classification_report, precision_recall_fscore_suppo
 
 #CSV_PATH = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/fairvision_glaucoma_gpt51_predictions.csv"
 
-CSV_PATH = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/gdp_test_retfound_oct_predictions.csv"
+CSV_PATH = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/ophthalmic_performance_results_jun29_amd.csv"
 
 def print_subset_report(df_subset, title):
 

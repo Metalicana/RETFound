@@ -32,7 +32,7 @@ METADATA_PATH = Path(
     os.getenv("DRISHTI_CFP_TRAINING_METADATA", "drishti_cfp_training_metadata.json")
 )
 PREDICTIONS_DIR = Path(
-    os.getenv("DRISHTI_CFP_PREDICTIONS_DIR", "./outputs/drishti_cfp_head")
+    os.getenv("DRISHTI_CFP_PREDICTIONS_DIR", "./drishti_cfp_head")
 )
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "8"))
 NUM_WORKERS = int(os.getenv("NUM_WORKERS", "4"))

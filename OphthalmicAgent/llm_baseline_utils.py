@@ -130,6 +130,54 @@ class GPT51GlaucomaBaseline:
         return prediction, str(parsed.get("confidence", "")), str(parsed.get("reasoning", "")), raw
 
 
+class GPT56GlaucomaBaseline:
+    def __init__(self):
+        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.6-luna")
+        self.client = AzureOpenAI(
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
+        )
+
+    def analyze(self, images, demographics, image_description, extra_context=""):
+        content = [{
+            "type": "text",
+            "text": (
+                f"Available demographics: {json.dumps(demographics, sort_keys=True)}\n"
+                f"Visual inputs: {image_description}\n{extra_context}\n"
+                "Assess this case for glaucoma."
+            ),
+        }]
+        content.extend({"type": "image_url", "image_url": {"url": image_data_url(image)}} for image in images)
+        response = self.client.chat.completions.create(
+            model=self.deployment,
+#            temperature=0.2,
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a standalone ophthalmic image evaluator. Diagnose glaucoma using only the "
+                        "provided visual data and available demographics. Demographics are contextual metadata "
+                        "only and must never be treated as anatomical proof of disease. Evaluate image quality "
+                        "and visible glaucoma-related structural evidence, integrate the supplied modalities, "
+                        "and describe agreement, discordance, and uncertainty. Do not invent unavailable "
+                        "measurements, symptoms, history, intraocular pressure, visual fields, CDR, or AI model "
+                        "scores. Return JSON only with exactly: glaucoma_detected (integer 0 or 1), confidence "
+                        "(low, moderate, or high), reasoning (brief evidence-based explanation). You must choose "
+                        "0 or 1 even when uncertain."
+                    ),
+                },
+                {"role": "user", "content": content},
+            ],
+        )
+        raw = response.choices[0].message.content or ""
+        parsed = json.loads(raw)
+        prediction = int(parsed["glaucoma_detected"])
+        if prediction not in (0, 1):
+            raise ValueError(f"Invalid glaucoma_detected value: {prediction}")
+        return prediction, str(parsed.get("confidence", "")), str(parsed.get("reasoning", "")), raw
+
 def print_metrics(results):
     valid = results[results["Pred_GL"].isin([0, 1])]
     failed = len(results) - len(valid)
