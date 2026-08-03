@@ -7,6 +7,8 @@ DEVICE="${DEVICE:-cuda}"
 METRICS_ROOT="${METRICS_ROOT:-equi-agent/outputs/metrics}"
 PREDICTIONS_ROOT="${PREDICTIONS_ROOT:-equi-agent/outputs/predictions}"
 CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-equi-agent/outputs/checkpoints}"
+BUILD_MANUSCRIPT_TABLES="${BUILD_MANUSCRIPT_TABLES:-1}"
+TABLES_ROOT="${TABLES_ROOT:-equi-agent/outputs/tables}"
 FLAIR_ROOT="${FLAIR_ROOT:-Foundation_Models/FLAIR-main}"
 FLAIR_WEIGHTS="${FLAIR_WEIGHTS:-}"
 FROM_HF="${FROM_HF:-false}"
@@ -99,8 +101,10 @@ python equi-agent/scripts/evaluate_predictions.py \
   --predictions "${combined_thresholded_file}" \
   --out-dir "${METRICS_ROOT}/exp2_flair_slo"
 
-python equi-agent/scripts/build_manuscript_tables.py \
-  --metrics-root "${METRICS_ROOT}" \
-  --out-dir equi-agent/outputs/tables
+if [[ "${BUILD_MANUSCRIPT_TABLES}" == "1" || "${BUILD_MANUSCRIPT_TABLES}" == "true" ]]; then
+  python equi-agent/scripts/build_manuscript_tables.py \
+    --metrics-root "${METRICS_ROOT}" \
+    --out-dir "${TABLES_ROOT}"
+fi
 
 echo "FLAIR FairVision experiment complete."

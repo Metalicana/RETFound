@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Benchmark REFUGE CFP foundation models using Yusra's RETFound protocol.
+"""Benchmark frozen retinal foundation models on the original REFUGE cohort.
 
 The Kaggle download used by this project is stored under a ``REFUGE2`` name,
 but it contains the original REFUGE 1,200-image cohort: 400 Train, 400
@@ -7,11 +7,17 @@ Validation, and 400 Test images. Classification labels are merged from
 ``OphthalmicAgent/data_refuge/data.csv``, the same file used by Yusra's
 RETFound implementation.
 
-For each comparison model this runner keeps the foundation encoder frozen,
-trains one 256-unit MLP head for 30 epochs with balanced sampling, selects the
-checkpoint by Validation AUROC, selects the threshold by Validation F1, and
-evaluates Test exactly once. Test labels never influence training, checkpoint
-selection, or threshold selection.
+The default ``robust_cv`` protocol extracts deterministic frozen features from
+the exact same images for every model. It combines Train and Validation into an
+800-image development cohort, selects a class-balanced logistic probe by
+repeated stratified cross-validation, selects its decision threshold from
+development out-of-fold predictions, and evaluates Test exactly once using an
+ensemble of the fitted cross-validation probes. Test labels never influence
+probe selection, threshold selection, or fitting.
+
+The previous single-seed MLP implementation remains available as
+``--protocol yusra_mlp`` for sensitivity analysis. It is not the default because
+the fixed high-capacity head substantially overfit several encoders.
 """
 
 from __future__ import annotations
@@ -21,7 +27,9 @@ import copy
 import csv
 import hashlib
 import json
+import math
 import random
+import sys
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -29,7 +37,7 @@ from typing import Any
 import benchmark_papila_foundation_models as common
 
 
-MODELS = ("ret_clip", "retizero", "urfound")
+MODELS = ("retfound", "ret_clip", "retizero", "urfound")
 SPLITS = ("train", "val", "test")
 EXPECTED_SPLIT_COUNTS = Counter({0: 360, 1: 40})
 MODEL_DISPLAY_NAMES = {
@@ -98,7 +106,7 @@ def parse_args() -> argparse.Namespace:
         "--retfound-metadata",
         type=Path,
         default=root / "OphthalmicAgent" / "cfp_glaucoma_training_metadata.json",
-        help="Yusra's RETFound result, included unchanged in the combined report.",
+        help="Yusra's imported RETFound result; used only with --protocol yusra_mlp.",
     )
     parser.add_argument(
         "--out-dir",
@@ -108,10 +116,19 @@ def parse_args() -> argparse.Namespace:
             / "equi-agent"
             / "outputs"
             / "benchmarks"
-            / "refuge_glaucoma_foundations_yusra_protocol_v1"
+            / "refuge_glaucoma_foundations_robust_cv_v1"
         ),
     )
     parser.add_argument("--models", nargs="+", choices=MODELS, default=list(MODELS))
+    parser.add_argument(
+        "--protocol",
+        choices=("robust_cv", "yusra_mlp"),
+        default="robust_cv",
+        help=(
+            "robust_cv uses repeated development OOF selection and a linear-probe "
+            "ensemble; yusra_mlp preserves the older Train/Validation MLP run."
+        ),
+    )
     parser.add_argument("--device", default=None, help="Example: cuda:0 or cpu.")
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--num-workers", type=int, default=8)
@@ -119,6 +136,32 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--head-lr", type=float, default=1e-3)
     parser.add_argument("--weight-decay", type=float, default=0.05)
     parser.add_argument("--seed", type=int, default=2026)
+    parser.add_argument("--cv-folds", type=int, default=5)
+    parser.add_argument("--cv-repeats", type=int, default=5)
+    parser.add_argument(
+        "--logreg-c",
+        nargs="+",
+        type=float,
+        default=[0.0001, 0.001, 0.01, 0.1, 1.0, 10.0],
+    )
+    parser.add_argument("--bootstrap-replicates", type=int, default=2000)
+    parser.add_argument(
+        "--reuse-feature-cache",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument(
+        "--audit-mask-labels",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Audit label association against CDR values derived from supplied masks.",
+    )
+    parser.add_argument(
+        "--hash-images",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Record SHA-256 for every evaluated image.",
+    )
     parser.add_argument(
         "--validate-only",
         action="store_true",
@@ -126,6 +169,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--summarize-only", action="store_true")
 
+    parser.add_argument(
+        "--retfound-weights",
+        type=Path,
+        default=root / "OphthalmicAgent" / "weights" / "cfp_model.pth",
+    )
     parser.add_argument(
         "--ret-clip-root",
         type=Path,
@@ -184,7 +232,9 @@ def parse_args() -> argparse.Namespace:
 
     args = parser.parse_args()
     # Attributes required by the shared, checkpoint-audited model builders.
-    args.retfound_weights = root / "OphthalmicAgent" / "weights" / "cfp_model.pth"
+    args.dataset = "refuge"
+    args.manifest = args.source_manifest
+    args.limit_per_split = None
     args.mirage_dir = root / "equi-agent" / "VisionAgent" / "MIRAGE"
     args.mirage_feature_module = None
     return args
@@ -276,6 +326,13 @@ def load_official_splits(
                 "patient_id": image_id,
                 "y_true": int(label_text),
                 "image_path": str(image_path),
+                "mask_path": str(source.get("mask_path", "")),
+                "cup_to_disc_area_ratio": str(
+                    source.get("cup_to_disc_area_ratio", "")
+                ),
+                "vertical_cup_to_disc_ratio": str(
+                    source.get("vertical_cup_to_disc_ratio", "")
+                ),
                 "yusra_filename": filename,
             }
         )
@@ -461,6 +518,10 @@ def metric_dict(np, y_true, probabilities, threshold: float) -> dict[str, Any]:
     tn, fp, fn, tp = confusion_matrix(y_true, predictions, labels=[0, 1]).ravel()
     sensitivity = recall_score(y_true, predictions, zero_division=0)
     specificity = tn / (tn + fp) if tn + fp else None
+    positive_f1 = float(f1_score(y_true, predictions, zero_division=0))
+    weighted_f1 = float(
+        f1_score(y_true, predictions, average="weighted", zero_division=0)
+    )
     return {
         "n": int(len(y_true)),
         "auroc": float(roc_auc_score(y_true, probabilities)),
@@ -473,7 +534,9 @@ def metric_dict(np, y_true, probabilities, threshold: float) -> dict[str, Any]:
             if specificity is not None
             else None
         ),
-        "f1": float(f1_score(y_true, predictions, zero_division=0)),
+        "f1": positive_f1,
+        "positive_class_f1": positive_f1,
+        "weighted_f1": weighted_f1,
         "tn": int(tn),
         "fp": int(fp),
         "fn": int(fn),
@@ -495,6 +558,13 @@ def select_f1_threshold(np, y_true, probabilities) -> tuple[float, float]:
     tied = candidates[scores == best_score]
     threshold = float(tied[np.argmin(np.abs(tied - 0.5))])
     return threshold, best_score
+
+
+def weighted_f1_from_counts(tn: int, fp: int, fn: int, tp: int) -> float:
+    positive_f1 = 2 * tp / (2 * tp + fp + fn) if 2 * tp + fp + fn else 0.0
+    negative_f1 = 2 * tn / (2 * tn + fp + fn) if 2 * tn + fp + fn else 0.0
+    total = tn + fp + fn + tp
+    return ((tp + fn) * positive_f1 + (tn + fp) * negative_f1) / total
 
 
 def write_predictions(
@@ -543,6 +613,453 @@ def write_predictions(
                     "is_correct": int(prediction == target),
                 }
             )
+
+
+def optional_float(value: object) -> float | None:
+    try:
+        number = float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def write_image_provenance(args, rows_by_split) -> None:
+    if not args.hash_images:
+        return
+    rows = []
+    for split in SPLITS:
+        for row in rows_by_split[split]:
+            image_path = Path(row["image_path"])
+            rows.append(
+                {
+                    "split": split,
+                    "case_id": row["case_id"],
+                    "image_path": str(image_path),
+                    "image_bytes": image_path.stat().st_size,
+                    "image_sha256": sha256(image_path),
+                }
+            )
+    common.write_csv_rows(args.out_dir / "image_provenance.csv", rows)
+
+
+def audit_mask_label_alignment(np, args, rows_by_split) -> dict[str, Any]:
+    if not args.audit_mask_labels:
+        return {"enabled": False}
+
+    from sklearn.metrics import roc_auc_score
+    from build_refuge2_manifest import mask_features
+
+    case_rows = []
+    split_summaries = {}
+    for split in SPLITS:
+        labels = []
+        area_values = []
+        vertical_values = []
+        for row in rows_by_split[split]:
+            area = optional_float(row.get("cup_to_disc_area_ratio"))
+            vertical = optional_float(row.get("vertical_cup_to_disc_ratio"))
+            mask_text = str(row.get("mask_path", "")).strip()
+            mask_path = Path(mask_text).expanduser() if mask_text else None
+            if mask_path is not None and not mask_path.is_absolute():
+                mask_path = (args.source_manifest.parent / mask_path).resolve()
+            if (
+                (area is None or vertical is None)
+                and mask_path is not None
+                and mask_path.is_file()
+            ):
+                measured = mask_features(mask_path)
+                area = optional_float(measured.get("cup_to_disc_area_ratio"))
+                vertical = optional_float(measured.get("vertical_cup_to_disc_ratio"))
+            case_rows.append(
+                {
+                    "split": split,
+                    "case_id": row["case_id"],
+                    "y_true": row["y_true"],
+                    "cup_to_disc_area_ratio": "" if area is None else area,
+                    "vertical_cup_to_disc_ratio": "" if vertical is None else vertical,
+                    "mask_path": str(mask_path) if mask_path is not None else "",
+                }
+            )
+            if area is not None and vertical is not None:
+                labels.append(int(row["y_true"]))
+                area_values.append(area)
+                vertical_values.append(vertical)
+
+        labels_array = np.asarray(labels, dtype=int)
+        area_array = np.asarray(area_values, dtype=float)
+        vertical_array = np.asarray(vertical_values, dtype=float)
+
+        def audit_feature(values):
+            if len(values) == 0 or len(np.unique(labels_array)) < 2:
+                return {"n": int(len(values)), "auroc": None}
+            positive = values[labels_array == 1]
+            negative = values[labels_array == 0]
+            return {
+                "n": int(len(values)),
+                "auroc": float(roc_auc_score(labels_array, values)),
+                "positive_mean": float(positive.mean()),
+                "negative_mean": float(negative.mean()),
+                "positive_median": float(np.median(positive)),
+                "negative_median": float(np.median(negative)),
+            }
+
+        split_summaries[split] = {
+            "expected_rows": len(rows_by_split[split]),
+            "measured_rows": len(labels),
+            "area_cdr": audit_feature(area_array),
+            "vertical_cdr": audit_feature(vertical_array),
+        }
+
+    common.write_csv_rows(args.out_dir / "mask_label_audit_cases.csv", case_rows)
+    audit = {
+        "enabled": True,
+        "purpose": (
+            "Dataset-integrity diagnostic only; mask features and Test labels are "
+            "never used to fit probes or select thresholds."
+        ),
+        "splits": split_summaries,
+    }
+    (args.out_dir / "mask_label_audit.json").write_text(
+        json.dumps(audit, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return audit
+
+
+def make_logistic_probe(C: float, seed: int):
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+
+    return make_pipeline(
+        StandardScaler(),
+        LogisticRegression(
+            C=float(C),
+            class_weight="balanced",
+            max_iter=5000,
+            random_state=seed,
+            solver="lbfgs",
+        ),
+    )
+
+
+def evaluate_cv_candidate(np, x_dev, y_dev, x_test, C: float, args):
+    from sklearn.metrics import roc_auc_score
+    from sklearn.model_selection import StratifiedKFold
+
+    oof_sum = np.zeros(len(y_dev), dtype=float)
+    oof_count = np.zeros(len(y_dev), dtype=int)
+    test_sum = np.zeros(len(x_test), dtype=float)
+    fold_aurocs = []
+    fitted_models = 0
+    for repeat in range(args.cv_repeats):
+        splitter = StratifiedKFold(
+            n_splits=args.cv_folds,
+            shuffle=True,
+            random_state=args.seed + repeat * 1009,
+        )
+        for fold, (train_index, valid_index) in enumerate(
+            splitter.split(x_dev, y_dev),
+            start=1,
+        ):
+            seed = args.seed + repeat * 1009 + fold
+            probe = make_logistic_probe(C, seed)
+            probe.fit(x_dev[train_index], y_dev[train_index])
+            valid_probabilities = probe.predict_proba(x_dev[valid_index])[:, 1]
+            oof_sum[valid_index] += valid_probabilities
+            oof_count[valid_index] += 1
+            test_sum += probe.predict_proba(x_test)[:, 1]
+            fitted_models += 1
+            fold_aurocs.append(
+                float(roc_auc_score(y_dev[valid_index], valid_probabilities))
+            )
+
+    if np.any(oof_count != args.cv_repeats):
+        raise RuntimeError(
+            f"OOF coverage failure for C={C}: counts={np.unique(oof_count).tolist()}"
+        )
+    oof_probabilities = oof_sum / oof_count
+    test_probabilities = test_sum / fitted_models
+    threshold, oof_metrics = common.select_f1_threshold(
+        np,
+        y_dev,
+        oof_probabilities,
+    )
+    oof_auc = float(roc_auc_score(y_dev, oof_probabilities))
+    return {
+        "C": float(C),
+        "mean_fold_auroc": float(np.mean(fold_aurocs)),
+        "std_fold_auroc": float(np.std(fold_aurocs, ddof=1)),
+        "oof_auroc": oof_auc,
+        "oof_threshold": float(threshold),
+        "oof_metrics": oof_metrics,
+        "oof_probabilities": oof_probabilities,
+        "test_probabilities": test_probabilities,
+        "ensemble_models": fitted_models,
+    }
+
+
+def select_cv_candidate(candidates):
+    """Select representation regularization without consulting Test labels."""
+    return max(
+        candidates,
+        key=lambda item: (
+            item["mean_fold_auroc"],
+            item["oof_auroc"],
+            item["oof_metrics"]["f1"],
+            item["oof_metrics"]["balanced_accuracy"],
+            -item["C"],
+        ),
+    )
+
+
+def bootstrap_intervals(np, y_true, probabilities, threshold, replicates, seed):
+    from sklearn.metrics import roc_auc_score
+
+    if replicates <= 0:
+        return {}
+    y_true = np.asarray(y_true, dtype=int)
+    probabilities = np.asarray(probabilities, dtype=float)
+    negative = np.flatnonzero(y_true == 0)
+    positive = np.flatnonzero(y_true == 1)
+    rng = np.random.default_rng(seed)
+    values = {
+        key: []
+        for key in (
+            "positive_class_f1",
+            "weighted_f1",
+            "sensitivity",
+            "specificity",
+            "balanced_accuracy",
+            "auroc",
+        )
+    }
+    for _ in range(replicates):
+        indices = np.concatenate(
+            (
+                rng.choice(negative, size=len(negative), replace=True),
+                rng.choice(positive, size=len(positive), replace=True),
+            )
+        )
+        sampled_true = y_true[indices]
+        sampled_probabilities = probabilities[indices]
+        metrics = common.confusion_metrics(
+            np,
+            sampled_true,
+            sampled_probabilities,
+            threshold,
+        )
+        values["positive_class_f1"].append(metrics["f1"])
+        values["weighted_f1"].append(
+            weighted_f1_from_counts(
+                metrics["tn"], metrics["fp"], metrics["fn"], metrics["tp"]
+            )
+        )
+        for key in ("sensitivity", "specificity", "balanced_accuracy"):
+            values[key].append(metrics[key])
+        values["auroc"].append(
+            float(roc_auc_score(sampled_true, sampled_probabilities))
+        )
+    return {
+        key: {
+            "lower_95": float(np.percentile(metric_values, 2.5)),
+            "upper_95": float(np.percentile(metric_values, 97.5)),
+        }
+        for key, metric_values in values.items()
+    }
+
+
+def write_robust_predictions(
+    path: Path,
+    model_name: str,
+    rows,
+    probabilities,
+    threshold: float,
+    evaluation_role: str,
+) -> None:
+    output = []
+    for row, probability in zip(rows, probabilities):
+        prediction = int(float(probability) >= threshold)
+        output.append(
+            {
+                "dataset": "refuge",
+                "task": "glaucoma",
+                "model_name": model_name,
+                "case_id": row["case_id"],
+                "patient_id": row["patient_id"],
+                "source_split": row["split"],
+                "evaluation_role": evaluation_role,
+                "y_true": int(row["y_true"]),
+                "y_prob": float(probability),
+                "threshold": threshold,
+                "y_pred": prediction,
+                "is_correct": int(prediction == int(row["y_true"])),
+            }
+        )
+    common.write_csv_rows(path, output)
+
+
+def run_robust_model(
+    np,
+    torch,
+    Image,
+    DataLoader,
+    transforms,
+    tqdm,
+    args,
+    model_name,
+    rows_by_split,
+    device,
+) -> None:
+    print(f"\n=== REFUGE model={model_name} protocol=robust_cv ===", flush=True)
+    model_dir = args.out_dir / model_name
+    model_dir.mkdir(parents=True, exist_ok=True)
+    features, feature_provenance = common.extract_model_features(
+        np,
+        torch,
+        Image,
+        DataLoader,
+        transforms,
+        tqdm,
+        args,
+        model_name,
+        rows_by_split,
+        device,
+    )
+    development_rows = rows_by_split["train"] + rows_by_split["val"]
+    x_dev = np.concatenate((features["train"], features["val"]), axis=0)
+    y_dev = np.asarray([row["y_true"] for row in development_rows], dtype=int)
+    x_test = features["test"]
+    y_test = np.asarray([row["y_true"] for row in rows_by_split["test"]], dtype=int)
+    if not np.isfinite(x_dev).all() or not np.isfinite(x_test).all():
+        raise RuntimeError(f"Non-finite frozen features for {model_name}")
+
+    candidates = [
+        evaluate_cv_candidate(np, x_dev, y_dev, x_test, C, args)
+        for C in args.logreg_c
+    ]
+    selected = select_cv_candidate(candidates)
+    threshold = selected["oof_threshold"]
+    test_probabilities = selected["test_probabilities"]
+    test_metrics = common.confusion_metrics(
+        np,
+        y_test,
+        test_probabilities,
+        threshold,
+    )
+    test_metrics["positive_class_f1"] = test_metrics["f1"]
+    test_metrics["weighted_f1"] = weighted_f1_from_counts(
+        test_metrics["tn"],
+        test_metrics["fp"],
+        test_metrics["fn"],
+        test_metrics["tp"],
+    )
+    test_metrics["auroc"] = common.roc_auc(np, y_test, test_probabilities)
+    intervals = bootstrap_intervals(
+        np,
+        y_test,
+        test_probabilities,
+        threshold,
+        args.bootstrap_replicates,
+        args.seed + MODELS.index(model_name) * 10000,
+    )
+
+    search_rows = []
+    for candidate in candidates:
+        search_rows.append(
+            {
+                "C": candidate["C"],
+                "mean_fold_auroc": candidate["mean_fold_auroc"],
+                "std_fold_auroc": candidate["std_fold_auroc"],
+                "oof_auroc": candidate["oof_auroc"],
+                "oof_threshold": candidate["oof_threshold"],
+                "oof_f1": candidate["oof_metrics"]["f1"],
+                "oof_sensitivity": candidate["oof_metrics"]["sensitivity"],
+                "oof_specificity": candidate["oof_metrics"]["specificity"],
+                "oof_balanced_accuracy": candidate["oof_metrics"]["balanced_accuracy"],
+                "selected": candidate is selected,
+            }
+        )
+    common.write_csv_rows(model_dir / "probe_search.csv", search_rows)
+    write_robust_predictions(
+        model_dir / "predictions_development_oof.csv",
+        model_name,
+        development_rows,
+        selected["oof_probabilities"],
+        threshold,
+        "development_repeated_oof",
+    )
+    write_robust_predictions(
+        model_dir / "predictions_test.csv",
+        model_name,
+        rows_by_split["test"],
+        test_probabilities,
+        threshold,
+        "untouched_test",
+    )
+
+    weight_path = common.model_weight_path(args, model_name)
+    summary = {
+        "dataset_for_reporting": "REFUGE",
+        "archive_directory_name": "REFUGE2",
+        "cohort_identity": "original REFUGE 1,200-image cohort",
+        "model_name": model_name,
+        "protocol": "robust_cv",
+        "feature_provenance": feature_provenance,
+        "checkpoint": str(weight_path),
+        "checkpoint_sha256": sha256(weight_path),
+        "source_manifest": str(args.source_manifest),
+        "source_manifest_sha256": sha256(args.source_manifest),
+        "labels_csv": str(args.labels_csv),
+        "labels_csv_sha256": sha256(args.labels_csv),
+        "feature_shapes": {
+            split: list(features[split].shape) for split in SPLITS
+        },
+        "development": {
+            "n": len(development_rows),
+            "positive_n": int(y_dev.sum()),
+            "negative_n": int(len(y_dev) - y_dev.sum()),
+            "source_splits": ["train", "val"],
+            "cv_folds": args.cv_folds,
+            "cv_repeats": args.cv_repeats,
+            "selected_C": selected["C"],
+            "selection_objective": "highest mean repeated-fold AUROC",
+            "oof_threshold_objective": "highest positive-class F1",
+            "oof_threshold": threshold,
+            "oof_auroc": selected["oof_auroc"],
+            "oof_metrics": selected["oof_metrics"],
+            "ensemble_models": selected["ensemble_models"],
+        },
+        "test": {
+            "used_for_selection": False,
+            "metrics": test_metrics,
+            "bootstrap_95_ci": intervals,
+        },
+        "worst_group_f1": None,
+        "worst_group_note": "Unavailable because REFUGE has no demographic metadata.",
+        "pretraining_overlap_note": OVERLAP_NOTES.get(
+            model_name,
+            "Checkpoint training-data overlap must be documented from its model card.",
+        ),
+        "seed": args.seed,
+    }
+    (model_dir / "summary.json").write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    print(
+        json.dumps(
+            {
+                "model": model_name,
+                "selected_C": selected["C"],
+                "development_oof_auroc": selected["oof_auroc"],
+                "development_oof_f1": selected["oof_metrics"]["f1"],
+                "selected_threshold": threshold,
+                "test": test_metrics,
+            },
+            indent=2,
+        )
+    )
 
 
 def train_model(
@@ -798,9 +1315,15 @@ def retfound_report_row(path: Path) -> dict[str, Any] | None:
         if sensitivity is not None and specificity is not None
         else None
     )
+    tn = int(metrics.get("tn", 0))
+    fp = int(metrics.get("fp", 0))
+    fn = int(metrics.get("fn", 0))
+    tp = int(metrics.get("tp", 0))
+    weighted_f1 = weighted_f1_from_counts(tn, fp, fn, tp)
     return {
         "model_name": "retfound",
-        "f1": metrics.get("f1"),
+        "f1": weighted_f1,
+        "positive_class_f1": metrics.get("f1"),
         "worst_group_f1": None,
         "sensitivity": sensitivity,
         "specificity": specificity,
@@ -818,16 +1341,25 @@ def summarize_results(args) -> None:
     retfound = retfound_report_row(args.retfound_metadata)
     if retfound:
         rows.append(retfound)
-    for model_name in MODELS:
+    for model_name in ("ret_clip", "retizero", "urfound"):
         path = args.out_dir / model_name / "summary.json"
         if not path.is_file():
             continue
         summary = json.loads(path.read_text(encoding="utf-8"))
         metrics = summary["metrics"]["test"]
+        weighted_f1 = metrics.get("weighted_f1")
+        if weighted_f1 is None:
+            weighted_f1 = weighted_f1_from_counts(
+                int(metrics["tn"]),
+                int(metrics["fp"]),
+                int(metrics["fn"]),
+                int(metrics["tp"]),
+            )
         rows.append(
             {
                 "model_name": model_name,
-                "f1": metrics.get("f1"),
+                "f1": weighted_f1,
+                "positive_class_f1": metrics.get("positive_class_f1", metrics.get("f1")),
                 "worst_group_f1": None,
                 "sensitivity": metrics.get("sensitivity"),
                 "specificity": metrics.get("specificity"),
@@ -859,6 +1391,7 @@ def summarize_results(args) -> None:
         "",
         (
             "All comparison heads follow Yusra's frozen-encoder MLP protocol. "
+            "F1 is support-weighted, matching the manuscript table convention. "
             "Worst-group F1 is unavailable because demographic metadata are absent."
         ),
         "",
@@ -883,6 +1416,155 @@ def summarize_results(args) -> None:
         encoding="utf-8",
     )
     print(report)
+
+
+def summarize_robust_results(args) -> None:
+    rows = []
+    for model_name in MODELS:
+        path = args.out_dir / model_name / "summary.json"
+        if not path.is_file():
+            continue
+        summary = json.loads(path.read_text(encoding="utf-8"))
+        if summary.get("protocol") != "robust_cv":
+            continue
+        metrics = summary["test"]["metrics"]
+        intervals = summary["test"].get("bootstrap_95_ci", {})
+        weighted_f1 = metrics.get("weighted_f1")
+        if weighted_f1 is None:
+            weighted_f1 = weighted_f1_from_counts(
+                int(metrics["tn"]),
+                int(metrics["fp"]),
+                int(metrics["fn"]),
+                int(metrics["tp"]),
+            )
+        row = {
+            "model_name": model_name,
+            "f1": weighted_f1,
+            "positive_class_f1": metrics.get("positive_class_f1", metrics.get("f1")),
+            "f1_ci_lower": intervals.get("weighted_f1", {}).get("lower_95"),
+            "f1_ci_upper": intervals.get("weighted_f1", {}).get("upper_95"),
+            "worst_group_f1": None,
+            "sensitivity": metrics.get("sensitivity"),
+            "specificity": metrics.get("specificity"),
+            "balanced_accuracy": metrics.get("balanced_accuracy"),
+            "auroc": metrics.get("auroc"),
+            "threshold": summary["development"].get("oof_threshold"),
+            "selected_C": summary["development"].get("selected_C"),
+            "development_oof_f1": summary["development"]
+            .get("oof_metrics", {})
+            .get("f1"),
+            "development_oof_auroc": summary["development"].get("oof_auroc"),
+            "test_n": metrics.get("n"),
+            "tn": metrics.get("tn"),
+            "fp": metrics.get("fp"),
+            "fn": metrics.get("fn"),
+            "tp": metrics.get("tp"),
+            "source": str(path),
+            "pretraining_overlap_note": summary.get("pretraining_overlap_note", ""),
+        }
+        rows.append(row)
+    if not rows:
+        raise FileNotFoundError(
+            f"No robust REFUGE result summaries found under {args.out_dir}"
+        )
+    common.write_csv_rows(args.out_dir / "refuge_glaucoma_robust_cv.csv", rows)
+
+    def number(row, key):
+        value = row.get(key)
+        return "N/A" if value is None else f"{float(value):.4f}"
+
+    lines = [
+        "# REFUGE Glaucoma Frozen-Feature Benchmark",
+        "",
+        (
+            "The downloaded directory is named REFUGE2, but this is the original "
+            "REFUGE 1,200-image official cohort. It is not a full REFUGE2 result."
+        ),
+        "",
+        (
+            "Every model uses deterministic frozen features from the same files. "
+            "Train and Validation form the 800-image development set. A standardized "
+            "class-balanced logistic probe is selected by repeated stratified "
+            "cross-validation, the threshold is selected from development OOF "
+            "predictions, and the untouched 400-image Test split is evaluated once. "
+            "F1 is support-weighted to match the manuscript table convention."
+        ),
+        "",
+        "| Model | F1 | 95% CI | Worst-group F1 | Sensitivity | Specificity | Balanced accuracy | AUROC |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for row in rows:
+        ci = (
+            "N/A"
+            if row["f1_ci_lower"] is None
+            else f"{row['f1_ci_lower']:.4f}-{row['f1_ci_upper']:.4f}"
+        )
+        lines.append(
+            f"| {MODEL_DISPLAY_NAMES[row['model_name']]} | {number(row, 'f1')} | "
+            f"{ci} | N/A | {number(row, 'sensitivity')} | "
+            f"{number(row, 'specificity')} | {number(row, 'balanced_accuracy')} | "
+            f"{number(row, 'auroc')} |"
+        )
+    lines.extend(["", "## Provenance Notes", ""])
+    for row in rows:
+        lines.append(
+            f"- **{MODEL_DISPLAY_NAMES[row['model_name']]}:** "
+            f"{row.get('pretraining_overlap_note', '')}"
+        )
+    report = "\n".join(lines) + "\n"
+    (args.out_dir / "refuge_glaucoma_robust_cv.md").write_text(
+        report,
+        encoding="utf-8",
+    )
+    print(report)
+
+
+def write_robust_protocol(args, rows_by_split, device, mask_audit) -> None:
+    script_path = Path(__file__).resolve()
+    protocol = {
+        "dataset_for_reporting": "REFUGE",
+        "archive_directory_name": "REFUGE2",
+        "cohort_identity": "original REFUGE 1,200-image cohort",
+        "full_refuge2_result": False,
+        "source_manifest": str(args.source_manifest),
+        "source_manifest_sha256": sha256(args.source_manifest),
+        "labels_csv": str(args.labels_csv),
+        "labels_csv_sha256": sha256(args.labels_csv),
+        "script_path": str(script_path),
+        "script_sha256": sha256(script_path),
+        "command_argv": sys.argv,
+        "models": args.models,
+        "official_split_rows": {
+            split: len(rows) for split, rows in rows_by_split.items()
+        },
+        "official_split_labels": {
+            split: dict(Counter(str(row["y_true"]) for row in rows))
+            for split, rows in rows_by_split.items()
+        },
+        "development_rows": len(rows_by_split["train"])
+        + len(rows_by_split["val"]),
+        "development_source_splits": ["train", "val"],
+        "probe": "StandardScaler + class-balanced logistic regression",
+        "regularization_grid_C": args.logreg_c,
+        "regularization_selection": "highest mean repeated-fold development AUROC",
+        "threshold_selection": "highest development repeated-OOF positive-class F1",
+        "test_prediction": "mean probability from all selected-C CV probes",
+        "cv_folds": args.cv_folds,
+        "cv_repeats": args.cv_repeats,
+        "bootstrap_replicates": args.bootstrap_replicates,
+        "test_used_for_selection": False,
+        "mask_label_audit": mask_audit,
+        "image_provenance_path": (
+            str(args.out_dir / "image_provenance.csv") if args.hash_images else ""
+        ),
+        "device": str(device),
+        "seed": args.seed,
+    }
+    (args.out_dir / "protocol.json").write_text(
+        json.dumps(protocol, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    print(json.dumps(protocol, indent=2, sort_keys=True))
 
 
 def write_protocol(args, rows_by_split, device) -> None:
@@ -921,12 +1603,10 @@ def write_protocol(args, rows_by_split, device) -> None:
 def main() -> None:
     args = parse_args()
     if args.summarize_only:
-        summarize_results(args)
-        return
-    if args.validate_only:
-        rows_by_split = load_official_splits(args.source_manifest, args.labels_csv)
-        write_protocol(args, rows_by_split, args.device or "not_loaded")
-        print("REFUGE path/label validation passed; no models were loaded.")
+        if args.protocol == "robust_cv":
+            summarize_robust_results(args)
+        else:
+            summarize_results(args)
         return
 
     import numpy as np
@@ -934,16 +1614,60 @@ def main() -> None:
     from PIL import Image
     from torch.utils.data import DataLoader, WeightedRandomSampler
     from torchvision import transforms
+    from tqdm import tqdm
 
     if args.epochs <= 0:
         raise ValueError("--epochs must be positive")
+    if args.cv_folds < 2 or args.cv_repeats < 1:
+        raise ValueError("--cv-folds must be >=2 and --cv-repeats must be >=1")
+    if not args.logreg_c or any(value <= 0 for value in args.logreg_c):
+        raise ValueError("--logreg-c values must all be positive")
+    if args.bootstrap_replicates < 0:
+        raise ValueError("--bootstrap-replicates must be >=0")
     set_seed(np, torch, args.seed)
     device = torch.device(
         args.device or ("cuda:0" if torch.cuda.is_available() else "cpu")
     )
     rows_by_split = load_official_splits(args.source_manifest, args.labels_csv)
-    write_protocol(args, rows_by_split, device)
-    for model_name in args.models:
+    args.out_dir.mkdir(parents=True, exist_ok=True)
+    write_image_provenance(args, rows_by_split)
+    mask_audit = audit_mask_label_alignment(np, args, rows_by_split)
+
+    if args.protocol == "robust_cv":
+        write_robust_protocol(args, rows_by_split, device, mask_audit)
+    else:
+        write_protocol(args, rows_by_split, device)
+    if args.validate_only:
+        print("REFUGE path/label validation passed; no models were loaded.")
+        return
+
+    if args.protocol == "robust_cv":
+        for model_name in args.models:
+            set_seed(np, torch, args.seed)
+            run_robust_model(
+                np,
+                torch,
+                Image,
+                DataLoader,
+                transforms,
+                tqdm,
+                args,
+                model_name,
+                rows_by_split,
+                device,
+            )
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
+        summarize_robust_results(args)
+        return
+
+    legacy_models = [model for model in args.models if model != "retfound"]
+    if "retfound" in args.models:
+        print(
+            "legacy_yusra_mlp_retfound=imported_from_metadata_not_rerun",
+            flush=True,
+        )
+    for model_name in legacy_models:
         set_seed(np, torch, args.seed)
         train_model(
             np,
