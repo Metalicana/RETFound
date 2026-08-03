@@ -4,21 +4,21 @@ import os
 
 from data.gdp_loader import GDPTestLoader
 from llm_baseline_utils import (
-    GPT51GlaucomaBaseline, checkpoint_and_report, make_oct_grid, print_metrics, render_rnflt,
+    GPT56GlaucomaBaseline, checkpoint_and_report, make_oct_grid, print_metrics, render_rnflt,
 )
 
 
 CSV_PATH = os.getenv("GDP_CSV", "./data_gdp/data_summary.csv")
 BSCAN_DIR = os.getenv("GDP_BSCAN_DIR", "./data_gdp/BScan")
 RNFLT_DIR = os.getenv("GDP_RNFLT_DIR", "./data_gdp/RNFLT")
-OUTPUT_CSV = os.getenv("OUTPUT_CSV", "gdp_test_gpt51_baseline_predictions.csv")
+OUTPUT_CSV = os.getenv("OUTPUT_CSV", "gdp_test_gpt56_baseline_predictions.csv")
 MAX_CASES = int(os.getenv("MAX_CASES", "0"))
 OCT_SLICES = int(os.getenv("OCT_SLICES", "8"))
 
 
 def main():
     loader = GDPTestLoader(CSV_PATH, BSCAN_DIR, RNFLT_DIR, OCT_SLICES, MAX_CASES, require_rnflt=True)
-    evaluator, rows = GPT51GlaucomaBaseline(), []
+    evaluator, rows = GPT56GlaucomaBaseline(), []
     print(f"Evaluating GPT-5.1 baseline on {len(loader)} GDP Test cases")
     for index in range(len(loader)):
         case = None

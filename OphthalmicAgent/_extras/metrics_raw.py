@@ -193,12 +193,21 @@ sys.path.append(MIRAGE_DIR)
 from linear_probing_slo import get_model_slo  
 
 # --- CONFIGURATION ---
+<<<<<<< HEAD
 EXCEL_PATH = "data/fairvision_250each.csv"  
 PATH_OCT_WEIGHTS = "weights/oct_model_8_slices_not_center.pth"     
 PATH_SLO_WEIGHTS = "weights/slo_model_best_all_binary.pth"  
 PREDICTIONS_DIR = os.getenv("RAW_PREDICTIONS_DIR", "_extras/CSVs/raw_model_predictions")
 DECISION_THRESHOLD = float(os.getenv("RAW_DECISION_THRESHOLD", "0.5"))
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+=======
+EXCEL_PATH = "data/fairvision_250each.csv"  
+PATH_OCT_WEIGHTS = "weights/oct_model_8_slices_not_center.pth"     
+PATH_SLO_WEIGHTS = "weights/slo_model_best_all_binary.pth"  
+PREDICTIONS_DIR = os.getenv("RAW_PREDICTIONS_DIR", "_extras/CSVs/raw_model_predictions")
+DECISION_THRESHOLD = float(os.getenv("RAW_DECISION_THRESHOLD", "0.5"))
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+>>>>>>> 2b3d863107ff08975ad161e25c3da2f7feed4670
 
 class RawModelEvaluator:
     def __init__(self, path_oct, path_slo, device):
@@ -307,7 +316,11 @@ class RawModelEvaluator:
         y_true = np.array([r["target"] for r in records])
         y_prob = np.array([r["prob"] for r in records])
 
+<<<<<<< HEAD
         y_pred = (y_prob >= DECISION_THRESHOLD).astype(int)
+=======
+        y_pred = (y_prob >= DECISION_THRESHOLD).astype(int)
+>>>>>>> 2b3d863107ff08975ad161e25c3da2f7feed4670
 
         print("\n" + "=" * 75)
         print(title)
@@ -342,6 +355,7 @@ class RawModelEvaluator:
     
         print(f"\nStarting raw backbone testing across {len(df)} file records...")
     
+<<<<<<< HEAD
         for row_index, row in df.iterrows():
     
             npz_path = row["filename"]
@@ -351,6 +365,17 @@ class RawModelEvaluator:
             if disease not in {"amd", "dr", "glaucoma"}:
                 print(f"Skipping row {row_index}: unsupported Task_Folder={disease!r}")
                 continue
+=======
+        for row_index, row in df.iterrows():
+    
+            npz_path = row["filename"]
+            disease = str(row["Task_Folder"]).strip().lower()
+            raw_gt = row["Ground_Truth"]
+
+            if disease not in {"amd", "dr", "glaucoma"}:
+                print(f"Skipping row {row_index}: unsupported Task_Folder={disease!r}")
+                continue
+>>>>>>> 2b3d863107ff08975ad161e25c3da2f7feed4670
     
             # Skip invalid rows
             if (
@@ -438,6 +463,7 @@ class RawModelEvaluator:
                 # Store ONE record
                 ##########################################################
     
+<<<<<<< HEAD
                 eval_data["oct"][disease].append({
                     "row_index": row_index,
                     "filename": str(npz_path),
@@ -461,13 +487,92 @@ class RawModelEvaluator:
                     "age": age,
                     "age_group": age_group,
                 })
+=======
+                eval_data["oct"][disease].append({
+                    "row_index": row_index,
+                    "filename": str(npz_path),
+                    "disease": disease,
+                    "prob": oct_prob,
+                    "target": gt_binary,
+                    "gender": gender,
+                    "race": race,
+                    "age": age,
+                    "age_group": age_group,
+                })
+    
+                eval_data["slo"][disease].append({
+                    "row_index": row_index,
+                    "filename": str(npz_path),
+                    "disease": disease,
+                    "prob": slo_prob,
+                    "target": gt_binary,
+                    "gender": gender,
+                    "race": race,
+                    "age": age,
+                    "age_group": age_group,
+                })
+>>>>>>> 2b3d863107ff08975ad161e25c3da2f7feed4670
     
             except Exception as e:
                 print(e)
                 continue
     
+<<<<<<< HEAD
         self.save_prediction_csvs(eval_data)
         self.print_performance_report(eval_data)
+
+    def save_prediction_csvs(self, eval_data):
+        """Save one case-level prediction CSV for each model/disease pair."""
+        os.makedirs(PREDICTIONS_DIR, exist_ok=True)
+        model_names = {"oct": "retfound", "slo": "mirage"}
+        columns = [
+            "Row_Index",
+            "Filename",
+            "Model",
+            "Modality",
+            "Disease",
+            "Ground_Truth",
+            "Probability_Positive",
+            "Decision_Threshold",
+            "Prediction",
+            "Is_Correct",
+            "Age",
+            "Age_Group",
+            "Gender",
+            "Race",
+        ]
+
+        for modality in ("oct", "slo"):
+            model_name = model_names[modality]
+            for disease in ("amd", "dr", "glaucoma"):
+                rows = []
+                for record in eval_data[modality][disease]:
+                    prediction = int(record["prob"] >= DECISION_THRESHOLD)
+                    rows.append({
+                        "Row_Index": record["row_index"],
+                        "Filename": record["filename"],
+                        "Model": model_name.upper() if model_name == "mirage" else "RETFound",
+                        "Modality": "SLO" if modality == "slo" else "OCT",
+                        "Disease": disease.upper(),
+                        "Ground_Truth": int(record["target"]),
+                        "Probability_Positive": float(record["prob"]),
+                        "Decision_Threshold": DECISION_THRESHOLD,
+                        "Prediction": prediction,
+                        "Is_Correct": int(prediction == int(record["target"])),
+                        "Age": record["age"],
+                        "Age_Group": record["age_group"],
+                        "Gender": record["gender"],
+                        "Race": record["race"],
+                    })
+                output_path = os.path.join(
+                    PREDICTIONS_DIR, f"{model_name}_{disease}_predictions.csv"
+                )
+                pd.DataFrame(rows, columns=columns).to_csv(output_path, index=False)
+                print(f"Saved {len(rows)} predictions to {output_path}")
+=======
+        self.save_prediction_csvs(eval_data)
+        self.print_performance_report(eval_data)
+>>>>>>> 2b3d863107ff08975ad161e25c3da2f7feed4670
 
     def save_prediction_csvs(self, eval_data):
         """Save one case-level prediction CSV for each model/disease pair."""
@@ -598,4 +703,8 @@ if __name__ == "__main__":
     
     # Run absolute model testing
     evaluator = RawModelEvaluator(PATH_OCT_WEIGHTS, PATH_SLO_WEIGHTS, DEVICE)
+<<<<<<< HEAD
     evaluator.evaluate_excel(master_df)
+=======
+    evaluator.evaluate_excel(master_df)
+>>>>>>> 2b3d863107ff08975ad161e25c3da2f7feed4670

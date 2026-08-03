@@ -5,11 +5,11 @@ from pathlib import Path
 
 from PIL import Image
 
-from llm_baseline_utils import GPT51GlaucomaBaseline, checkpoint_and_report, print_metrics
+from llm_baseline_utils import GPT56GlaucomaBaseline, checkpoint_and_report, print_metrics
 
 
 DATA_ROOT = Path(os.getenv("DRISHTI_DATA_ROOT", "./data_drishti"))
-OUTPUT_CSV = os.getenv("OUTPUT_CSV", "drishti_gpt51_baseline_predictions.csv")
+OUTPUT_CSV = os.getenv("OUTPUT_CSV", "drishti_gpt56_baseline_predictions.csv")
 MAX_CASES = int(os.getenv("MAX_CASES", "0"))
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
 
@@ -29,7 +29,7 @@ def cases():
 
 
 def main():
-    dataset, evaluator, rows = cases(), GPT51GlaucomaBaseline(), []
+    dataset, evaluator, rows = cases(), GPT56GlaucomaBaseline(), []
     print(f"Evaluating GPT-5.1 baseline on {len(dataset)} Drishti CFPs")
     for index, case in enumerate(dataset, start=1):
         print("\n" + "=" * 90 + f"\nCASE {index}/{len(dataset)} | {case['path']}")

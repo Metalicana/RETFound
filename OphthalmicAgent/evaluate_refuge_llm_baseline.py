@@ -6,12 +6,12 @@ from pathlib import Path
 import pandas as pd
 from PIL import Image
 
-from llm_baseline_utils import GPT51GlaucomaBaseline, checkpoint_and_report, print_metrics
+from llm_baseline_utils import GPT56GlaucomaBaseline, checkpoint_and_report, print_metrics
 
 
 DATA_ROOT = Path(os.getenv("REFUGE_DATA_ROOT", "./"))
 CSV_PATH = Path(os.getenv("REFUGE_CSV", "./data_refuge/data.csv"))
-OUTPUT_CSV = os.getenv("OUTPUT_CSV", "refuge_test_gpt51_baseline_predictions.csv")
+OUTPUT_CSV = os.getenv("OUTPUT_CSV", "refuge_test_gpt56_baseline_predictions.csv")
 MAX_CASES = int(os.getenv("MAX_CASES", "0"))
 
 
@@ -23,7 +23,7 @@ def cases():
 
 
 def main():
-    frame, evaluator, rows = cases(), GPT51GlaucomaBaseline(), []
+    frame, evaluator, rows = cases(), GPT56GlaucomaBaseline(), []
     print(f"Evaluating GPT-5.1 baseline on {len(frame)} REFUGE Test CFPs")
     for index, row in frame.iterrows():
         relative = Path(str(row["filename"])); path = relative if relative.is_absolute() else DATA_ROOT / relative
