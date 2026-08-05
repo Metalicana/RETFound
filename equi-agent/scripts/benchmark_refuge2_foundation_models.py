@@ -4,8 +4,8 @@
 The Kaggle download used by this project is stored under a ``REFUGE2`` name,
 but it contains the original REFUGE 1,200-image cohort: 400 Train, 400
 Validation, and 400 Test images. Classification labels are merged from
-``OphthalmicAgent/data_refuge/data.csv``, the same file used by Yusra's
-RETFound implementation.
+``OphthalmicAgent/data_refuge/data.csv``, the same file used by the tracked
+RETFound reference implementation.
 
 The default ``robust_cv`` protocol extracts deterministic frozen features from
 the exact same images for every model. It combines Train and Validation into an
@@ -16,7 +16,7 @@ ensemble of the fitted cross-validation probes. Test labels never influence
 probe selection, threshold selection, or fitting.
 
 The previous single-seed MLP implementation remains available as
-``--protocol yusra_mlp`` for sensitivity analysis. It is not the default because
+``--protocol reference_mlp`` for sensitivity analysis. It is not the default because
 the fixed high-capacity head substantially overfit several encoders.
 """
 
@@ -100,13 +100,13 @@ def parse_args() -> argparse.Namespace:
         "--labels-csv",
         type=Path,
         default=root / "OphthalmicAgent" / "data_refuge" / "data.csv",
-        help="Yusra's labeled original-REFUGE CSV.",
+        help="Labeled original-REFUGE CSV used by the tracked reference run.",
     )
     parser.add_argument(
         "--retfound-metadata",
         type=Path,
         default=root / "OphthalmicAgent" / "cfp_glaucoma_training_metadata.json",
-        help="Yusra's imported RETFound result; used only with --protocol yusra_mlp.",
+        help="Imported RETFound reference result; used only with --protocol reference_mlp.",
     )
     parser.add_argument(
         "--out-dir",
@@ -122,11 +122,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--models", nargs="+", choices=MODELS, default=list(MODELS))
     parser.add_argument(
         "--protocol",
-        choices=("robust_cv", "yusra_mlp"),
+        choices=("robust_cv", "reference_mlp"),
         default="robust_cv",
         help=(
             "robust_cv uses repeated development OOF selection and a linear-probe "
-            "ensemble; yusra_mlp preserves the older Train/Validation MLP run."
+            "ensemble; reference_mlp preserves the older Train/Validation MLP run."
         ),
     )
     parser.add_argument("--device", default=None, help="Example: cuda:0 or cpu.")
@@ -333,19 +333,19 @@ def load_official_splits(
                 "vertical_cup_to_disc_ratio": str(
                     source.get("vertical_cup_to_disc_ratio", "")
                 ),
-                "yusra_filename": filename,
+                "reference_filename": filename,
             }
         )
 
     if unmatched:
         raise ValueError(
-            "Yusra labels did not match downloaded images: "
+            "Reference labels did not match downloaded images: "
             f"count={len(unmatched)} examples={unmatched[:10]}"
         )
     extra = sorted(set(source_lookup) - seen)
     if extra:
         raise ValueError(
-            f"Downloaded manifest contains {len(extra)} images absent from Yusra's CSV: {extra[:10]}"
+            f"Downloaded manifest contains {len(extra)} images absent from the reference CSV: {extra[:10]}"
         )
 
     for split, rows in rows_by_split.items():
@@ -381,7 +381,7 @@ def training_transform(transforms, evaluation_transform):
     if not hasattr(evaluation_transform, "transforms"):
         raise TypeError(
             "Foundation evaluation transform is not a torchvision Compose; "
-            "cannot insert Yusra's augmentation reproducibly."
+            "cannot insert the reference augmentation reproducibly."
         )
     steps = [copy.deepcopy(step) for step in evaluation_transform.transforms]
     tensor_indices = [
@@ -1076,7 +1076,7 @@ def train_model(
 ) -> None:
     from sklearn.metrics import roc_auc_score
 
-    print(f"\n=== REFUGE model={model_name} protocol=yusra ===", flush=True)
+    print(f"\n=== REFUGE model={model_name} protocol=reference_mlp ===", flush=True)
     model_dir = args.out_dir / model_name
     model_dir.mkdir(parents=True, exist_ok=True)
     extractor = common.BUILDERS[model_name](args, torch, transforms, device)
@@ -1182,7 +1182,7 @@ def train_model(
                     "head_state_dict": head.state_dict(),
                     "epoch": epoch,
                     "validation_auroc": val_auc,
-                    "protocol": "yusra_refuge_frozen_encoder_mlp",
+                    "protocol": "reference_refuge_frozen_encoder_mlp",
                 },
                 checkpoint_path,
             )
@@ -1267,7 +1267,7 @@ def train_model(
             "threshold_selection": "highest positive-class Validation F1; tie nearest 0.5",
             "test_used_for_selection": False,
             "train_augmentation": "model-native preprocessing plus horizontal flip and +/-15 degree rotation",
-            "comparison_to_yusra_retfound": (
+            "comparison_to_reference_retfound": (
                 "Same split, sampler, MLP hidden width, augmentation, optimizer, "
                 "checkpoint criterion, and threshold criterion. Model-native input "
                 "normalization is retained; only RETFound has its architecture-specific fc_norm."
@@ -1332,7 +1332,7 @@ def retfound_report_row(path: Path) -> dict[str, Any] | None:
         "threshold": metadata.get("selected_validation_threshold"),
         "best_epoch": metadata.get("best_epoch"),
         "source": str(path),
-        "pretraining_overlap_note": "Yusra's tracked RETFound REFUGE run.",
+        "pretraining_overlap_note": "Tracked RETFound REFUGE reference run.",
     }
 
 
@@ -1374,7 +1374,7 @@ def summarize_results(args) -> None:
     if not rows:
         raise FileNotFoundError(f"No REFUGE result summaries found under {args.out_dir}")
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    common.write_csv_rows(args.out_dir / "refuge_glaucoma_yusra_protocol.csv", rows)
+    common.write_csv_rows(args.out_dir / "refuge_glaucoma_reference_protocol.csv", rows)
 
     def number(row, key):
         value = row.get(key)
@@ -1386,11 +1386,11 @@ def summarize_results(args) -> None:
         (
             "The downloaded archive directory is named REFUGE2, but this experiment "
             "uses the original REFUGE 1,200-image official 400/400/400 cohort and "
-            "Yusra's tracked classification labels."
+            "the tracked reference classification labels."
         ),
         "",
         (
-            "All comparison heads follow Yusra's frozen-encoder MLP protocol. "
+            "All comparison heads follow the reference frozen-encoder MLP protocol. "
             "F1 is support-weighted, matching the manuscript table convention. "
             "Worst-group F1 is unavailable because demographic metadata are absent."
         ),
@@ -1411,7 +1411,7 @@ def summarize_results(args) -> None:
             f"{row.get('pretraining_overlap_note', '')}"
         )
     report = "\n".join(lines) + "\n"
-    (args.out_dir / "refuge_glaucoma_yusra_protocol.md").write_text(
+    (args.out_dir / "refuge_glaucoma_reference_protocol.md").write_text(
         report,
         encoding="utf-8",
     )
@@ -1664,7 +1664,7 @@ def main() -> None:
     legacy_models = [model for model in args.models if model != "retfound"]
     if "retfound" in args.models:
         print(
-            "legacy_yusra_mlp_retfound=imported_from_metadata_not_rerun",
+            "reference_mlp_retfound=imported_from_metadata_not_rerun",
             flush=True,
         )
     for model_name in legacy_models:

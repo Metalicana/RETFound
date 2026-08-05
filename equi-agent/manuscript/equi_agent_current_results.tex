@@ -1,472 +1,218 @@
-% Current working manuscript with available experiment values filled in.
-
-\documentclass[pdflatex,sn-mathphys-num]{sn-jnl}
-
-\usepackage{graphicx}%
-\usepackage{multirow}%
-\usepackage{amsmath,amssymb,amsfonts}%
-\usepackage{amsthm}%
-\usepackage{mathrsfs}%
-\usepackage[title]{appendix}%
-\usepackage{xcolor}%
-\usepackage{textcomp}%
-\usepackage{manyfoot}%
-\usepackage{booktabs}%
-\usepackage{longtable}%
-\usepackage{algorithm}%
-\usepackage{algorithmicx}%
-\usepackage{algpseudocode}%
-\usepackage{listings}%
-\usepackage{tikz}%
-\usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit}%
-
-\theoremstyle{thmstyleone}%
-\newtheorem{theorem}{Theorem}
-\newtheorem{proposition}[theorem]{Proposition}
-\theoremstyle{thmstyletwo}%
-\newtheorem{example}{Example}%
-\newtheorem{remark}{Remark}%
-\theoremstyle{thmstylethree}%
-\newtheorem{definition}{Definition}%
-
-\raggedbottom
-
-\begin{document}
-
-\title[RetinAgent]{RetinAgent: Agentic Reliability Triage for Retinal Foundation Models}
-
-\author*[1,2]{\fnm{Abdul Mohaimen Al} \sur{Radi}}\email{iauthor@gmail.com}
-\author[2]{\fnm{Yusra} \sur{Ahmed}}\email{iiauthor@gmail.com}
-\equalcont{These authors contributed equally to this work.}
-\author[2]{\fnm{Nguyen} \sur{Bui}}\email{iiiauthor@gmail.com}
-\equalcont{These authors contributed equally to this work.}
-\author[1,2]{\fnm{Yu} \sur{Tian}}\email{iiiauthor@gmail.com}
-
-\affil*[1]{\orgdiv{Department}, \orgname{Organization}, \orgaddress{\street{Street}, \city{City}, \postcode{100190}, \state{State}, \country{Country}}}
-\affil[2]{\orgdiv{Department}, \orgname{Organization}, \orgaddress{\street{Street}, \city{City}, \postcode{10587}, \state{State}, \country{Country}}}
-\affil[3]{\orgdiv{Department}, \orgname{Organization}, \orgaddress{\street{Street}, \city{City}, \postcode{610101}, \state{State}, \country{Country}}}
-
-\abstract{Retinal foundation models can appear strong on aggregate metrics while remaining unreliable for specific diseases, imaging modalities, or patient subgroups. We study this problem using a controlled evaluation of ophthalmic foundation-model outputs on Harvard-FairVision for age-related macular degeneration, diabetic retinopathy, and glaucoma, and on Harvard-GDP for glaucoma detection and progression forecasting. Across FairVision tasks, dataset imbalance and subgroup-level F1 distributions show that model reliability is not uniform across race, ethnicity, gender, and age strata. Static probability fusion and simple reliability routing do not remove these gaps. We therefore introduce RetinAgent as an agentic reliability-triage framework: specialized agents profile patient context, summarize model and modality evidence, audit subgroup reliability, check guideline and safety constraints, and route uncertain cases to human review. To make the agentic system auditable, the agents operate around a locked quantitative core that combines validation-derived model reliability priors, empirical-Bayes subgroup shrinkage, model disagreement, calibration uncertainty, and conformal escalation. On 9,000 FairVision held-out test cases, forced reliability-weighted arbitration produced F1 0.729 and balanced accuracy 0.807, comparable to static probability fusion, but selective escalation improved accepted-case F1 to 0.902 and worst-group accepted-case F1 to 0.615 while accepting 30.9\% of cases for automated decision. Metadata counterfactuals changed disease labels in only 0.4\% of 54,000 perturbations but changed escalation status in 5.8\%, supporting the intended use of demographics for reliability lookup rather than diagnosis. For GDP progression forecasting, live RetinAgent arbitration improves thresholded F1 from 0.600 to 0.684 and worst-group F1 from 0.564 to 0.619 while escalating 51 of 200 cases. These results support agentic reliability triage as a clinically relevant complement to retinal foundation-model prediction.}
-
-\keywords{ophthalmic foundation models, multi-agent systems, selective prediction, fairness, calibration, retina imaging}
-
-\maketitle
-
-\section{Introduction}
-Retinal diseases such as age-related macular degeneration (AMD), diabetic retinopathy (DR), and glaucoma remain major causes of preventable visual impairment. Their diagnosis depends on subtle structural and functional evidence distributed across fundus photography, scanning laser ophthalmoscopy (SLO), optical coherence tomography (OCT), and visual-field testing. Automated systems are therefore attractive for scalable eye care, particularly in settings where specialist access is limited.
-
-The recent emergence of ophthalmic foundation models has changed the technical landscape. Large pretrained retinal encoders can be adapted to multiple downstream tasks and often outperform smaller task-specific models. Yet average accuracy is an incomplete measure of clinical readiness. A model may perform well overall while being poorly calibrated for a subgroup, overcalling disease in one demographic stratum, or missing early pathology in another. This failure mode is especially consequential in ophthalmology, where anatomical baselines and disease appearance vary across age, ancestry, image modality, acquisition protocol, and disease stage.
-
-Across commonly used retinal benchmarks, this subgroup reliability problem begins at the data level. FairVision AMD, DR, and glaucoma splits and Harvard-GDP glaucoma data all show imbalanced disease labels and uneven demographic representation across race, ethnicity, gender, and age strata (Fig.~\ref{fig:dataset_imbalance_compact}). These support gaps matter because global validation metrics can be dominated by well-represented strata while leaving weaker strata under-audited.
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=\textwidth]{figures/dataset_imbalance_compact_matrix.png}
-\caption{Dataset imbalance across retinal benchmarks. Compact label, race, ethnicity, gender, and age distributions show why aggregate validation metrics can hide weak subgroup support.}
-\label{fig:dataset_imbalance_compact}
-\end{figure*}
-
-The effect of this imbalance is visible in subgroup-level model performance. Foundation-model F1 varies substantially across race, ethnicity, gender, and age strata, and each disease task has a distinct reliability profile (Fig.~\ref{fig:foundation_subgroup_f1_gap}). AMD performance is concentrated in older patients, DR remains weak across many strata, and glaucoma is stronger overall but still varies by age and model. Cells without positive cases, such as the AMD young subgroup, are treated as uninterpretable support gaps rather than as model failures.
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.82\textwidth]{figures/foundation_subgroup_f1_gap_matrix.png}
-\caption{Subgroup-level F1 gaps across foundation models. Cells show median F1 across foundation-model baselines from the per-disease manuscript tables; smaller text reports the drop from the best subgroup within the same disease and attribute. Grey cells indicate no positive cases, so positive-class F1 is not interpreted as model failure.}
-\label{fig:foundation_subgroup_f1_gap}
-\end{figure*}
-
-Current mitigation strategies only partially address this problem. Static ensembles assume that model reliability can be averaged. Calibration methods rescale probabilities without deciding which evidence source should be trusted. Fairness-aware post-processing adjusts thresholds at the group level, but often treats subgroup membership as a fixed correction rather than as one component of a broader clinical context. In practice, the relevant question is more granular: given this patient, this image, this disease task, and this pattern of model disagreement, which output should influence the final decision, and should the case be automated at all?
-
-Here we introduce RetinAgent, an agentic reliability-triage framework for retinal foundation models. RetinAgent treats model trust as dynamic rather than intrinsic. It decomposes retinal decision support into specialized agents: a BioProfiler for patient context, a Vision Specialist for model and modality evidence, a Functional Specialist for visual-field and longitudinal signals when available, an Equity Auditor for validation-derived subgroup reliability, a Guidelines Agent for clinical context, a Final Orchestrator for decision integration, and a Safety Agent for escalation review. The agents operate around a locked quantitative scoring core so that the system remains auditable rather than becoming unconstrained free-form reasoning. The framework is designed to produce not only a diagnostic label, but also a transparent account of model trust and an escalation recommendation when evidence is discordant or insufficient.
-
-We make four contributions. First, we establish a controlled benchmark for comparing retinal foundation models under identical FairVision train, validation, and test splits with standardized subgroup and calibration metrics. Second, we show that dataset imbalance and subgroup-level F1 spread expose reliability failures that aggregate metrics hide. Third, we introduce a locked reliability-triage tool with empirical-Bayes subgroup shrinkage, reliability-weighted model fusion, conformal escalation, and risk-coverage evaluation; this tool is used as the auditable scoring substrate for agent decisions. Fourth, we evaluate metadata counterfactuals to test whether demographic context changes diagnosis directly or primarily changes confidence and escalation.
-
-\section{Related Work}
-\subsection{Foundation Models in Ophthalmic Imaging}
-\label{subsec:related_foundation}
-Foundation models for ophthalmic imaging learn reusable representations from large-scale OCT, fundus, SLO, or multimodal image-text corpora. RETFound represents OCT-oriented self-supervised pretraining, whereas MIRAGE, FLAIR, RET-CLIP, VisionFM, UrFound, and RetiZero reflect a broader family of retinal encoders intended for transfer across downstream tasks. These systems differ substantially in modality support, pretraining objective, image resolution, and downstream adaptation recipe, making uncontrolled comparison difficult.
-
-We therefore evaluate foundation models under a shared transfer protocol wherever possible. OCT-oriented models are evaluated on OCT inputs, fundus/SLO-oriented models on SLO/fundus inputs, and all downstream thresholds are selected using validation data only. This protocol compares transferability under a common evaluation contract. It is not intended to be a claim that every foundation model has been tuned to its model-specific optimum.
-
-\subsection{Bias and Fairness in Medical Vision Models}
-Medical AI systems can reproduce or amplify disparities when training data, acquisition protocols, disease prevalence, or label quality differ across patient groups. In ophthalmology, these concerns include unequal sensitivity, unequal false-positive burden, and subgroup-specific calibration error. Such failures are not merely statistical; they can alter referral patterns, delay treatment, or increase unnecessary follow-up for already underserved populations.
-
-RetinAgent addresses fairness as a problem of reliability-aware inference. Rather than using demographic metadata as disease evidence, the framework uses validation-set behavior to estimate when a model's output is less trustworthy for a given subgroup and task. This distinction is central: demographic context informs trust in the model, not the biological likelihood of disease.
-
-\subsection{Multi-Agent and LLM-Based Clinical Reasoning Systems}
-Large language models have been used to summarize clinical records, retrieve guidelines, explain model outputs, and support multi-step medical reasoning. Multi-agent systems extend this idea by assigning specialized roles to separate reasoning modules. This can improve interpretability, but it also creates risks: hallucinated findings, prompt sensitivity, and poorly controlled decision logic.
-
-RetinAgent constrains language-model reasoning to evidence-grounded arbitration. Agents reason over supplied model probabilities, patient metadata, validation priors, image-derived findings, visual-field measurements, and guideline summaries. They are not used to infer hidden clinical measurements or replace the image models. The empirical question is whether this structured arbitration improves reliability beyond deterministic routing, static fusion, and post-hoc calibration.
-
-\section{Methods}
-\subsection{Problem Formulation}
-\label{subsec:problem_formulation}
-Let $x_i^{(m)}$ denote the imaging input for patient-eye case $i$ and modality $m$, and let $a_i$ denote available patient metadata, including age group, race, ethnicity, and sex/gender. For each disease task $t \in \{\mathrm{AMD}, \mathrm{DR}, \mathrm{glaucoma}\}$, a set of base models $\mathcal{M}$ produces probabilities $p_{ij}^{(t)} = f_j(x_i^{(m_j)})$ for model $j$. The objective is to estimate a final prediction $\hat{y}_i^{(t)}$ and confidence score that preserve aggregate diagnostic performance while reducing subgroup-specific reliability gaps.
-
-RetinAgent frames this as contextual arbitration. For a case $i$, the system estimates the trust assigned to model $j$ as a function of disease task, modality, patient metadata, subgroup-specific validation reliability, model confidence, and cross-model disagreement:
-\begin{equation}
-w_{ij}^{(t)} = g\left(t, m_j, a_i, p_{ij}^{(t)}, \mathcal{R}_{j,t,a_i}, \Delta_i^{(t)}\right),
-\end{equation}
-where $\mathcal{R}_{j,t,a_i}$ denotes validation-derived reliability priors for the relevant subgroup context and $\Delta_i^{(t)}$ denotes disagreement among available model outputs. The final prediction is produced by an arbitration procedure that combines weighted model evidence with independent visual, functional, and safety assessments. This formulation separates two quantities that are often conflated: the probability of disease and the reliability of the model producing that probability.
-
-\subsection{Datasets and Prediction Tasks}
-\label{subsec:methods_datasets}
-Harvard-FairVision is used for cross-sectional diagnosis of AMD, DR, and glaucoma. Each task is represented with fixed train, validation, and test splits, and each prediction row is linked to demographic metadata used for subgroup evaluation. Harvard-GDP is used for glaucoma detection and progression forecasting, including OCT B-scan, retinal nerve fiber layer thickness (RNFLT), visual-field, and clinical metadata fields where available. FairVision supports the primary cross-sectional fairness analysis, whereas Harvard-GDP tests whether arbitration can be extended to temporal disease progression.
-
-\subsection{Base Vision Foundation Models}
-\label{subsec:base_models_methods}
-We evaluate modality-specific foundation-model outputs using a standardized prediction schema. RETFound is evaluated as an OCT model and MIRAGE as an SLO/fundus model. FLAIR, RET-CLIP, and RetiZero are evaluated as SLO/fundus image encoders with task-specific linear probes. VisionFM and UrFound are evaluated with both Fundus/SLO and OCT inputs. For FLAIR, RET-CLIP, RetiZero, VisionFM, and UrFound, image embeddings are extracted from the frozen pretrained model and a balanced logistic regression head is trained for each FairVision disease task. Thresholds are selected on the validation split using the prespecified validation metric for each run, and final metrics are computed only on the held-out test split.
-
-This design separates representation evaluation from model-specific fine-tuning optimization. It allows controlled comparison under the same downstream split, label, threshold, and metric contract, while acknowledging that some foundation models may perform differently under native full fine-tuning or prompt-based protocols.
-
-\subsection{RetinAgent Architecture}
-\label{subsec:architecture_methods}
-RetinAgent is organized as a structured multi-agent arbitration system (Fig.~\ref{fig:equi_agent_architecture}). The BioProfiler converts structured metadata into concise reliability context while explicitly avoiding demographic disease inference. The Vision Specialist processes OCT and SLO/fundus inputs, reports foundation-model probability distributions, and performs a morphology-grounded visual audit when images are supplied. The Functional Specialist interprets visual-field information, especially mean deviation (MD), total-deviation sensitivity, and longitudinal change when available. The Equity Auditor compares the current patient context with validation-derived subgroup error priors and recommends whether sensitivity- or precision-oriented trust adjustment is warranted. The Guidelines Agent retrieves and summarizes external clinical guidance when available. The Orchestrator integrates these findings into final disease labels. The Safety Agent performs a final uncertainty and discordance audit and can recommend acceptance, override, escalation to human review, or insufficient-data status.
-
-The agentic design is intentionally constrained. Agents do not invent clinical measurements, train new image classifiers, or use demographic metadata as a direct disease signal. Instead, each agent receives bounded inputs and emits structured outputs that are consumed by downstream agents. The deterministic reliability-triage score described below functions as a tool call inside this workflow: it supplies auditable model weights, uncertainty flags, and escalation triggers that the Orchestrator and Safety Agent can use. This separation preserves the agentic workflow while making the core arbitration numerically reproducible.
-
-\begin{figure*}[t]
-\centering
-\resizebox{\textwidth}{!}{%
-\begin{tikzpicture}[
-    font=\small,
-    node distance=8mm and 10mm,
-    box/.style={draw, rounded corners=2pt, align=center, minimum width=27mm, minimum height=10mm, fill=gray!5},
-    agent/.style={draw, rounded corners=2pt, align=center, minimum width=31mm, minimum height=11mm, fill=blue!5},
-    data/.style={draw, align=center, minimum width=27mm, minimum height=9mm, fill=green!5},
-    outputbox/.style={draw, rounded corners=2pt, align=center, minimum width=35mm, minimum height=11mm, fill=orange!8},
-    arrow/.style={-{Latex[length=2mm]}, thick}
-]
-\node[data] (image) {OCT / SLO\\images};
-\node[data, below=of image] (metadata) {Patient metadata\\and visual field};
-\node[agent, right=14mm of image] (vision) {Vision\\Specialist};
-\node[agent, right=14mm of metadata] (bio) {BioProfiler};
-\node[agent, below=of bio] (functional) {Functional\\Specialist};
-\node[box, above=of vision] (models) {Foundation models\\RETFound, MIRAGE,\\FLAIR, RET-CLIP,\\VisionFM, RetiZero, UrFound};
-\node[box, below=of functional] (priors) {Validation-derived\\subgroup priors};
-\node[agent, right=17mm of bio] (equity) {Equity\\Auditor};
-\node[agent, above=of equity] (guidelines) {Guidelines\\Agent};
-\node[agent, right=17mm of equity] (orchestrator) {Final\\Orchestrator};
-\node[agent, below=of orchestrator] (safety) {Safety\\Agent};
-\node[outputbox, right=16mm of orchestrator] (output) {Disease labels,\\confidence, rationale,\\escalation flag};
-
-\draw[arrow] (image) -- (vision);
-\draw[arrow] (models) -- (vision);
-\draw[arrow] (metadata) -- (bio);
-\draw[arrow] (metadata) |- (functional);
-\draw[arrow] (vision) -- (equity);
-\draw[arrow] (bio) -- (equity);
-\draw[arrow] (priors) -| (equity);
-\draw[arrow] (bio) |- (guidelines);
-\draw[arrow] (vision) -- (orchestrator);
-\draw[arrow] (functional) -| (orchestrator);
-\draw[arrow] (equity) -- (orchestrator);
-\draw[arrow] (guidelines) -- (orchestrator);
-\draw[arrow] (orchestrator) -- (safety);
-\draw[arrow] (safety) -- (output);
-\draw[arrow] (orchestrator) -- (output);
-\end{tikzpicture}
-}
-\caption{RetinAgent architecture. The system separates image-derived evidence, clinical metadata, subgroup reliability priors, functional visual-field interpretation, guideline context, final arbitration, and safety review into explicit agents.}
-\label{fig:equi_agent_architecture}
-\end{figure*}
-
-\subsection{Reliability Calibration}
-\label{subsec:dynamic_trust_methods}
-Reliability calibration uses validation-set behavior to estimate when each model is more or less reliable. For each base model, disease task, and subgroup attribute, we compute validation AUROC, F1-score, false-positive rate, false-negative rate, expected calibration error, and sample counts. Subgroup priors are marked unstable when positive or negative counts are too small. At inference time, the arbitration layer first checks stable intersectional priors, then single-attribute priors, then global model priors.
-
-The Equity Auditor converts these priors into trust recommendations. A high subgroup false-negative rate motivates a sensitivity shift, lowering the effective diagnostic threshold or increasing uncertainty when model confidence is borderline. A high false-positive rate motivates a precision shift, raising the threshold or down-weighting overconfident positive predictions. These adjustments act on model trust and confidence; demographic metadata is not used as direct disease evidence.
-
-\subsection{Reliability Triage and Selective Arbitration}
-\label{subsec:selective_arbitration_methods}
-The multi-agent system uses reliability scoring as an explicit arbitration tool. For the deterministic FairVision arbitration experiment, we isolate this tool to quantify the contribution of the reliability and escalation mechanism without stochastic language-model variation. In live RetinAgent runs, the same structured quantities are exposed to the Equity Auditor, Orchestrator, and Safety Agent as bounded evidence rather than as hidden prompt text. For model $j$, task $t$, and subgroup context $g$, validation metrics are first converted to a lower-is-better reliability risk:
-\begin{equation}
-R^{bad}_{j,t,g} =
-0.35\,\mathrm{FNR}_{j,t,g}
-+0.25\,\mathrm{FPR}_{j,t,g}
-+0.15\,\mathrm{ECE}_{j,t,g}
-+0.15\,(1-\mathrm{AUROC}_{j,t,g})
-+0.10\,(1-\mathrm{F1}_{j,t,g}).
-\end{equation}
-False-negative risk receives the largest weight because the current setting is screening-oriented, followed by false-positive burden, calibration error, ranking failure, and thresholded F1 loss. Local subgroup risk is then shrunk toward the global validation risk:
-\begin{equation}
-\lambda_g = \frac{n_g}{n_g + k},
-\end{equation}
-\begin{equation}
-\tilde{R}^{bad}_{j,t,g} = \lambda_g R^{bad,local}_{j,t,g} + (1-\lambda_g)R^{bad,global}_{j,t},
-\end{equation}
-where $n_g$ is the subgroup validation support and $k=50$ in the current experiments. Arbitration uses the corresponding higher-is-better reliability score
-\begin{equation}
-s_{j,t,g} = 1 - \tilde{R}^{bad}_{j,t,g}.
-\end{equation}
-This keeps the clinical interpretation auditable: lower $R^{bad}$ means lower expected reliability risk, while higher $s$ gives more softmax weight.
-
-For case $i$, the model-specific arbitration weight is
-\begin{equation}
-w_{ij}^{(t)} =
-\frac{
-\exp\left(\beta s_{j,t,g_i} - \gamma U_{ij} - \delta D_{ij}\right)
-}{
-\sum_{k \in \mathcal{M}}
-\exp\left(\beta s_{k,t,g_i} - \gamma U_{ik} - \delta D_{ik}\right)
-},
-\end{equation}
-where $U_{ij}=1-2|p_{ij}^{(t)}-0.5|$ is probability uncertainty and $D_{ij}$ indicates disagreement with the majority model vote. The final forced probability is
-\begin{equation}
-\hat{p}_{i}^{(t)} = \sum_{j \in \mathcal{M}}w_{ij}^{(t)}p_{ij}^{(t)}.
-\end{equation}
-This forced probability is used for standard diagnostic metrics. Separately, a selective prediction layer determines whether the case should be accepted for automated decision or escalated.
-
-Selective escalation is triggered by close-call probability, high model disagreement, low weighted reliability, or conformal ambiguity. For conformal escalation, the validation split is used to compute a nonconformity score
-\begin{equation}
-c_i = 1-\hat{p}_{i,y_i}^{(t)},
-\end{equation}
-and the $(1-\alpha)$ quantile is estimated globally and with subgroup shrinkage. At test time, labels whose nonconformity score is below the threshold form a prediction set. Cases with ambiguous or empty sets are escalated. We report both forced metrics on all cases and accepted-case metrics among non-escalated cases.
-
-\subsection{Contextual Arbitration Procedure}
-\label{subsec:arbitration_methods}
-The arbitration procedure receives structured inputs: model probabilities, validation thresholds, subgroup priors, patient metadata, visual morphology summaries when available, functional summaries when available, and guideline context. The deterministic FairVision selective-arbitration experiment uses foundation-model probabilities, validation reliability priors, model disagreement, and metadata for reliability lookup; it does not use visual-field MD or other functional glaucoma proxies. For GDP progression, functional evidence is available and can constrain image-only predictions when visual-field findings are normal or discordant. For AMD, arbitration uses a pathology-signal representation derived from cumulative stage probabilities and inspects whether disease probability mass is concentrated in early, intermediate, or advanced stages. For DR, arbitration emphasizes vascular lesion evidence and cross-model confidence.
-
-The Safety Agent then audits the decision for discordant structural and functional evidence, missing modalities, poor image quality, or unusually high uncertainty. This final stage is designed to prevent inappropriate reassurance and to identify cases that should be escalated rather than forced into a binary output.
-
-\subsection{Longitudinal Progression Reasoning}
-\label{subsec:longitudinal_methods}
-For Harvard-GDP, longitudinal extension treats each visit sequence as a temporal evidence stream. The temporal agent compares current and prior OCT/RNFL evidence, visual-field change, and model confidence trajectories. A progression decision should be supported by clinically plausible temporal change rather than by a single noisy scan. GDP baselines use RNFLT, OCT B-scan features, clinical metadata, and their combinations, and provide the baseline reference point for longitudinal arbitration.
-
-\subsection{Evaluation Metrics}
-\label{subsec:metrics_methods}
-Evaluation is implemented with a standardized prediction schema containing patient identifiers, task, model name, split, ground-truth label, predicted probability, thresholded prediction, and demographic metadata. For RetinAgent comparisons, we emphasize thresholded diagnostic metrics, including F1-score, balanced accuracy, sensitivity, specificity, Brier score, negative log-likelihood, and expected calibration error. Ranking metrics such as AUROC are retained for standalone model diagnostics where probability ranking is directly interpretable. For agent outputs, AUROC is secondary because the agent is designed to arbitrate thresholded decisions and escalation behavior rather than learn a new continuous ranking function.
-
-Selective prediction is evaluated with coverage, escalation rate, accepted-case F1, accepted-case sensitivity and specificity, accepted-case error rate, escalated-case disease prevalence, and worst-group accepted-case F1. Risk-coverage curves report diagnostic performance as the accepted fraction is reduced from 100\% toward more conservative operating points. Metadata counterfactual safety is evaluated by holding image-model outputs fixed while perturbing demographic fields used for reliability lookup and measuring disease-label flip rate and escalation-state flip rate.
-
-\subsection{Statistical Analysis}
-\label{subsec:statistical_methods}
-Unless otherwise stated, metrics are computed on the held-out test split after thresholds are selected on validation data. Confidence intervals will be estimated by nonparametric patient-level bootstrapping in the final analysis. Paired comparisons will be made on shared test cases, with multiple subgroup comparisons controlled using the Benjamini--Hochberg procedure.
-
-
 \section{Experimental Design}\label{sec:experiments}
+In our methodology, we introduced our model equipped with agentic architecture, counter-factual reasoning, and a new sub-group level scoring mechanism which effectively turns any foundation model into a tool for the agentic use. We experiment on the FairVision30K dataset and the Harvard GDP dataset. For FairVision, we test on Glaucoma, Age related Macular Degeneration (AMD), and Diabetic Retinopathy (DR). For Harvard GDP, we test Glaucoma, and progression of Glaucoma. We also test on external datasets like REFUGE2 with no demographic information.
 
-The evaluation has two parts. First, we assess whether ophthalmic foundation models show task- and subgroup-dependent reliability differences on Harvard-FairVision. Second, we test whether the same arbitration framework can be applied to Harvard-GDP glaucoma progression forecasting. All reported test metrics use held-out test splits. Thresholds, calibration rules, and routing policies are selected using validation data or prespecified rules, not the test labels.
+RetinAgent is designed as clinician-facing decision support rather than an
+autonomous replacement for the ophthalmologist. For each patient, the system
+organizes the available imaging, model outputs, structural or functional
+evidence, and reliability information into a concise case-level assessment.
+The ophthalmologist remains responsible for interpreting the evidence and
+making the final clinical decision, while uncertain or discordant cases are
+explicitly flagged for review.
+% TABLE for GLAUCOMA, 
+\subsection{Glaucoma}
+Glaucoma PARAGRAPH INSERT
+\begin{table}[h]
+\centering
+\caption{Glaucoma classification performance on Harvard FairVision30K. Worst-group F1 is computed over available demographic subgroups. Sensitivity and specificity are computed at each model's validation-selected threshold.}
+\label{tab:glaucoma_fairvision30k}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Model} & \textbf{Modality} & \textbf{F1} & \textbf{Worst-group F1} & \textbf{Sensitivity} & \textbf{Specificity} & \textbf{Balanced Acc.} \\
+\midrule
+RETFound & OCT & 0.7477 & 0.6344 & 0.6371 & 0.8640 & 0.7505 \\
+VisionFM & OCT & 0.6685 & 0.3636 & 0.5935 & 0.8259 & 0.7097 \\
+URFound & OCT & 0.6941 & 0.4898 & 0.6501 & 0.7868 & 0.7185 \\
+FLAIR & SLO & 0.5722 & 0.3333 & 0.4945 & 0.7764 & 0.6355 \\
+MIRAGE & SLO & 0.6399 & 0.5839 & 0.5565 & 0.7280 & 0.6423 \\
+RET-CLIP & SLO & 0.6545 & 0.4498 & 0.6357 & 0.7066 & 0.6712 \\
+RetiZero & SLO & 0.6632 & 0.4286 & 0.6576 & 0.6890 & 0.6733 \\
+GPT 5.1 & OCT/SLO & 0.4292 & 0.1578 & 0.1129 & \textbf{0.9360} & 0.5244 \\
+GPT 5.6-luna & OCT/SLO & 0.4438 & 0.3431 & 0.1774 & 0.7540 & 0.4657 \\
+Claude Haiku 4.5 & OCT/SLO & 0.5187 & 0.3529 & 0.3065 & 0.7840  & 0.5453 \\
+\textbf{Ours} & OCT/SLO & \textbf{0.7704} & \textbf{0.6380} & \textbf{0.7177} & 0.8240 & \textbf{0.7709} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-Demographic metadata is used only to identify which validation-derived reliability priors apply to a model output. It is not used as direct disease evidence. For RetinAgent outputs, thresholded metrics and safety behavior are primary because the agent is an arbitration system rather than a standalone continuous risk-ranking model. AUROC is retained for base models and reported only secondarily for agent outputs when a final probability is emitted.
+\begin{table}[h]
+\centering
+\caption{Glaucoma classification performance on Harvard GDP. Worst-group F1 is computed over available demographic subgroups. Sensitivity and specificity are computed at each model's validation-selected threshold.}
+\label{tab:glaucoma_gdp}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Model} & \textbf{Modality} & \textbf{F1} & \textbf{Worst-group F1} & \textbf{Sensitivity} & \textbf{Specificity} & \textbf{Balanced Acc.} \\
+\midrule
+RETFound & OCT & 0.6667 & 0.6592 & 0.7421 & 0.8771 & 0.7006 \\
+VisionFM & OCT & 0.6948 & 0.5155 & \textbf{0.7821} & 0.6199 & 0.7010 \\
+URFound & OCT & 0.6299 & 0.5000 & 0.6704 & 0.6290 & 0.6497 \\
+GPT 5.1 & OCT & 0.5860 & 0.5506 & 0.2905 & 0.8416 & 0.6275 \\
+GPT 5.6-luna & OCT & 0.6243 & 0.5916 & 0.3743 & 0.8733 & 0.6238 \\
+Claude Haiku 4.5 & OCT & 0.4591 & 0.3269 & 0.7430 & 0.2773 & 0.5102 \\
+\textbf{Ours} & OCT/RNFLT & \textbf{0.7892} & \textbf{0.7597} & 0.6760 & \textbf{0.8824} & \textbf{0.7792} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
+\begin{table}[h]
+\centering
+\caption{Glaucoma classification performance on Drishti-GS. Worst-group F1 is reported when subgroup metadata is available; otherwise it is marked not applicable.}
+\label{tab:glaucoma_drishtigs}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Model} & \textbf{Modality} & \textbf{F1} & \textbf{Sensitivity} & \textbf{Specificity} & \textbf{Balanced Acc.} \\
+\midrule
+RETFound & CFP & 0.5370 & 0.4412 & 0.7059 & 0.5736 \\
+MIRAGE & CFP & 0.7273 & 0.8235 & 0.1176 & 0.4706 \\
+RET-CLIP & CFP & 0.6538 & 0.5000 & 0.9412 & 0.7206 \\
+RetiZero & CFP & 0.8732 & 0.9118 & 0.6471 & 0.7794 \\
+URFound & CFP & 0.9091 & 0.8824 & 0.8824 & 0.8824 \\
+GPT 5.1 & CFP & 0.7110 & 0.7353 & 0.6471 & 0.6912 \\
+GPT 5.6-luna & CFP & 0.6565 & 0.6471 & 0.6471 & 0.6471 \\
+Claude Haiku 4.5 & CFP & 0.5344 & 0.3529 & \textbf{0.9412} & 0.6471 \\
+\textbf{Ours} & CFP + reliability selection & \textbf{0.7905} & \textbf{0.8125} & 0.7333 & \textbf{0.7729} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Glaucoma classification performance on REFUGE2. Worst-group F1 is reported when subgroup metadata is available; otherwise it is marked not applicable.}
+\label{tab:glaucoma_refuge2}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Model} & \textbf{Modality} & \textbf{F1} & \textbf{Sensitivity} & \textbf{Specificity} & \textbf{Balanced Acc.} \\
+\midrule
+RETFound & CFP & 0.9190 & 0.4750 & 0.9750 & 0.7250 \\
+RET-CLIP & CFP & -- & -- & -- & -- \\
+RetiZero & CFP & -- & -- & -- & -- \\
+URFound & CFP & -- & -- & -- & -- \\
+GPT 5.1 & CFP & 0.8577 & 0.0750 & 0.9778 & 0.5264 \\
+GPT 5.6-luna & CFP & 0.8382 & 0.1750 & 0.9139 & 0.5445 \\
+Claude Haiku 4.5 & CFP & 0.8004 & 0.1500 & 0.8528 & 0.5014 \\
+\textbf{Ours} & CFP + reliability selection & \textbf{0.9432} & \textbf{0.5789} & \textbf{0.9840} & \textbf{0.7815} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Glaucoma classification performance on PAPILA. Worst-group F1 is reported when subgroup metadata is available; otherwise it is marked not applicable.}
+\label{tab:glaucoma_papila}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Model} & \textbf{Modality} & \textbf{F1} & \textbf{Worst-group F1} & \textbf{Sensitivity} & \textbf{Specificity} & \textbf{Balanced Acc.} \\
+\midrule
+RETFound & CFP & 0.5333 & 0.3636 & 0.8000 & 0.7273 & 0.7636 \\
+MIRAGE & CFP & 0.3333 & 0.0870 & 0.7333 & 0.3939 & 0.5636 \\
+RET-CLIP & CFP & 0.4242 & 0.0000 & 0.4667 & 0.8333 & 0.6500 \\
+RetiZero & CFP & 0.4516 & 0.2222 & 0.4667 & 0.8636 & 0.6652 \\
+URFound & CFP & 0.3529 & 0.0000 & 0.4000 & 0.8030 & 0.6015 \\
+\textbf{Ours} & CFP + evidence arbitration & 0.3500 & 0.0000 & 0.4667 & 0.7273 & 0.5970 \\
+\bottomrule
+\end{tabular}
+\end{table}
+% Draft values above are from the completed locked 81-case cluster benchmark.
+% Restore its source summaries and prediction CSVs before final submission.
+
+\begin{table}[t]
+\centering
+\caption{Glaucoma classification performance on GAMMA. Worst-group F1 is reported when subgroup metadata is available; otherwise it is marked not applicable.}
+\label{tab:glaucoma_gamma}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Model} & \textbf{Modality} & \textbf{F1} & \textbf{Sensitivity} & \textbf{Specificity} & \textbf{Balanced Acc.} \\
+\midrule
+RETFound & OCT & 0.8696 & 1.0000 & 0.7000 & 0.8500 \\
+MIRAGE & CFP & 0.7059 & 0.6000 & 0.9000 & 0.7500 \\
+RET-CLIP & CFP & 0.8889 & 0.8000 & 1.0000 & 0.9000 \\
+RetiZero & CFP & 0.9474 & 0.9000 & 1.0000 & 0.9500 \\
+URFound & CFP & 0.8889 & 0.8000 & 1.0000 & 0.9000 \\
+\textbf{Ours} & OCT + CFP evidence arbitration & 0.8696 & 1.0000 & 0.7000 & 0.8500 \\
+\bottomrule
+\end{tabular}
+\end{table}
+\subsection{AMD}
+AMD PARAGRAPH
 \begin{table*}[t]
 \centering
-\caption{Datasets and prediction tasks. FairVision supports cross-sectional diagnosis and subgroup auditing. Harvard-GDP supports glaucoma detection and longitudinal progression forecasting.}
-\label{tab:dataset_summary}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}llllll@{}}
+\caption{Binary age-related macular degeneration classification on Harvard
+FairVision30K. Worst-group F1 is computed over prespecified demographic
+subgroups. Sensitivity and specificity are computed at validation-selected
+thresholds on the held-out test split.}
+\label{tab:amd_fairvision30k}
+\begin{tabular}{@{}llccccc@{}}
 \toprule
-Dataset & Task & Modalities / features & Labels & Split & Primary analysis \\
+\textbf{Model} & \textbf{Modality} & \textbf{F1} &
+\textbf{Worst-group F1} & \textbf{Sensitivity} &
+\textbf{Specificity} & \textbf{Balanced Acc.} \\
 \midrule
-Harvard-FairVision & Cross-sectional diagnosis & OCT B-scans and SLO/fundus images & AMD, DR, glaucoma & 6,000 train / 1,000 validation / 3,000 test per task & Diagnostic performance, calibration, subgroup reliability \\
-Harvard-GDP & Glaucoma detection & OCT B-scan, RNFLT, clinical metadata & Glaucoma & 600 train / 400 test & Cross-dataset glaucoma representation transfer \\
-Harvard-GDP & Progression forecasting & RNFLT, visual-field TDS, OCT B-scan, clinical metadata & Glaucoma progression & 300 train / 200 test & Longitudinal progression arbitration \\
-\botrule
-\end{tabular}%
-}
+RETFound & OCT & 0.8237 & 0.7338 & 0.8640 & 0.7840 & 0.8240 \\
+VisionFM & OCT & -- & -- & -- & -- & -- \\
+URFound & OCT & -- & -- & -- & -- & -- \\
+VisionFM & SLO & -- & -- & -- & -- & -- \\
+URFound & SLO & -- & -- & -- & -- & -- \\
+FLAIR & SLO & -- & -- & -- & -- & -- \\
+MIRAGE & SLO & 0.8120 & 0.7321 & 0.8000 & 0.8240 & 0.8120 \\
+RET-CLIP & SLO & -- & -- & -- & -- & -- \\
+RetiZero & SLO & -- & -- & -- & -- & -- \\
+GPT 5.1 & OCT/SLO & 0.6545 & 0.5862 & 0.3920 & 0.9760 & 0.684 \\
+GPT 5.6-luna & OCT/SLO & 0.7342 & 0.7065 & 0.5920 & 0.8880 & 0.7400 \\
+Claude Haiku 4.5 & OCT/SLO & 0.5590 & 0.4283 & 0.2480 & \textbf{0.9920} & 0.6200 \\
+\textbf{Ours} & OCT/SLO & \textbf{0.8858} & \textbf{0.7778} & 0.8860 & \textbf{0.8854} & \textbf{0.8857} \\
+\bottomrule
+\end{tabular}
 \end{table*}
-
-\section{Results}
-\label{sec:results}
-
-\subsection{FairVision Diagnostic Evaluation}\label{subsec:diagnostic_eval}
-
-FairVision diagnosis is evaluated on AMD, DR, and glaucoma. We compare OCT-compatible and SLO/fundus-compatible foundation encoders, static fusion baselines, deterministic reliability-routing baselines, and the completed reliability-triage selective arbitration experiment. Table~\ref{tab:main_diagnostic_comparison} reports the completed model, fusion, and rule-based arbitration baselines. These rows establish the reliability problem that selective arbitration is designed to address.
-
+\subsection{Diabetic Retinopathy}
+DR PARAGRAPH
 \begin{table*}[t]
 \centering
-\caption{Completed FairVision diagnostic comparison. Metrics are macro-averaged across AMD, DR, and glaucoma on the held-out test split. Worst-group F1, $\Delta$FPR, $\Delta$FNR, and subgroup ECE summarize the largest subgroup reliability failures across evaluated attributes and intersections.}
-\label{tab:main_diagnostic_comparison}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}lllllllllll@{}}
+\caption{Binary diabetic retinopathy classification on Harvard FairVision30K.
+Worst-group F1 is computed over prespecified demographic subgroups.
+Sensitivity and specificity are computed at validation-selected thresholds on
+the held-out test split.}
+\label{tab:dr_fairvision30k}
+\begin{tabular}{@{}llccccc@{}}
 \toprule
-Method & Type & F1 $\uparrow$ & Balanced Acc. $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ & ECE $\downarrow$ & Subgroup ECE $\downarrow$ \\
+\textbf{Model} & \textbf{Modality} & \textbf{F1} &
+\textbf{Worst-group F1} & \textbf{Sensitivity} &
+\textbf{Specificity} & \textbf{Balanced Acc.} \\
 \midrule
-RETFound OCT & Foundation model & 0.678 & 0.797 & 0.759 & 0.835 & 0.286 & 0.490 & 0.502 & 0.054 & 0.183 \\
-MIRAGE SLO & Foundation model & 0.538 & 0.706 & 0.723 & 0.689 & 0.200 & 0.363 & 0.504 & 0.103 & 0.320 \\
-FLAIR SLO & Foundation model & 0.461 & 0.642 & 0.677 & 0.607 & 0.133 & 0.319 & 0.366 & 0.247 & 0.623 \\
-RET-CLIP SLO & Foundation model & 0.516 & 0.688 & 0.720 & 0.656 & 0.181 & 0.372 & 0.412 & 0.245 & 0.599 \\
-VisionFM SLO & Foundation model & 0.528 & 0.679 & 0.661 & 0.697 & 0.190 & 0.265 & 0.362 & 0.175 & 0.315 \\
-VisionFM OCT & Foundation model & 0.617 & 0.772 & 0.718 & 0.826 & 0.279 & 0.258 & 0.388 & 0.137 & 0.272 \\
-RetiZero SLO & Foundation model & 0.526 & 0.697 & 0.687 & 0.707 & 0.180 & 0.281 & 0.361 & 0.156 & 0.346 \\
-UrFound SLO & Foundation model & 0.515 & 0.675 & 0.674 & 0.676 & 0.162 & 0.389 & 0.343 & 0.162 & 0.384 \\
-UrFound OCT & Foundation model & 0.642 & 0.777 & 0.701 & 0.854 & 0.244 & 0.280 & 0.499 & 0.107 & 0.233 \\
-Mean probability ensemble & Static ensemble & 0.469 & 0.577 & 0.730 & 0.425 & 0.058 & 0.509 & 0.484 & 0.081 & 0.311 \\
-Confidence-weighted ensemble & Static ensemble & 0.476 & 0.584 & 0.829 & 0.339 & 0.108 & 0.509 & 0.484 & 0.077 & 0.369 \\
-Global AUROC routing & Rule-based arbitration & 0.473 & 0.587 & 0.683 & 0.490 & 0.067 & 0.490 & 0.498 & 0.184 & 0.636 \\
-Global ECE routing & Rule-based calibration & 0.476 & 0.585 & 0.829 & 0.340 & 0.108 & 0.509 & 0.484 & 0.060 & 0.311 \\
-Subgroup AUROC routing & Subgroup rule-based arbitration & 0.474 & 0.585 & 0.713 & 0.457 & 0.084 & 0.490 & 0.498 & 0.182 & 0.608 \\
-\botrule
-\end{tabular}%
-}
+RETFound & OCT & 0.8396 & 0.7711 & 0.7920 & 0.8880 & 0.8400 \\
+VisionFM & OCT & -- & -- & -- & -- & -- \\
+URFound & OCT & -- & -- & -- & -- & -- \\
+VisionFM & SLO & -- & -- & -- & -- & -- \\
+URFound & SLO & -- & -- & -- & -- & -- \\
+FLAIR & SLO & -- & -- & -- & -- & -- \\
+MIRAGE & SLO & 0.7222 & 0.6397 & 0.5440 & 0.9200 & 0.7320 \\
+RET-CLIP & SLO & -- & -- & -- & -- & -- \\
+RetiZero & SLO & -- & -- & -- & -- & -- \\
+GPT 5.1 & OCT/SLO & 0.4165 & 0.2636 & 0.0800 & 1.000 & 0.5400 \\
+GPT 5.6-luna & OCT/SLO & 0.3509 & 0.1841 & 0.016 & 1.000 & 0.5080 \\
+Claude Haiku 4.5 & OCT/SLO & 0.3403 & 0.1841 & 0.0080 & 0.9920 & 0.5000 \\
+\textbf{Ours} & OCT/SLO & \textbf{0.8597} & \textbf{0.7905} & \textbf{0.8160} & 0.9040 & \textbf{0.8600} \\
+\bottomrule
+\end{tabular}
 \end{table*}
 
-RETFound OCT had the best completed macro diagnostic performance among the foundation-model baselines (F1 0.678, balanced accuracy 0.797, ECE 0.054). UrFound OCT and VisionFM OCT were the next strongest OCT-compatible encoders. SLO/fundus encoders contributed useful signal for some tasks but were weaker on average, especially for DR. The subgroup columns are the central finding: even the strongest model retained large subgroup gaps, with RETFound OCT showing $\Delta$FPR 0.490 and $\Delta$FNR 0.502. Static fusion and simple reliability routing did not improve worst-group performance, indicating that averaging model probabilities is not sufficient for reliability control.
-
-Detailed disease-specific demographic performance for the foundation-model baselines is reported in Appendix Tables~\ref{tab:fairvision_foundation_demographic_amd}--\ref{tab:fairvision_foundation_demographic_glaucoma}. These tables show that subgroup reliability differs not only by model, but also by disease task; therefore, demographic reliability priors are computed separately for each task rather than pooled across AMD, DR, and glaucoma.
-
-\subsection{FairVision Reliability-Triage Selective Arbitration}
-\label{subsec:fairvision_selective_results}
-
-We first evaluate the locked reliability-scoring and escalation tool that sits inside the RetinAgent workflow. This was done on all 9,000 FairVision held-out test cases shared by the nine available model streams, with 3,000 validation cases used for reliability priors and conformal thresholds. The forced reliability-weighted prediction did not substantially outperform static probability fusion when every case was assigned a binary label (F1 0.729 vs. 0.731). Its main effect was selective triage: by escalating high-uncertainty cases, the full reliability-conformal system improved accepted-case F1 to 0.902, accepted-case sensitivity to 0.890, accepted-case specificity to 0.914, and worst-group accepted-case F1 to 0.615, while accepting 30.9\% of cases for automated decision (Table~\ref{tab:fairvision_selective_ablation}). These outputs are the structured reliability evidence that the full agentic Orchestrator and Safety Agent use for acceptance or escalation.
-
+\subsection{Glaucoma Progression Prediction}
+PROGRESSION 
 \begin{table*}[t]
 \centering
-\caption{FairVision reliability-triage selective arbitration ablation on 9,000 held-out test cases. Forced metrics score all cases regardless of escalation. Accepted metrics score only cases not escalated for human review.}
-\label{tab:fairvision_selective_ablation}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}llllllllllll@{}}
+\caption{Longitudinal glaucoma progression prediction on Harvard GDP using the
+\texttt{td\_pointwise\_no\_p\_cut} endpoint. Worst-group F1 is computed over
+available prespecified demographic subgroups. All thresholds and routing
+policies are selected without access to held-out test labels.}
+\label{tab:gdp_progression_prediction}
+\begin{tabular}{@{}lccccc@{}}
 \toprule
-Method & Forced F1 & Forced Bal. Acc. & Sens. & Spec. & ECE & Coverage & Escalation & Accepted F1 & Accepted Sens. & Accepted Spec. & Worst-group accepted F1 \\
+\textbf{Method}  & \textbf{F1} &
+\textbf{Worst-group F1} & \textbf{Sensitivity} &
+\textbf{Specificity} & \textbf{Balanced Acc.} \\
 \midrule
-Best single global-reliability model & 0.612 & 0.718 & 0.714 & 0.721 & 0.146 & 1.000 & 0.000 & 0.612 & 0.714 & 0.721 & 0.348 \\
-Static mean probability & 0.731 & 0.809 & 0.770 & 0.848 & 0.133 & 1.000 & 0.000 & 0.731 & 0.770 & 0.848 & 0.469 \\
-Global reliability-weighted & 0.730 & 0.807 & 0.758 & 0.857 & 0.102 & 1.000 & 0.000 & 0.730 & 0.758 & 0.857 & 0.474 \\
-Shrunk subgroup reliability-weighted & 0.729 & 0.807 & 0.757 & 0.856 & 0.101 & 1.000 & 0.000 & 0.729 & 0.757 & 0.856 & 0.479 \\
-Shrunk + disagreement escalation & 0.729 & 0.807 & 0.757 & 0.856 & 0.101 & 0.371 & 0.629 & 0.862 & 0.836 & 0.906 & 0.553 \\
-Full reliability-conformal escalation & 0.729 & 0.807 & 0.757 & 0.856 & 0.101 & 0.309 & 0.691 & 0.902 & 0.890 & 0.914 & 0.615 \\
-\botrule
-\end{tabular}%
-}
+RETFound linear probe & 0.4030 & 0.1480 & 0.4170 & 0.7210 & 0.5690 \\
+GDP-native helper & 0.6000 & 0.5640 & 0.5000 & 0.9290 & 0.7145 \\
+\textbf{Ours} triage & 0.6840 & 0.6190 & 0.6500 & 0.8930 & 0.7715 \\
+\bottomrule
+\end{tabular}
 \end{table*}
 
-The risk-coverage curve provides clinically tunable operating points (Table~\ref{tab:fairvision_risk_coverage}). If the system accepts 80\% of cases and escalates 20\%, accepted-case F1 is 0.818 with worst-group accepted-case F1 0.580. At 70\% coverage, accepted-case F1 increases to 0.855 and worst-group accepted-case F1 to 0.629. Thus, the method is best interpreted as a selective prediction system that improves the reliability of automated decisions by controlling coverage, not as a replacement for human review on all cases.
-
-\begin{table*}[t]
-\centering
-\caption{Risk-coverage behavior for FairVision reliability-triage selective arbitration. Lower coverage means more cases are escalated for human review.}
-\label{tab:fairvision_risk_coverage}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}llllllll@{}}
-\toprule
-Coverage & Escalation & F1 & Balanced Acc. & Sens. & Spec. & ECE & Worst-group accepted F1 \\
-\midrule
-1.000 & 0.000 & 0.729 & 0.807 & 0.757 & 0.856 & 0.101 & 0.479 \\
-0.950 & 0.050 & 0.752 & 0.823 & 0.772 & 0.874 & 0.097 & 0.489 \\
-0.900 & 0.100 & 0.775 & 0.841 & 0.796 & 0.886 & 0.095 & 0.512 \\
-0.850 & 0.150 & 0.797 & 0.856 & 0.814 & 0.898 & 0.091 & 0.538 \\
-0.800 & 0.200 & 0.818 & 0.870 & 0.830 & 0.911 & 0.085 & 0.580 \\
-0.750 & 0.250 & 0.839 & 0.885 & 0.847 & 0.923 & 0.082 & 0.621 \\
-0.700 & 0.300 & 0.855 & 0.898 & 0.865 & 0.931 & 0.080 & 0.629 \\
-0.600 & 0.400 & 0.889 & 0.920 & 0.889 & 0.952 & 0.072 & 0.636 \\
-0.500 & 0.500 & 0.926 & 0.947 & 0.925 & 0.969 & 0.074 & 0.667 \\
-\botrule
-\end{tabular}%
-}
-\end{table*}
-
-Disease-specific analysis showed that the selective behavior was strongest for AMD and glaucoma. For AMD, the full system accepted 42.2\% of cases and achieved accepted-case F1 0.936 with accepted-case error 0.066 and worst-group accepted-case F1 0.667. For glaucoma, it accepted 50.3\% of cases and achieved accepted-case F1 0.873, accepted-case error 0.126, and worst-group accepted-case F1 0.615. The current DR selective rule was too conservative, escalating all DR cases; therefore, DR-specific escalation thresholds require retuning before deployment-oriented claims can be made for that task.
-
-Metadata counterfactuals were evaluated by holding image-model outputs fixed while perturbing reliability-lookup demographic fields. Across 54,000 counterfactual perturbations, the final disease label changed in 0.4\% of cases, whereas escalation status changed in 5.8\%. This supports the intended design: demographic metadata mainly affects uncertainty and escalation through validation reliability lookup rather than acting as a direct diagnostic signal.
-
-\subsection{GDP Glaucoma and Progression Evaluation}\label{subsec:gdp_eval}
-
-GDP evaluation separates cross-sectional glaucoma detection from longitudinal progression forecasting. OCT foundation encoders transfer reasonably to cross-sectional glaucoma detection (Table~\ref{tab:gdp_glaucoma_detection_foundation}). Progression forecasting is different: the strongest current helper is the native Harvard-GDP RNFLT plus visual-field total-deviation sensitivity (TDS) EfficientNet workflow, not an OCT B-scan foundation-model probe.
-
-\begin{table*}[t]
-\centering
-\caption{Harvard-GDP glaucoma detection using OCT-compatible foundation-model encoders. Each row trains a GDP-specific linear probe on the training split and reports held-out test performance.}
-\label{tab:gdp_glaucoma_detection_foundation}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}llllllllll@{}}
-\toprule
-Method & Input & Train/Test split & F1 $\uparrow$ & Balanced Acc. $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & ECE $\downarrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR / $\Delta$FNR $\downarrow$ \\
-\midrule
-RETFound OCT linear probe & OCT B-scan & 600 / 400 & 0.667 & 0.701 & 0.659 & 0.742 & 0.162 & 0.529 & 0.355 / 0.291 \\
-VisionFM OCT linear probe & OCT B-scan & 600 / 400 & 0.695 & 0.701 & 0.782 & 0.620 & 0.206 & 0.515 & 0.133 / 0.362 \\
-UrFound OCT linear probe & OCT B-scan & 600 / 400 & 0.630 & 0.650 & 0.670 & 0.629 & 0.193 & 0.500 & 0.260 / 0.355 \\
-\botrule
-\end{tabular}%
-}
-\end{table*}
-
-\begin{table*}[t]
-\centering
-\caption{Harvard-GDP longitudinal glaucoma progression forecasting. The sparse \texttt{md\_fast\_no\_p\_cut} endpoint is shown as a cautionary stress test. The less sparse \texttt{td\_pointwise\_no\_p\_cut} endpoint is the current operating endpoint for progression arbitration.}
-\label{tab:longitudinal_glaucoma}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}lllllllllll@{}}
-\toprule
-Endpoint & Method & Input & AUROC $\uparrow$ & F1 $\uparrow$ & Sens. $\uparrow$ & Spec. $\uparrow$ & ECE $\downarrow$ & Worst-group F1 $\uparrow$ & $\Delta$FPR $\downarrow$ & $\Delta$FNR $\downarrow$ \\
-\midrule
-\texttt{md\_fast\_no\_p\_cut} & RNFLT logistic baseline & RNFLT & 0.659 & 0.000 & 0.000 & 0.943 & 0.116 & 0.000 & 0.072 & 0.000 \\
-\texttt{td\_pointwise\_no\_p\_cut} & RNFLT logistic baseline & RNFLT & 0.733 & 0.554 & 0.600 & 0.757 & 0.182 & 0.459 & 0.245 & 0.109 \\
-\texttt{td\_pointwise\_no\_p\_cut} & B-scan logistic baseline & OCT B-scan & 0.718 & 0.550 & 0.733 & 0.600 & 0.175 & -- & -- & -- \\
-\texttt{td\_pointwise\_no\_p\_cut} & Clinical tabular logistic baseline & Metadata + visual field & 0.710 & 0.509 & 0.483 & 0.821 & 0.120 & -- & -- & -- \\
-\texttt{td\_pointwise\_no\_p\_cut} & RETFound OCT linear probe & OCT B-scan & 0.633 & 0.403 & 0.417 & 0.721 & 0.231 & 0.148 & 0.588 & 0.679 \\
-\texttt{td\_pointwise\_no\_p\_cut} & GDP-native RNFLT+TDS EfficientNet & RNFLT + visual-field TDS & 0.816 & 0.600 & 0.500 & 0.929 & 0.066 & 0.564 & 0.086 & 0.068 \\
-\texttt{td\_pointwise\_no\_p\_cut} & RetinAgent live arbitration & Native helper + reliability priors & 0.816 & 0.684 & 0.650 & 0.893 & 0.064 & 0.619 & 0.109 & 0.242 \\
-\botrule
-\end{tabular}%
-}
-\end{table*}
-
-For GDP glaucoma detection, OCT foundation encoders transferred better than they did for progression forecasting. VisionFM OCT produced the highest detection F1 among the tested OCT encoders (0.695), while RETFound OCT and UrFound OCT remained competitive. Progression forecasting required a different evidence source. The native RNFLT+TDS EfficientNet model outperformed the RETFound OCT progression probe on the less sparse progression endpoint (F1 0.600 vs. 0.403). The current live RetinAgent progression run used the agentic pipeline rather than the isolated deterministic scoring tool alone: the Functional Specialist summarized longitudinal visual-field/RNFL evidence, the Equity Auditor supplied reliability context, the Orchestrator integrated evidence into a progression label, and the Safety Agent produced escalation decisions. This live run improved the native helper's thresholded F1 from 0.600 to 0.684 by applying reliability-aware threshold policies, while maintaining similar ranking behavior and calibration. The agent predicted progression in 54 of 200 cases and escalated 51 cases for human review. Because the agent is an arbitration system rather than a learned continuous risk model, F1, sensitivity, specificity, calibration, subgroup reliability, and escalation behavior are more appropriate primary metrics than AUROC for future agent comparisons.
-
-\subsection{Remaining Secondary Analyses}\label{subsec:planned_secondary}
-
-The main text reports completed, interpretable comparisons and the completed deterministic FairVision selective-arbitration experiment. Several secondary analyses remain planned or require further tuning before they should be presented as completed deployment evidence: repeated prompt-stability tests for the live LLM orchestrator, DR-specific escalation threshold tuning, randomized-prior and shuffled-metadata controls, external structural validation, confidence intervals, and qualitative morphology case review. These analyses will be reported only after their outputs are complete and audited for consistency.
-
-\section{Discussion}
-\label{sec:discussion}
-The completed experiments show that ophthalmic model reliability is task- and modality-dependent. RETFound OCT is the strongest completed FairVision diagnostic baseline, but its subgroup gaps remain large. Static fusion and simple routing do not solve this problem; in several cases they reduce worst-group F1 or worsen calibration despite using the same model outputs. These results support a practical conclusion: model selection for ophthalmic decision support should consider subgroup reliability and calibration, not only average F1 or AUROC.
-
-The FairVision selective-arbitration experiment clarifies the main contribution of the locked reliability tool inside the agentic framework. Reliability weighting alone did not materially improve forced classification over static fusion. The gain appeared when the system was evaluated as a selective predictor: accepted-case F1 increased to 0.902 and worst-group accepted-case F1 increased to 0.615, at the cost of escalating 69.1\% of cases under the most conservative full setting. This is a clinically meaningful but different claim from full automation. RetinAgent is most defensible as an agentic triage layer: specialized agents organize multimodal evidence, reliability priors, guidelines, and safety checks, while the locked scoring core prevents the system from becoming unconstrained prompt-driven diagnosis.
-
-RetinAgent addresses this as an auditing and arbitration problem. The system does not treat demographics as disease evidence. Instead, demographic fields are used to select validation-derived reliability priors that describe how a model has behaved for similar cases. Metadata counterfactuals support this distinction: disease labels changed in only 0.4\% of counterfactual perturbations, while escalation status changed in 5.8\%. The final output is a thresholded prediction plus a confidence statement and escalation flag. This design is intentionally constrained: agent reasoning selects a calibration policy, while threshold values and allowable output fields are prespecified.
-
-The GDP experiments clarify an important boundary. Cross-sectional glaucoma detection can be evaluated with OCT foundation-model probes, but longitudinal progression forecasting is better served by the native GDP RNFLT+TDS workflow. This is not a weakness of foundation models in general; it reflects the fact that progression labels are tied to longitudinal structural and functional change. For progression, RetinAgent should be evaluated primarily by thresholded performance, calibration, and safety behavior rather than by treating its final probability as an independent continuous ranking score.
-
-\subsection{Fairness of Foundation-Model Comparison}
-\label{subsec:discussion_fairness_protocol}
-The evaluation is fair in the sense of controlled downstream comparison. All foundation models use the same FairVision splits, train only on the training split, select thresholds only on the validation split, and report metrics only on the held-out test split. They are evaluated using the modality they are designed to process, and all prediction outputs are converted to the same schema before metric computation.
-
-This does not mean every model has been optimized to its maximum possible performance. Some models may benefit from model-specific preprocessing, full fine-tuning, prompt engineering, higher input resolution, or multimodal usage. The reported results should therefore be interpreted as controlled transfer comparisons, not as definitive leaderboards of the foundation models themselves.
-
-\subsection{Clinical and Methodological Implications}
-\label{subsec:discussion_implications}
-RetinAgent supports a deployment pattern in which foundation models are treated as evidence sources rather than autonomous diagnostic authorities. A high-confidence model output should be trusted only when it is consistent with morphology, functional context, and validation reliability for the relevant subgroup. Conversely, a borderline or discordant model output can trigger threshold adjustment, uncertainty inflation, or human review.
-
-This approach may be especially valuable in ophthalmology because multimodal evidence is naturally complementary. OCT can reveal retinal layer pathology, SLO/fundus imaging can reveal vascular and optic-disc patterns, and visual fields can reveal functional loss. An arbitration framework can exploit this complementarity while explicitly monitoring when a modality or model is unreliable.
-
-\subsection{Limitations}
-\label{subsec:limitations}
-Several limitations remain. First, subgroup estimates can be unstable when positive or negative counts are small, especially for intersectional groups; empirical-Bayes shrinkage reduces but does not eliminate this problem. Second, the current selective rule is very conservative and escalates all DR cases, so disease-specific operating thresholds require retuning. Third, demographic metadata introduces ethical and methodological risk if it is used incorrectly. Counterfactual tests are encouraging, but metadata-only, shuffled-metadata, and randomized-prior controls remain needed before deployment claims. Fourth, LLM-based arbitration can be sensitive to prompt wording and model version, requiring repeated-run and prompt-paraphrase analyses. Finally, confidence intervals, external validation, and qualitative morphology review are still needed before the manuscript is ready for a strong clinical submission.
-
-\section{Conclusion}
-\label{sec:conclusion}
-RetinAgent reframes retinal foundation-model deployment as an agentic reliability-triage problem. FairVision experiments show that standalone foundation models and simple ensembles can have substantial subgroup error and calibration gaps. Reliability-triage selective arbitration improves accepted-case performance and worst-group accepted-case reliability by escalating uncertain cases, rather than by pretending every case can be automated safely. Harvard-GDP experiments show that progression forecasting requires native longitudinal evidence rather than generic OCT B-scan transfer alone, and live RetinAgent progression arbitration demonstrates how specialized agents can integrate functional, structural, reliability, and safety evidence. The current evidence supports a cautious role for RetinAgent: an interpretable multi-agent arbitration layer that reports model reliability, applies prespecified calibration policies, and escalates uncertain cases rather than hiding uncertainty behind a single average metric.
-
-\section*{Data Availability}
-The experiments use Harvard-FairVision and Harvard-GDP data. Dataset access, licensing conditions, and any restrictions on redistribution will be described here before submission. Derived prediction files, subgroup metrics, and manuscript tables are produced under the project outputs directory and can be shared subject to dataset-use agreements.
-
-\section*{Code Availability}
-The RetinAgent codebase contains scripts for manifest construction, foundation-model prediction extraction, threshold tuning, subgroup-prior construction, dynamic routing, metric computation, and manuscript table generation. A reproducible release with environment files, command-line entry points, and trained lightweight probes will be prepared before submission, subject to the licensing terms of the external foundation-model repositories.
-
-\section*{Acknowledgements}
-To be completed before submission.
-
-\section*{Author Contributions}
-A.M.A.R. designed the study, implemented the RetinAgent framework, ran experiments, and drafted the manuscript. Y.A., N.B., and Y.T. contributed to experimental design, analysis, interpretation, and manuscript revision. Final author roles will be updated before submission.
-
-\section*{Competing Interests}
-The authors declare no competing interests. This statement will be updated before submission if needed.
-
-\section*{Ethics and Reporting}
-All analyses use retrospective ophthalmic datasets. The final manuscript will report dataset approvals, de-identification status, and relevant data-use agreements according to the requirements of the source datasets and target journal.
-
-\begin{appendices}
-\section{Supplementary Material}\label{secA1}
-Supplementary implementation details, additional subgroup tables, and robustness analyses will be included here.
-
-\input{tables/fairvision_foundation_demographic_amd}
-
-\input{tables/fairvision_foundation_demographic_dr}
-
-\input{tables/fairvision_foundation_demographic_glaucoma}
-\end{appendices}
-
-\bibliography{sn-bibliography}
-
-\end{document}

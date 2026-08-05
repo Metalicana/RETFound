@@ -8,6 +8,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from anthropic import AnthropicFoundry
 from dotenv import load_dotenv
 from openai import AzureOpenAI
 from PIL import Image, ImageOps
@@ -177,6 +178,84 @@ class GPT56GlaucomaBaseline:
         if prediction not in (0, 1):
             raise ValueError(f"Invalid glaucoma_detected value: {prediction}")
         return prediction, str(parsed.get("confidence", "")), str(parsed.get("reasoning", "")), raw
+
+class ClaudeGlaucomaBaseline:
+    """Standalone Claude Haiku 4.5 glaucoma baseline.
+
+    Signature-compatible with GPT51GlaucomaBaseline/GPT56GlaucomaBaseline so
+    callers can swap evaluators without branching on model family.
+    """
+
+    def __init__(self):
+        self.deployment = os.getenv("ANTHROPIC_DEPLOYMENT", "claude-haiku-4-5")
+        base_url = (
+            os.getenv("ANTHROPIC_FOUNDRY_BASE_URL")
+            or os.getenv("AZURE_AI_ANTHROPIC_ENDPOINT")
+            or os.getenv("AZURE_OPENAI_ENDPOINT")
+        )
+        api_key = os.getenv("AZURE_API_KEY") or os.getenv("AZURE_OPENAI_API_KEY")
+        if not base_url:
+            raise ValueError(
+                "Set ANTHROPIC_FOUNDRY_BASE_URL to "
+                "https://<resource>.services.ai.azure.com/anthropic"
+            )
+        if not api_key:
+            raise ValueError("Set AZURE_API_KEY (or AZURE_OPENAI_API_KEY)")
+        base_url = base_url.rstrip("/")
+        if base_url.endswith("/v1/messages"):
+            base_url = base_url.removesuffix("/v1/messages")
+        if not base_url.endswith("/anthropic"):
+            raise ValueError(
+                "Claude requires a Foundry base URL ending in '/anthropic'; "
+                f"received {base_url}"
+            )
+        self.client = AnthropicFoundry(api_key=api_key, base_url=base_url)
+
+    def analyze(self, images, demographics, image_description, extra_context=""):
+        content = [{
+            "type": "text",
+            "text": (
+                f"Available demographics: {json.dumps(demographics, sort_keys=True)}\n"
+                f"Visual inputs: {image_description}\n{extra_context}\n"
+                "Assess this case for glaucoma."
+            ),
+        }]
+        for image in images:
+            content.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": "image/jpeg",
+                    "data": image_data_url(image).split(",", 1)[1],
+                },
+            })
+        response = self.client.messages.create(
+            model=self.deployment,
+            max_tokens=1024,
+            temperature=0.2,
+            system=(
+                "You are a standalone ophthalmic image evaluator. Diagnose glaucoma using only the "
+                "provided visual data and available demographics. Demographics are contextual metadata "
+                "only and must never be treated as anatomical proof of disease. Evaluate image quality "
+                "and visible glaucoma-related structural evidence, integrate the supplied modalities, "
+                "and describe agreement, discordance, and uncertainty. Do not invent unavailable "
+                "measurements, symptoms, history, intraocular pressure, visual fields, CDR, or AI model "
+                "scores. Return JSON only with exactly: glaucoma_detected (integer 0 or 1), confidence "
+                "(low, moderate, or high), reasoning (brief evidence-based explanation). You must choose "
+                "0 or 1 even when uncertain."
+            ),
+            messages=[{"role": "user", "content": content}],
+        )
+        raw = "\n".join(
+            block.text for block in response.content
+            if getattr(block, "type", None) == "text"
+        ).strip()
+        parsed = json.loads(raw)
+        prediction = int(parsed["glaucoma_detected"])
+        if prediction not in (0, 1):
+            raise ValueError(f"Invalid glaucoma_detected value: {prediction}")
+        return prediction, str(parsed.get("confidence", "")), str(parsed.get("reasoning", "")), raw
+
 
 def print_metrics(results):
     valid = results[results["Pred_GL"].isin([0, 1])]
