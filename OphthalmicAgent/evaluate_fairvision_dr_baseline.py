@@ -193,9 +193,9 @@ class Claude45DREvaluator:
 
 def build_evaluator():
     """COMMENT/UNCOMMENT exactly one of these three lines."""
-    return GPT51DREvaluator()
-    # return GPT56DREvaluator()
-    # return Claude45DREvaluator()
+#    return GPT51DREvaluator()
+#    return GPT56DREvaluator()
+    return Claude45DREvaluator()
 
 
 def find_column(columns, candidates, required=True):

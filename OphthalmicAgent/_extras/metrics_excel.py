@@ -3,7 +3,8 @@ import numpy as np
 from sklearn.metrics import classification_report, precision_recall_fscore_support
 
 ## --- CONFIGURATION ---
-CSV_PATH = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/gdp_test_claude_baseline_predictions.csv"
+#CSV_PATH = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/ophthalmic_performance_results_jun29_amd.csv"
+CSV_PATH = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/fairvision_dr_agentic.csv"
 
 def print_subset_report(df_subset, title):
 
@@ -12,7 +13,7 @@ def print_subset_report(df_subset, title):
         return
 
     y_true = df_subset["Ground_Truth"].astype(int).values
-
+    
     y_pred = np.where(
         df_subset["Is_Correct"] == 1,
         y_true,
@@ -22,19 +23,22 @@ def print_subset_report(df_subset, title):
     print("\n" + "="*75)
     print(title)
     print(f"Number of samples: {len(df_subset)}")
-
-    print(
-        classification_report(
-            y_true,
-            y_pred,
-            target_names=[
-                "Healthy (0)",
-                "Pathological (1)"
-            ],
-            digits=4,
-            zero_division=0
-        )
-    )
+    
+    try:
+      print(
+          classification_report(
+              y_true,
+              y_pred,
+              target_names=[
+                  "Healthy (0)",
+                  "Pathological (1)"
+              ],
+              digits=4,
+              zero_division=0
+          )
+      )
+    except Exception as e:
+      print(f"An unexpected error ocurred {e}")  
 
 
 def calculate_metrics(csv_path):
