@@ -241,8 +241,8 @@ class Claude45AMDEvaluator:
 def build_evaluator():
     """COMMENT/UNCOMMENT exactly one of the following three lines."""
     return GPT51AMDEvaluator()
-    # return GPT56AMDEvaluator()
-    # return Claude45AMDEvaluator()
+#    return GPT56AMDEvaluator()
+#    return Claude45AMDEvaluator()
 
 
 def find_column(columns, candidates, required=True):
