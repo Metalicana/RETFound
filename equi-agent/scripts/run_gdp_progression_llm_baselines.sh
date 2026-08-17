@@ -6,7 +6,7 @@ cd "$REPO_ROOT"
 
 RUN_ROOT="${RUN_ROOT:-equi-agent/outputs/baselines/gdp_progression_llm_v1}"
 METRICS_ROOT="${METRICS_ROOT:-equi-agent/outputs/metrics}"
-TARGETS="${TARGETS:-md vfi td_pointwise md_fast md_fast_no_p_cut td_pointwise_no_p_cut}"
+TARGETS="md vfi td_pointwise md_fast md_fast_no_p_cut td_pointwise_no_p_cut"
 MODELS="${MODELS:-gpt-5.1 gpt-5.6-luna claude-haiku-4.5}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 
@@ -37,41 +37,38 @@ done
 
 for target in $TARGETS; do
   manifest="equi-agent/outputs/manifests/gdp_progression_forecasting_${target}.csv"
-  if [[ ! -f "$manifest" ]]; then
-    echo "Missing manifest: $manifest" >&2
-    exit 1
-  fi
+  [[ -f "$manifest" ]] || { echo "Missing manifest: $manifest" >&2; exit 1; }
+done
 
-  for model in $MODELS; do
-    slug="$(slug_for_model "$model")"
-    deployment="$(deployment_for_model "$model")"
-    out_dir="$RUN_ROOT/$target/$slug"
-    metrics_dir="$METRICS_ROOT/exp8_gdp_progression_forecasting_${target}_llm_${slug}"
+for model in $MODELS; do
+  slug="$(slug_for_model "$model")"
+  deployment="$(deployment_for_model "$model")"
+  out_dir="$RUN_ROOT/$slug"
 
-    echo
-    echo "=== target=$target model=$model deployment=$deployment ==="
-    "$PYTHON_BIN" equi-agent/scripts/run_gdp_progression_llm_baseline.py \
-      --manifest "$manifest" \
-      --out-dir "$out_dir" \
-      --model "$model" \
-      --deployment "$deployment" \
-      --progression-target "$target"
+  echo
+  echo "=== all six targets; model=$model deployment=$deployment ==="
+  "$PYTHON_BIN" equi-agent/scripts/run_gdp_progression_llm_multitarget_baseline.py \
+    --manifests-root equi-agent/outputs/manifests \
+    --out-dir "$out_dir" \
+    --model "$model" \
+    --deployment "$deployment"
 
-    "$PYTHON_BIN" - "$out_dir/summary.json" <<'PY'
+  "$PYTHON_BIN" - "$out_dir/summary.json" <<'PY'
 import json
 import sys
 
 summary = json.load(open(sys.argv[1], encoding="utf-8"))
 if not summary.get("complete_locked_cohort"):
     raise SystemExit(
-        f"Incomplete locked cohort: valid={summary.get('valid_predictions')} "
-        f"missing={summary.get('missing_predictions')}"
+        f"Incomplete locked cohort: completed_calls={summary.get('completed_calls')} "
+        f"missing_calls={summary.get('missing_calls')}"
     )
 PY
 
+  for target in $TARGETS; do
     "$PYTHON_BIN" equi-agent/scripts/evaluate_predictions.py \
-      --predictions "$out_dir/predictions.csv" \
-      --out-dir "$metrics_dir"
+      --predictions "$out_dir/predictions_${target}.csv" \
+      --out-dir "$METRICS_ROOT/exp8_gdp_progression_forecasting_${target}_llm_${slug}"
   done
 done
 

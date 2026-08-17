@@ -60,7 +60,8 @@ def latex_metric(value: float | None) -> str:
 
 def metric_paths(metrics_root: Path, target: str, slug: str) -> tuple[Path, Path]:
     directory = metrics_root / f"exp8_gdp_progression_forecasting_{target}_llm_{slug}"
-    return directory / "predictions_aggregate.csv", directory / "predictions_disparities.csv"
+    stem = f"predictions_{target}"
+    return directory / f"{stem}_aggregate.csv", directory / f"{stem}_disparities.csv"
 
 
 def collect_row(
@@ -69,8 +70,8 @@ def collect_row(
     target: str,
     slug: str,
 ) -> dict[str, Any]:
-    predictions_path = run_root / target / slug / "predictions.csv"
-    summary_path = run_root / target / slug / "summary.json"
+    predictions_path = run_root / slug / f"predictions_{target}.csv"
+    summary_path = run_root / slug / "summary.json"
     aggregate_path, disparities_path = metric_paths(metrics_root, target, slug)
     required = [predictions_path, summary_path, aggregate_path, disparities_path]
     missing = [str(path) for path in required if not path.is_file()]
