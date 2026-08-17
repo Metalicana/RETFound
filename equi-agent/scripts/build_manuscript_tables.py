@@ -143,6 +143,24 @@ METHODS = {
 }
 
 GDP_METHODS = {
+    "exp8_gdp_progression_forecasting_td_pointwise_no_p_cut_llm_gpt51": {
+        "method": "GPT-5.1 standalone baseline",
+        "input": "RNFLT + visual-field TDS",
+        "temporal_modeling": "Single-call endpoint prediction",
+        "fairness_component": "No",
+    },
+    "exp8_gdp_progression_forecasting_td_pointwise_no_p_cut_llm_gpt56_luna": {
+        "method": "GPT-5.6-luna standalone baseline",
+        "input": "RNFLT + visual-field TDS",
+        "temporal_modeling": "Single-call endpoint prediction",
+        "fairness_component": "No",
+    },
+    "exp8_gdp_progression_forecasting_td_pointwise_no_p_cut_llm_claude_haiku45": {
+        "method": "Claude Haiku 4.5 standalone baseline",
+        "input": "RNFLT + visual-field TDS",
+        "temporal_modeling": "Single-call endpoint prediction",
+        "fairness_component": "No",
+    },
     "exp8_gdp_progression_forecasting_td_pointwise_no_p_cut_gdp_native_rnflt_tds_efficientnet": {
         "method": "GDP-native RNFLT+TDS EfficientNet",
         "input": "RNFLT + visual-field TDS",
