@@ -200,12 +200,53 @@ def build_multitarget_messages(packets: dict[str, dict[str, Any]]) -> list[dict[
         first_messages[0]["content"]
         + "\n\nEvaluate all requested Harvard-GDP endpoints in one response. Treat each endpoint independently; "
         "never transfer a probability, vote, or conclusion from one endpoint to another. Return one JSON object "
-        "with a predictions object keyed by the supplied endpoint names."
+        "with a predictions object keyed by the supplied endpoint names. The complete source-level numeric audit "
+        "is already preserved in endpoint_evidence_packets, so do not repeat a source_assessments list in the "
+        "response. For this multi-endpoint call, this compactness requirement supersedes the earlier request to "
+        "repeat every source metric in the output trace. Return only the compact decision summary requested below; "
+        "keep every rationale to one short sentence and keep the entire response below 3,000 tokens."
     )
-    schema = first_user["instructions"]["required_json_schema"]
+    schema = {
+        "final_probability": "float from 0 to 1",
+        "final_prediction": "0 or 1",
+        "confidence": "low, medium, or high",
+        "primary_model": "model/source name or ensemble",
+        "calibration_action": "sensitivity_shift, precision_shift, neutral, or escalate",
+        "escalate_to_human": "boolean",
+        "reasoning": "one short sentence",
+        "agent_trace": {
+            "progression_evidence_agent": {
+                "evidence_summary": "one short sentence with the decisive probabilities or votes",
+            },
+            "equity_agent": {
+                "reliability_concern": (
+                    "false_negative_risk, false_positive_risk, calibration_risk, "
+                    "minimal_risk, or unstable_priors"
+                ),
+                "threshold_policy": "sensitivity_shift, precision_shift, neutral, or escalate",
+            },
+            "orchestrator": "one short sentence explaining the final probability and label",
+            "safety_agent": {
+                "escalation_reasons": ["zero to two short reasons"],
+            },
+        },
+    }
+    compact_instructions = {
+        key: value
+        for key, value in first_user["instructions"].items()
+        if key != "required_json_schema"
+    }
+    compact_instructions["temporal_specialist"] = (
+        "Assess every supplied source internally, but return only one short evidence_summary naming the decisive "
+        "probabilities or votes and the primary source. Do not return a per-source list."
+    )
+    compact_instructions["equity_agent"] = (
+        "Apply the supplied source-level FP, FN, calibration, and stability evidence internally. Return only the "
+        "dominant reliability_concern and threshold_policy; do not repeat the full reliability table."
+    )
     user = {
         "instructions": {
-            **{key: value for key, value in first_user["instructions"].items() if key != "required_json_schema"},
+            **compact_instructions,
             "required_json_schema": {
                 "predictions": {target: schema for target in packets},
             },
@@ -409,6 +450,11 @@ def main() -> None:
                         args.max_output_tokens,
                     )
                     raw = response_text(response)
+                    finish_reason = getattr(response.choices[0], "finish_reason", None)
+                    if finish_reason == "length":
+                        raise RuntimeError(
+                            "LLM response reached the completion-token limit before producing complete JSON"
+                        )
                     parsed_by_target = normalize_multitarget_response(raw, args.targets)
                     usage = usage_dict(response)
 

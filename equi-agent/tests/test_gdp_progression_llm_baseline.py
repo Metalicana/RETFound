@@ -324,8 +324,16 @@ class GDPProgressionLLMBaselineTest(unittest.TestCase):
             )
             self.assertEqual(completed.returncode, 0, completed.stderr)
             summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
+            snapshot = json.loads(
+                (out_dir / "prompt_snapshot.json").read_text(encoding="utf-8")
+            )
             self.assertTrue(summary["complete_locked_cohort"])
             self.assertEqual(summary["completed_calls"], 2)
+            user_payload = json.loads(snapshot["messages"][1]["content"])
+            response_schema = user_payload["instructions"]["required_json_schema"]
+            self.assertEqual(set(response_schema["predictions"]), set(TARGETS))
+            self.assertNotIn("source_assessments", json.dumps(response_schema))
+            self.assertIn("below 3,000 tokens", snapshot["messages"][0]["content"])
             for target in TARGETS:
                 with (out_dir / f"predictions_{target}.csv").open(
                     newline="", encoding="utf-8"
