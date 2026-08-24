@@ -77,7 +77,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--models", nargs="+", default=DEFAULT_MODELS)
     parser.add_argument("--targets", nargs="+", choices=TARGETS, default=TARGETS)
-    parser.add_argument("--case-key-columns", default="patient_id,eye_id,task")
+    parser.add_argument(
+        "--case-key-columns",
+        default="image_id,task",
+        help=(
+            "Columns used to align model predictions. GDP model exporters serialize "
+            "patient_id inconsistently, while image_id is the locked canonical case ID."
+        ),
+    )
     parser.add_argument(
         "--reference-strategy",
         choices=["weighted", "best_f1", "best_balanced_accuracy", "best_auroc"],
@@ -115,13 +122,17 @@ def prediction_path(out_dir: Path, target: str) -> Path:
     return out_dir / f"predictions_{target}.csv"
 
 
-def load_existing(out_dir: Path, targets: list[str]) -> dict[str, dict[tuple[str, ...], dict[str, str]]]:
+def load_existing(
+    out_dir: Path,
+    targets: list[str],
+    case_key_columns: tuple[str, ...],
+) -> dict[str, dict[tuple[str, ...], dict[str, str]]]:
     result: dict[str, dict[tuple[str, ...], dict[str, str]]] = {}
     for target in targets:
         path = prediction_path(out_dir, target)
         rows = read_csv(path) if path.is_file() else []
         result[target] = {
-            (row.get("patient_id", ""), row.get("eye_id", ""), row.get("task", "")): row
+            tuple(row.get(column, "") for column in case_key_columns): row
             for row in rows
         }
     return result
@@ -305,7 +316,7 @@ def main() -> None:
     if args.max_cases > 0:
         keys = keys[: args.max_cases]
 
-    existing = load_existing(args.out_dir, args.targets)
+    existing = load_existing(args.out_dir, args.targets, case_key_columns)
     completed = set.intersection(*(set(existing[target]) for target in args.targets))
     pending = [key for key in keys if key not in completed]
 
@@ -336,6 +347,7 @@ def main() -> None:
         {
             "targets": args.targets,
             "models_requested": args.models,
+            "case_key_columns": list(case_key_columns),
             "reference_strategy": args.reference_strategy,
             "lock_reference_prediction": args.lock_reference_prediction,
             "deployment": args.deployment,
@@ -470,6 +482,7 @@ def main() -> None:
         "dry_run": args.dry_run,
         "targets": args.targets,
         "models_requested": args.models,
+        "case_key_columns": list(case_key_columns),
         "completed_calls": len(completed),
         "missing_calls": len(keys) - len(completed),
         "predictions_per_completed_call": len(args.targets),

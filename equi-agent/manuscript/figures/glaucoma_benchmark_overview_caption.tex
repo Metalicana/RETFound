@@ -1,13 +1,14 @@
 \begin{figure*}[t]
   \centering
   \input{figures/glaucoma_benchmark_overview.tikz}
-  \caption{Glaucoma classification across six internal and external cohorts.
-  RetinAgent is compared with the strongest reported standalone foundation
-  model on each cohort using F1 score (\textbf{a}) and balanced accuracy
-  (\textbf{b}). Foundation-model names are printed within the corresponding
-  gray bars. Reported operating points follow the corresponding locked
-  benchmark protocol. Complete model comparisons, sensitivity, specificity,
-  worst-group performance, confusion matrices and subgroup support are reported
-  in the supplementary tables.}
+  \caption{Change in glaucoma classification performance after adding the
+  RetinAgent workflow to its RETFound anchor. Points show the paired difference
+  between RetinAgent and RETFound in F1 score (\textbf{a}) and balanced accuracy
+  (\textbf{b}); positive values favour RetinAgent. Primary locked cohorts and
+  external stress-test cohorts are separated, and test-cohort sizes are shown to
+  contextualize the lower precision of small external evaluations. PAPILA is
+  retained as a negative result. Points are aggregate estimates; complete model
+  comparisons, operating characteristics, subgroup results and provenance are
+  reported in the supplementary tables.}
   \label{fig:glaucoma-benchmark-overview}
 \end{figure*}

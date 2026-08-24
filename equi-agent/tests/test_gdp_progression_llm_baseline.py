@@ -256,44 +256,48 @@ class GDPProgressionLLMBaselineTest(unittest.TestCase):
             metrics_root = root / "metrics"
             predictions_root.mkdir()
             for target_index, target in enumerate(TARGETS):
-                rows = []
-                for case_index in range(2):
-                    rows.append(
-                        {
-                            "patient_id": f"patient-{case_index}",
-                            "eye_id": "",
-                            "visit_id": "",
-                            "image_id": f"case-{case_index}.npz",
-                            "dataset": "harvard_gdp",
-                            "task": "progression_forecasting",
-                            "model_name": "rnflt_logreg",
-                            "y_true": str((case_index + target_index) % 2),
-                            "y_prob": str(0.2 + 0.6 * case_index),
-                            "y_pred": str(case_index),
-                            "applied_threshold": "0.5",
-                            "split": "test",
-                            "race": "white",
-                            "ethnicity": "non-hispanic",
-                            "sex_gender": "female",
-                            "age": "65",
-                            "age_group": "60-69",
-                            "metadata_missing_flag": "False",
-                        }
-                    )
                 prefix = f"gdp_progression_forecasting_{target}"
-                prediction_path = predictions_root / f"{prefix}_rnflt_logreg.csv"
-                with prediction_path.open("w", newline="", encoding="utf-8") as handle:
-                    writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
-                    writer.writeheader()
-                    writer.writerows(rows)
-                metric_dir = metrics_root / f"exp8_{prefix}_rnflt"
-                metric_dir.mkdir(parents=True)
-                aggregate = metric_dir / f"{prefix}_rnflt_logreg_aggregate.csv"
-                aggregate.write_text(
-                    "n,f1,auroc,balanced_accuracy,ece,fpr,fnr\n"
-                    "2,0.8,0.8,0.8,0.1,0.2,0.2\n",
-                    encoding="utf-8",
-                )
+                for model, patient_suffix in [
+                    ("rnflt_logreg", ""),
+                    ("clinical_logreg", ".0"),
+                ]:
+                    rows = []
+                    for case_index in range(2):
+                        rows.append(
+                            {
+                                "patient_id": f"{case_index}{patient_suffix}",
+                                "eye_id": "",
+                                "visit_id": "",
+                                "image_id": f"case-{case_index}.npz",
+                                "dataset": "harvard_gdp",
+                                "task": "progression_forecasting",
+                                "model_name": model,
+                                "y_true": str((case_index + target_index) % 2),
+                                "y_prob": str(0.2 + 0.6 * case_index),
+                                "y_pred": str(case_index),
+                                "applied_threshold": "0.5",
+                                "split": "test",
+                                "race": "white",
+                                "ethnicity": "non-hispanic",
+                                "sex_gender": "female",
+                                "age": "65",
+                                "age_group": "60-69",
+                                "metadata_missing_flag": "False",
+                            }
+                        )
+                    prediction_path = predictions_root / f"{prefix}_{model}.csv"
+                    with prediction_path.open("w", newline="", encoding="utf-8") as handle:
+                        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+                        writer.writeheader()
+                        writer.writerows(rows)
+                    metric_dir = metrics_root / f"exp8_{prefix}_{model.replace('_logreg', '')}"
+                    metric_dir.mkdir(parents=True)
+                    aggregate = metric_dir / f"{prefix}_{model}_aggregate.csv"
+                    aggregate.write_text(
+                        "n,f1,auroc,balanced_accuracy,ece,fpr,fnr\n"
+                        "2,0.8,0.8,0.8,0.1,0.2,0.2\n",
+                        encoding="utf-8",
+                    )
 
             out_dir = root / "agent"
             completed = subprocess.run(
@@ -308,6 +312,7 @@ class GDPProgressionLLMBaselineTest(unittest.TestCase):
                     str(out_dir),
                     "--models",
                     "rnflt_logreg",
+                    "clinical_logreg",
                     "--expected-cases",
                     "2",
                     "--dry-run",

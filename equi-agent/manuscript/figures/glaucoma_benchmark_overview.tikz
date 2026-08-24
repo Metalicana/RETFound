@@ -1,73 +1,89 @@
-% Compact summary of the glaucoma benchmark tables.
+% Change from the RETFound anchor after adding RetinAgent.
 % Required preamble package: \usepackage{tikz}
-% Values reflect the working manuscript draft on 2026-08-24. Reconcile source
-% artifacts before final submission, especially Drishti-GS1 and REFUGE2.
+% Point estimates come from equi_agent_current_results.tex on 2026-08-24.
+% Add paired bootstrap intervals once all case-level prediction artifacts have
+% been reconciled on CECSL; do not infer intervals from aggregate metrics.
 
-\definecolor{FoundationBar}{HTML}{687784}
-\definecolor{RetinAgentBar}{HTML}{D55E00}
+\definecolor{DeltaGain}{HTML}{007C91}
+\definecolor{DeltaLoss}{HTML}{D55E00}
+\definecolor{DeltaNeutral}{HTML}{687784}
 \definecolor{FigureText}{HTML}{202124}
 
-% #1 panel x origin, #2 row y, #3 baseline value, #4 ours value,
-% #5 baseline model name.
-\newcommand{\ComparisonBars}[5]{%
-  \fill[FoundationBar] (#1,#2+0.08) rectangle ++({4.75*#3},0.25);%
-  \fill[RetinAgentBar] (#1,#2-0.27) rectangle ++({4.75*#4},0.25);%
-  \node[anchor=east,text=white,font=\fontsize{5.4}{5.6}\selectfont]
-    at ({#1+4.75*#3-0.07},#2+0.205) {#5};%
+% #1 y position, #2 cohort name, #3 test cohort size.
+\newcommand{\CohortLabel}[3]{%
+  \node[anchor=east,text=FigureText,font=\fontsize{6.4}{6.7}\selectfont]
+    at (2.82,#1) {#2};%
+  \node[anchor=west,text=black!52,font=\fontsize{5.5}{5.8}\selectfont]
+    at (2.89,#1) {$n=#3$};%
 }
 
-\newcommand{\DatasetLabel}[3]{%
-  \node[anchor=east,text=FigureText,font=\fontsize{6.3}{6.5}\selectfont]
-    at (#1,#2) {#3};%
+% #1 zero x coordinate, #2 y position, #3 paired metric change, #4 color.
+\newcommand{\DeltaMark}[4]{%
+  \draw[#4,line width=1.15pt] (#1,#2) -- ({#1+8.5*#3},#2);%
+  \fill[#4] ({#1+8.5*#3},#2) circle[radius=2.25pt];%
 }
 
-\newcommand{\PanelAxis}[3]{%
-  \node[anchor=west,text=FigureText,font=\bfseries\fontsize{8.0}{8.2}\selectfont]
-    at (#1,1.32) {#2};%
-  \foreach \tick in {0,0.5,1.0} {%
-    \draw[black!13,line width=0.35pt]
-      ({#1+4.75*\tick},0.70) -- ({#1+4.75*\tick},-7.28);%
-    \node[anchor=north,text=black!65,font=\fontsize{5.7}{5.9}\selectfont]
-      at ({#1+4.75*\tick},-7.38)
-      {\pgfmathprintnumber[fixed,precision=1]{\tick}};%
+% #1 zero x coordinate, #2 panel title, #3 panel letter.
+\newcommand{\DeltaAxis}[3]{%
+  \node[anchor=west,text=FigureText,font=\bfseries\fontsize{8.2}{8.5}\selectfont]
+    at ({#1-2.15},1.52) {\textbf{#3}\quad #2};%
+  \node[anchor=east,text=black!55,font=\fontsize{5.5}{5.8}\selectfont]
+    at ({#1-0.16},1.00) {Favours RETFound};%
+  \node[anchor=west,text=black!55,font=\fontsize{5.5}{5.8}\selectfont]
+    at ({#1+0.16},1.00) {Favours RetinAgent};%
+  \foreach \tick/\ticklabel in {
+    -0.2/$-0.2$,-0.1/$-0.1$,0/$0$,0.1/$+0.1$,0.2/$+0.2$,0.3/$+0.3$} {%
+    \draw[black!10,line width=0.35pt]
+      ({#1+8.5*\tick},0.70) -- ({#1+8.5*\tick},-6.22);%
+    \node[anchor=north,text=black!60,font=\fontsize{5.6}{5.8}\selectfont]
+      at ({#1+8.5*\tick},-6.35) {\ticklabel};%
   }%
-  \node[anchor=north,text=black!60,font=\fontsize{5.8}{6.0}\selectfont]
-    at ({#1+2.375},-8.08) {#3};%
+  \draw[black!55,line width=0.7pt] (#1,0.70) -- (#1,-6.22);%
+  \node[anchor=north,text=black!65,font=\fontsize{5.8}{6.0}\selectfont]
+    at (#1,-7.03) {RetinAgent $-$ RETFound};%
 }
 
-\begin{tikzpicture}[x=1cm,y=0.72cm]
+\begin{tikzpicture}[x=1cm,y=0.78cm]
 
-\PanelAxis{3.05}{\textbf{a}\quad F1 score}{F1 score}
-\PanelAxis{10.05}{\textbf{b}\quad Balanced accuracy}{Balanced accuracy}
+\DeltaAxis{5.12}{$\Delta$ F1 score}{a}
+\DeltaAxis{11.42}{$\Delta$ balanced accuracy}{b}
 
-\DatasetLabel{2.78}{0.25}{FairVision30K}
-\DatasetLabel{2.78}{-1.05}{Harvard GDP}
-\DatasetLabel{2.78}{-2.35}{Drishti-GS1}
-\DatasetLabel{2.78}{-3.65}{REFUGE2}
-\DatasetLabel{2.78}{-4.95}{PAPILA}
-\DatasetLabel{2.78}{-6.25}{GAMMA}
+\node[anchor=east,text=black!68,font=\bfseries\fontsize{5.8}{6.0}\selectfont]
+  at (2.82,0.57) {Primary locked cohorts};
+\node[anchor=east,text=black!68,font=\bfseries\fontsize{5.8}{6.0}\selectfont]
+  at (2.82,-2.15) {External stress tests};
 
-% Panel a: F1.
-\ComparisonBars{3.05}{0.25}{0.7477}{0.7704}{RETFound}
-\ComparisonBars{3.05}{-1.05}{0.6948}{0.7892}{VisionFM}
-\ComparisonBars{3.05}{-2.35}{0.9091}{0.7905}{URFound}
-\ComparisonBars{3.05}{-3.65}{0.9190}{0.9432}{RETFound}
-\ComparisonBars{3.05}{-4.95}{0.5333}{0.3500}{RETFound}
-\ComparisonBars{3.05}{-6.25}{0.9474}{0.8696}{RetiZero}
+\CohortLabel{0.00}{FairVision30K}{250}
+\CohortLabel{-1.00}{Harvard GDP}{250}
+\CohortLabel{-2.85}{Drishti-GS1}{51}
+\CohortLabel{-3.85}{REFUGE2}{400}
+\CohortLabel{-4.85}{PAPILA}{81}
+\CohortLabel{-5.85}{GAMMA}{20}
 
-% Panel b: balanced accuracy for the same paired systems.
-\ComparisonBars{10.05}{0.25}{0.7505}{0.7709}{RETFound}
-\ComparisonBars{10.05}{-1.05}{0.7010}{0.7792}{VisionFM}
-\ComparisonBars{10.05}{-2.35}{0.8824}{0.7729}{URFound}
-\ComparisonBars{10.05}{-3.65}{0.7250}{0.7815}{RETFound}
-\ComparisonBars{10.05}{-4.95}{0.7636}{0.5970}{RETFound}
-\ComparisonBars{10.05}{-6.25}{0.9500}{0.8500}{RetiZero}
+% Panel a: paired F1 changes versus RETFound.
+\DeltaMark{5.12}{0.00}{0.0227}{DeltaGain}
+\DeltaMark{5.12}{-1.00}{0.1225}{DeltaGain}
+\DeltaMark{5.12}{-2.85}{0.2535}{DeltaGain}
+\DeltaMark{5.12}{-3.85}{0.0242}{DeltaGain}
+\DeltaMark{5.12}{-4.85}{-0.1833}{DeltaLoss}
+\DeltaMark{5.12}{-5.85}{0.0000}{DeltaNeutral}
 
-\fill[FoundationBar] (3.05,-8.70) rectangle ++(0.32,0.22);
-\node[anchor=west,text=FigureText,font=\fontsize{6.0}{6.2}\selectfont]
-  at (3.46,-8.59) {Best standalone foundation model};
-\fill[RetinAgentBar] (7.35,-8.70) rectangle ++(0.32,0.22);
-\node[anchor=west,text=FigureText,font=\fontsize{6.0}{6.2}\selectfont]
-  at (7.76,-8.59) {RetinAgent};
+% Panel b: paired balanced-accuracy changes versus RETFound.
+\DeltaMark{11.42}{0.00}{0.0204}{DeltaGain}
+\DeltaMark{11.42}{-1.00}{0.0786}{DeltaGain}
+\DeltaMark{11.42}{-2.85}{0.1993}{DeltaGain}
+\DeltaMark{11.42}{-3.85}{0.0565}{DeltaGain}
+\DeltaMark{11.42}{-4.85}{-0.1666}{DeltaLoss}
+\DeltaMark{11.42}{-5.85}{0.0000}{DeltaNeutral}
+
+\fill[DeltaGain] (3.00,-7.78) circle[radius=2pt];
+\node[anchor=west,text=FigureText,font=\fontsize{5.8}{6.0}\selectfont]
+  at (3.16,-7.78) {Improvement};
+\fill[DeltaLoss] (5.20,-7.78) circle[radius=2pt];
+\node[anchor=west,text=FigureText,font=\fontsize{5.8}{6.0}\selectfont]
+  at (5.36,-7.78) {Decline};
+\fill[DeltaNeutral] (7.05,-7.78) circle[radius=2pt];
+\node[anchor=west,text=FigureText,font=\fontsize{5.8}{6.0}\selectfont]
+  at (7.21,-7.78) {No change};
 
 \end{tikzpicture}

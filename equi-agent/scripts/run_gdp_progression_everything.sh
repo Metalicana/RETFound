@@ -284,6 +284,7 @@ CUDA_VISIBLE_DEVICES="$GPU" run_python \
   --predictions-root "$PREDICTIONS_ROOT" \
   --metrics-root "$METRICS_ROOT" \
   --out-dir "$AGENT_ROOT" \
+  --case-key-columns image_id,task \
   --deployment "$AGENT_DEPLOYMENT" \
   --reference-strategy "$REFERENCE_STRATEGY" \
   --max-retries "${AGENT_MAX_RETRIES:-2}" \
