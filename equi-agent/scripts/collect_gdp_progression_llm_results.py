@@ -28,6 +28,7 @@ EXPECTED_POSITIVES = {
 
 MODELS = {
     "gpt51": "GPT-5.1",
+    "gpt54": "GPT-5.4",
     "gpt56_luna": "GPT-5.6-luna",
     "claude_haiku45": "Claude Haiku 4.5",
 }

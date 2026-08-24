@@ -7,7 +7,7 @@ cd "$REPO_ROOT"
 RUN_ROOT="${RUN_ROOT:-equi-agent/outputs/baselines/gdp_progression_llm_v1}"
 METRICS_ROOT="${METRICS_ROOT:-equi-agent/outputs/metrics}"
 TARGETS="md vfi td_pointwise md_fast md_fast_no_p_cut td_pointwise_no_p_cut"
-MODELS="${MODELS:-gpt-5.1 gpt-5.6-luna claude-haiku-4.5}"
+MODELS="${MODELS:-gpt-5.1 gpt-5.4 gpt-5.6-luna claude-haiku-4.5}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 
 mkdir -p "$RUN_ROOT"
@@ -16,6 +16,7 @@ COLLECTOR_MODEL_SLUGS=()
 slug_for_model() {
   case "$1" in
     gpt-5.1) echo "gpt51" ;;
+    gpt-5.4) echo "gpt54" ;;
     gpt-5.6-luna) echo "gpt56_luna" ;;
     claude-haiku-4.5) echo "claude_haiku45" ;;
     *) echo "Unsupported model: $1" >&2; return 1 ;;
@@ -25,6 +26,7 @@ slug_for_model() {
 deployment_for_model() {
   case "$1" in
     gpt-5.1) echo "${GPT51_DEPLOYMENT:-gpt-5.1}" ;;
+    gpt-5.4) echo "${GPT54_DEPLOYMENT:-gpt-5.4}" ;;
     gpt-5.6-luna) echo "${GPT56_DEPLOYMENT:-gpt-5.6-luna}" ;;
     claude-haiku-4.5) echo "${CLAUDE_HAIKU45_DEPLOYMENT:-claude-haiku-4-5}" ;;
     *) echo "Unsupported model: $1" >&2; return 1 ;;

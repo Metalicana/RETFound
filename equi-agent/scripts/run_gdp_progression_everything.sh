@@ -4,6 +4,14 @@ set -Eeuo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
+export AZURE_OPENAI_ENDPOINT="${AZURE_OPENAI_ENDPOINT:-https://azure-openai-radi.cognitiveservices.azure.com/}"
+export AZURE_OPENAI_API_VERSION="${AZURE_OPENAI_API_VERSION:-2024-12-01-preview}"
+export GPT51_DEPLOYMENT="${GPT51_DEPLOYMENT:-gpt-5.1}"
+export GPT54_DEPLOYMENT="${GPT54_DEPLOYMENT:-gpt-5.4}"
+export GPT56_DEPLOYMENT="${GPT56_DEPLOYMENT:-gpt-5.6-luna}"
+export CLAUDE_HAIKU45_DEPLOYMENT="${CLAUDE_HAIKU45_DEPLOYMENT:-claude-haiku-4-5}"
+export ANTHROPIC_FOUNDRY_BASE_URL="${ANTHROPIC_FOUNDRY_BASE_URL:-https://azure-openai-radi.services.ai.azure.com/anthropic}"
+
 RUN_ROOT="${RUN_ROOT:-equi-agent/outputs/gdp_progression_everything_v1}"
 LOG_FILE="$RUN_ROOT/master.log"
 PID_FILE="$RUN_ROOT/master.pid"
@@ -113,7 +121,7 @@ DATASETS_ROOT="${DATASETS_ROOT:-Datasets}"
 GPU="${GPU:-0}"
 PYTHON_ENV="${PYTHON_ENV:-retfound}"
 RETFOUND_WEIGHTS="${RETFOUND_WEIGHTS:-equi-agent/weights/RETFound_mae_natureOCT.pth}"
-LLM_MODELS="${LLM_MODELS:-gpt-5.1 gpt-5.6-luna claude-haiku-4.5}"
+LLM_MODELS="${LLM_MODELS:-gpt-5.1 gpt-5.4 gpt-5.6-luna claude-haiku-4.5}"
 AGENT_DEPLOYMENT="${AGENT_DEPLOYMENT:-gpt-5.1}"
 REFERENCE_STRATEGY="${REFERENCE_STRATEGY:-weighted}"
 
@@ -171,7 +179,7 @@ if any(model.startswith("gpt-") for model in models):
 if "claude-haiku-4.5" in models:
     from anthropic import AnthropicFoundry
     assert os.getenv("ANTHROPIC_FOUNDRY_BASE_URL") or os.getenv("AZURE_AI_ANTHROPIC_ENDPOINT"), "missing Claude Foundry endpoint"
-    assert os.getenv("AZURE_API_KEY") or os.getenv("AZURE_OPENAI_API_KEY"), "missing Claude API key"
+    assert os.getenv("AZURE_OPENAI_API_KEY"), "missing shared AZURE_OPENAI_API_KEY"
 print("API clients and credentials ok")' "$LLM_MODELS"
 mkdir -p "$PREDICTIONS_ROOT" "$METRICS_ROOT" "$MANIFESTS_ROOT" "$CHECKPOINTS_ROOT" "$LLM_ROOT" "$AGENT_ROOT"
 

@@ -40,6 +40,7 @@ METHODS = [
         "RNFLT + visual-field TDS",
     ),
     ("llm_gpt51", "GPT-5.1", "RNFLT + visual-field TDS"),
+    ("llm_gpt54", "GPT-5.4", "RNFLT + visual-field TDS"),
     ("llm_gpt56_luna", "GPT-5.6-luna", "RNFLT + visual-field TDS"),
     ("llm_claude_haiku45", "Claude Haiku 4.5", "RNFLT + visual-field TDS"),
     (

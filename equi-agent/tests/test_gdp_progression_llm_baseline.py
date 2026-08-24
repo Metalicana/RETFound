@@ -87,7 +87,7 @@ class GDPProgressionLLMBaselineTest(unittest.TestCase):
                     "--out-dir",
                     str(out_dir),
                     "--model",
-                    "gpt-5.1",
+                    "gpt-5.4",
                     "--progression-target",
                     "md",
                     "--allow-cohort-mismatch",

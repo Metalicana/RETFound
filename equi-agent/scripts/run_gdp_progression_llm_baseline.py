@@ -40,7 +40,7 @@ PROGRESSION_LABEL_COLUMNS = {
     "progression_td_pointwise_no_p_cut",
 }
 
-MODEL_CHOICES = ["gpt-5.1", "gpt-5.6-luna", "claude-haiku-4.5"]
+MODEL_CHOICES = ["gpt-5.1", "gpt-5.4", "gpt-5.6-luna", "claude-haiku-4.5"]
 
 PROGRESSION_TARGET_DESCRIPTIONS = {
     "md": "mean-deviation-based progression",
@@ -479,11 +479,11 @@ class ClaudeProgressionEvaluator:
             or os.getenv("AZURE_AI_ANTHROPIC_ENDPOINT")
             or os.getenv("AZURE_OPENAI_ENDPOINT")
         )
-        api_key = os.getenv("AZURE_API_KEY") or os.getenv("AZURE_OPENAI_API_KEY")
+        api_key = os.getenv("AZURE_OPENAI_API_KEY") or os.getenv("AZURE_API_KEY")
         if not base_url:
             raise ValueError("Set ANTHROPIC_FOUNDRY_BASE_URL to the Azure Foundry /anthropic endpoint")
         if not api_key:
-            raise ValueError("Set AZURE_API_KEY or AZURE_OPENAI_API_KEY")
+            raise ValueError("Set AZURE_OPENAI_API_KEY")
         base_url = base_url.rstrip("/")
         if base_url.endswith("/v1/messages"):
             base_url = base_url.removesuffix("/v1/messages")
@@ -578,8 +578,16 @@ def compute_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 def default_deployment(model: str) -> str:
     if model == "claude-haiku-4.5":
-        return os.getenv("ANTHROPIC_DEPLOYMENT", "claude-haiku-4-5")
-    return os.getenv("AZURE_OPENAI_DEPLOYMENT", model)
+        return os.getenv(
+            "CLAUDE_HAIKU45_DEPLOYMENT",
+            os.getenv("ANTHROPIC_DEPLOYMENT", "claude-haiku-4-5"),
+        )
+    deployment_variables = {
+        "gpt-5.1": "GPT51_DEPLOYMENT",
+        "gpt-5.4": "GPT54_DEPLOYMENT",
+        "gpt-5.6-luna": "GPT56_DEPLOYMENT",
+    }
+    return os.getenv(deployment_variables[model], model)
 
 
 def parse_args() -> argparse.Namespace:
