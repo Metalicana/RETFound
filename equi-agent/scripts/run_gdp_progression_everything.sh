@@ -4,13 +4,7 @@ set -Eeuo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
-export AZURE_OPENAI_ENDPOINT="${AZURE_OPENAI_ENDPOINT:-https://azure-openai-radi.cognitiveservices.azure.com/}"
-export AZURE_OPENAI_API_VERSION="${AZURE_OPENAI_API_VERSION:-2024-12-01-preview}"
-export GPT51_DEPLOYMENT="${GPT51_DEPLOYMENT:-gpt-5.1}"
-export GPT54_DEPLOYMENT="${GPT54_DEPLOYMENT:-gpt-5.4}"
-export GPT56_DEPLOYMENT="${GPT56_DEPLOYMENT:-gpt-5.6-luna}"
-export CLAUDE_HAIKU45_DEPLOYMENT="${CLAUDE_HAIKU45_DEPLOYMENT:-claude-haiku-4-5}"
-export ANTHROPIC_FOUNDRY_BASE_URL="${ANTHROPIC_FOUNDRY_BASE_URL:-https://azure-openai-radi.services.ai.azure.com/anthropic}"
+source "$REPO_ROOT/equi-agent/scripts/gdp_llm_api_preamble.sh"
 
 RUN_ROOT="${RUN_ROOT:-equi-agent/outputs/gdp_progression_everything_v1}"
 LOG_FILE="$RUN_ROOT/master.log"
@@ -168,19 +162,11 @@ conda env list | grep -qE "^${PYTHON_ENV}[[:space:]]"
 [[ -f "$RETFOUND_WEIGHTS" ]]
 [[ -d "$DATASETS_ROOT/GDP" ]]
 run_python -c 'import numpy,pandas,sklearn,torch,torchvision; print("runtime imports ok")'
-run_python -c 'import os,sys
-from dotenv import load_dotenv
-load_dotenv()
-models=sys.argv[1].split()
-if any(model.startswith("gpt-") for model in models):
-    import openai
-    assert os.getenv("AZURE_OPENAI_ENDPOINT") or os.getenv("AZURE_OPENAI_API_BASE"), "missing Azure OpenAI endpoint"
-    assert os.getenv("AZURE_OPENAI_API_KEY"), "missing AZURE_OPENAI_API_KEY"
-if "claude-haiku-4.5" in models:
-    from anthropic import AnthropicFoundry
-    assert os.getenv("ANTHROPIC_FOUNDRY_BASE_URL") or os.getenv("AZURE_AI_ANTHROPIC_ENDPOINT"), "missing Claude Foundry endpoint"
-    assert os.getenv("AZURE_OPENAI_API_KEY"), "missing shared AZURE_OPENAI_API_KEY"
-print("API clients and credentials ok")' "$LLM_MODELS"
+if [[ "${SKIP_LLM_SMOKE_TEST:-0}" != "1" ]]; then
+  read -r -a llm_smoke_models <<< "$LLM_MODELS"
+  run_python equi-agent/scripts/smoke_test_llm_apis.py \
+    --models "${llm_smoke_models[@]}"
+fi
 mkdir -p "$PREDICTIONS_ROOT" "$METRICS_ROOT" "$MANIFESTS_ROOT" "$CHECKPOINTS_ROOT" "$LLM_ROOT" "$AGENT_ROOT"
 
 mark_stage "manifests"
@@ -288,6 +274,7 @@ PYTHON_BIN="$(conda run -n "$PYTHON_ENV" python -c 'import sys; print(sys.execut
 RUN_ROOT="$LLM_ROOT" \
 METRICS_ROOT="$METRICS_ROOT" \
 MODELS="$LLM_MODELS" \
+SKIP_LLM_SMOKE_TEST=1 \
 GDP_PATH_PREFIX_TO="$REPO_ROOT" \
 bash equi-agent/scripts/run_gdp_progression_llm_baselines.sh
 

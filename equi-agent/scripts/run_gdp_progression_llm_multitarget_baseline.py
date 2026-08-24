@@ -9,6 +9,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from llm_api_config import (
+    call_claude_messages,
+    config_for_model,
+    is_non_retryable_api_error,
+    require_shared_api_key,
+)
 from run_gdp_progression_llm_baseline import (
     EXPECTED_TEST_POSITIVES,
     GDP_TD_COLUMNS,
@@ -122,10 +128,11 @@ class AzureMultiTargetEvaluator:
         self.model_name = model_name
         self.deployment = deployment
         self.response_format = response_format
+        config = config_for_model(model_name, deployment)
         self.client = AzureOpenAI(
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
+            azure_endpoint=config.endpoint,
+            api_key=require_shared_api_key(),
+            api_version=config.api_version,
         )
 
     def analyze(self, user_prompt: str, image_png: bytes) -> tuple[str, dict[str, int]]:
@@ -169,57 +176,43 @@ class AzureMultiTargetEvaluator:
 
 class ClaudeMultiTargetEvaluator:
     def __init__(self, deployment: str):
-        from anthropic import AnthropicFoundry
-
         self.deployment = deployment
-        base_url = (
-            os.getenv("ANTHROPIC_FOUNDRY_BASE_URL")
-            or os.getenv("AZURE_AI_ANTHROPIC_ENDPOINT")
-            or os.getenv("AZURE_OPENAI_ENDPOINT")
-        )
-        api_key = os.getenv("AZURE_OPENAI_API_KEY") or os.getenv("AZURE_API_KEY")
-        if not base_url:
-            raise ValueError("Set ANTHROPIC_FOUNDRY_BASE_URL to the Azure Foundry /anthropic endpoint")
-        if not api_key:
-            raise ValueError("Set AZURE_OPENAI_API_KEY")
-        base_url = base_url.rstrip("/")
-        if base_url.endswith("/v1/messages"):
-            base_url = base_url.removesuffix("/v1/messages")
-        if not base_url.endswith("/anthropic"):
-            raise ValueError(f"Claude Foundry base URL must end in '/anthropic': {base_url}")
-        self.client = AnthropicFoundry(api_key=api_key, base_url=base_url)
+        self.config = config_for_model("claude-haiku-4.5", deployment)
 
     def analyze(self, user_prompt: str, image_png: bytes) -> tuple[str, dict[str, int]]:
-        response = self.client.messages.create(
-            model=self.deployment,
-            max_tokens=1536,
-            temperature=0.2,
-            system=SYSTEM_PROMPT,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": user_prompt},
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "image/png",
-                                "data": base64.b64encode(image_png).decode("ascii"),
+        response = call_claude_messages(
+            self.config,
+            {
+                "model": self.deployment,
+                "max_tokens": 1536,
+                "temperature": 0.2,
+                "system": SYSTEM_PROMPT,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": user_prompt},
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": "image/png",
+                                    "data": base64.b64encode(image_png).decode("ascii"),
+                                },
                             },
-                        },
-                    ],
-                }
-            ],
+                        ],
+                    }
+                ],
+            },
         )
         raw = "\n".join(
-            block.text
-            for block in response.content
-            if getattr(block, "type", None) == "text"
+            str(block.get("text", ""))
+            for block in response.get("content", [])
+            if isinstance(block, dict) and block.get("type") == "text"
         ).strip()
-        usage = getattr(response, "usage", None)
-        prompt_tokens = int(getattr(usage, "input_tokens", 0) or 0)
-        completion_tokens = int(getattr(usage, "output_tokens", 0) or 0)
+        usage = response.get("usage", {})
+        prompt_tokens = int(usage.get("input_tokens", 0) or 0)
+        completion_tokens = int(usage.get("output_tokens", 0) or 0)
         return raw, {
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
@@ -528,6 +521,11 @@ def main() -> None:
                         },
                     },
                 )
+                if is_non_retryable_api_error(exc):
+                    raise RuntimeError(
+                        f"Non-retryable API failure for {args.model} deployment "
+                        f"{args.deployment}; aborting before the next case: {exc}"
+                    ) from exc
                 if attempt < args.max_retries:
                     time.sleep(args.retry_sleep_sec * (attempt + 1))
 

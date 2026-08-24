@@ -1,0 +1,73 @@
+% Compact summary of the glaucoma benchmark tables.
+% Required preamble package: \usepackage{tikz}
+% Values reflect the working manuscript draft on 2026-08-24. Reconcile source
+% artifacts before final submission, especially Drishti-GS1 and REFUGE2.
+
+\definecolor{FoundationBar}{HTML}{687784}
+\definecolor{RetinAgentBar}{HTML}{D55E00}
+\definecolor{FigureText}{HTML}{202124}
+
+% #1 panel x origin, #2 row y, #3 baseline value, #4 ours value,
+% #5 baseline model name.
+\newcommand{\ComparisonBars}[5]{%
+  \fill[FoundationBar] (#1,#2+0.08) rectangle ++({4.75*#3},0.25);%
+  \fill[RetinAgentBar] (#1,#2-0.27) rectangle ++({4.75*#4},0.25);%
+  \node[anchor=east,text=white,font=\fontsize{5.4}{5.6}\selectfont]
+    at ({#1+4.75*#3-0.07},#2+0.205) {#5};%
+}
+
+\newcommand{\DatasetLabel}[3]{%
+  \node[anchor=east,text=FigureText,font=\fontsize{6.3}{6.5}\selectfont]
+    at (#1,#2) {#3};%
+}
+
+\newcommand{\PanelAxis}[3]{%
+  \node[anchor=west,text=FigureText,font=\bfseries\fontsize{8.0}{8.2}\selectfont]
+    at (#1,1.32) {#2};%
+  \foreach \tick in {0,0.5,1.0} {%
+    \draw[black!13,line width=0.35pt]
+      ({#1+4.75*\tick},0.70) -- ({#1+4.75*\tick},-7.28);%
+    \node[anchor=north,text=black!65,font=\fontsize{5.7}{5.9}\selectfont]
+      at ({#1+4.75*\tick},-7.38)
+      {\pgfmathprintnumber[fixed,precision=1]{\tick}};%
+  }%
+  \node[anchor=north,text=black!60,font=\fontsize{5.8}{6.0}\selectfont]
+    at ({#1+2.375},-8.08) {#3};%
+}
+
+\begin{tikzpicture}[x=1cm,y=0.72cm]
+
+\PanelAxis{3.05}{\textbf{a}\quad F1 score}{F1 score}
+\PanelAxis{10.05}{\textbf{b}\quad Balanced accuracy}{Balanced accuracy}
+
+\DatasetLabel{2.78}{0.25}{FairVision30K}
+\DatasetLabel{2.78}{-1.05}{Harvard GDP}
+\DatasetLabel{2.78}{-2.35}{Drishti-GS1}
+\DatasetLabel{2.78}{-3.65}{REFUGE2}
+\DatasetLabel{2.78}{-4.95}{PAPILA}
+\DatasetLabel{2.78}{-6.25}{GAMMA}
+
+% Panel a: F1.
+\ComparisonBars{3.05}{0.25}{0.7477}{0.7704}{RETFound}
+\ComparisonBars{3.05}{-1.05}{0.6948}{0.7892}{VisionFM}
+\ComparisonBars{3.05}{-2.35}{0.9091}{0.7905}{URFound}
+\ComparisonBars{3.05}{-3.65}{0.9190}{0.9432}{RETFound}
+\ComparisonBars{3.05}{-4.95}{0.5333}{0.3500}{RETFound}
+\ComparisonBars{3.05}{-6.25}{0.9474}{0.8696}{RetiZero}
+
+% Panel b: balanced accuracy for the same paired systems.
+\ComparisonBars{10.05}{0.25}{0.7505}{0.7709}{RETFound}
+\ComparisonBars{10.05}{-1.05}{0.7010}{0.7792}{VisionFM}
+\ComparisonBars{10.05}{-2.35}{0.8824}{0.7729}{URFound}
+\ComparisonBars{10.05}{-3.65}{0.7250}{0.7815}{RETFound}
+\ComparisonBars{10.05}{-4.95}{0.7636}{0.5970}{RETFound}
+\ComparisonBars{10.05}{-6.25}{0.9500}{0.8500}{RetiZero}
+
+\fill[FoundationBar] (3.05,-8.70) rectangle ++(0.32,0.22);
+\node[anchor=west,text=FigureText,font=\fontsize{6.0}{6.2}\selectfont]
+  at (3.46,-8.59) {Best standalone foundation model};
+\fill[RetinAgentBar] (7.35,-8.70) rectangle ++(0.32,0.22);
+\node[anchor=west,text=FigureText,font=\fontsize{6.0}{6.2}\selectfont]
+  at (7.76,-8.59) {RetinAgent};
+
+\end{tikzpicture}

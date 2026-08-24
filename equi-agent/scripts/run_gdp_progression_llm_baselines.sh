@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
+source "$REPO_ROOT/equi-agent/scripts/gdp_llm_api_preamble.sh"
 
 RUN_ROOT="${RUN_ROOT:-equi-agent/outputs/baselines/gdp_progression_llm_v1}"
 METRICS_ROOT="${METRICS_ROOT:-equi-agent/outputs/metrics}"
@@ -41,6 +42,12 @@ for target in $TARGETS; do
   manifest="equi-agent/outputs/manifests/gdp_progression_forecasting_${target}.csv"
   [[ -f "$manifest" ]] || { echo "Missing manifest: $manifest" >&2; exit 1; }
 done
+
+if [[ "${SKIP_LLM_SMOKE_TEST:-0}" != "1" ]]; then
+  read -r -a smoke_models <<< "$MODELS"
+  "$PYTHON_BIN" equi-agent/scripts/smoke_test_llm_apis.py \
+    --models "${smoke_models[@]}"
+fi
 
 for model in $MODELS; do
   slug="$(slug_for_model "$model")"
