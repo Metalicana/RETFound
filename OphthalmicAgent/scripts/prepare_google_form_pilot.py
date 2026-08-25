@@ -32,6 +32,12 @@ AGE_CANDIDATES = ("Age", "age")
 GENDER_CANDIDATES = ("Gender", "gender", "Sex", "sex")
 RACE_CANDIDATES = ("Race", "race")
 ETHNICITY_CANDIDATES = ("Ethnicity", "ethnicity")
+TRUTH_CANDIDATES = ("Ground_Truth", "ground_truth", "groundtruth", "label", "y_true", "_truth")
+PREDICTION_CANDIDATES = {
+    "glaucoma": ("Pred_GL", "pred_gl", "prediction", "predicted_label", "_prediction"),
+    "amd": ("Pred_AMD", "pred_amd", "prediction", "predicted_label", "_prediction"),
+    "dr": ("Pred_DR", "pred_dr", "prediction", "predicted_label", "_prediction"),
+}
 FORBIDDEN_OUTPUT_TERMS = (
     "ground_truth", "groundtruth", "prediction", "pred_", "probability",
     "correct", "reasoning", "decision", "response", "label", "_truth", "_prediction",
@@ -237,12 +243,19 @@ def main():
     gender_col = demographic_column(merged, GENDER_CANDIDATES)
     race_col = demographic_column(merged, RACE_CANDIDATES)
     ethnicity_col = demographic_column(merged, ETHNICITY_CANDIDATES)
+    truth_col = demographic_column(merged, TRUTH_CANDIDATES)
+    prediction_col = demographic_column(merged, PREDICTION_CANDIDATES[args.disease])
     missing_demo = [name for name, column in (
         ("Age", age_col), ("Gender", gender_col), ("Race", race_col),
         ("Ethnicity", ethnicity_col),
     ) if column is None]
     if missing_demo:
         raise KeyError(f"Selected-rows audit lacks demographic columns: {missing_demo}")
+    if truth_col is None or prediction_col is None:
+        raise KeyError(
+            "Selected-rows audit must contain ground truth and the disease prediction "
+            "to create the private evaluation key"
+        )
 
     review_column = find_column(manifest.columns, ("review_order",), required=False)
     case_column = find_column(manifest.columns, CASE_CANDIDATES, required=False)
@@ -255,6 +268,7 @@ def main():
     image_dir = args.output_dir / "images"
     image_dir.mkdir(parents=True, exist_ok=True)
     output_rows = []
+    private_rows = []
     seen_case_ids = set()
     for position, (_, row) in enumerate(merged.iterrows(), start=1):
         review_order = int(row[review_column]) if review_column else position
@@ -280,6 +294,19 @@ def main():
             "disease": args.disease,
             "oct_slice_indices": json.dumps(indices),
         })
+        truth = int(float(row[truth_col]))
+        prediction = int(float(row[prediction_col]))
+        if truth not in (0, 1) or prediction not in (0, 1):
+            raise ValueError(
+                f"Case {case_id} has non-binary truth/prediction: {truth}/{prediction}"
+            )
+        private_rows.append({
+            "review_order": review_order,
+            "case_id": case_id,
+            "source_filename": str(row[joined_audit_file]),
+            "ground_truth": truth,
+            "model_prediction": prediction,
+        })
 
     output_rows.sort(key=lambda item: item["review_order"])
     output_csv = args.output_dir / "form_cases.csv"
@@ -288,6 +315,13 @@ def main():
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(output_rows)
+
+    # This key is required for analysis but must never be uploaded with the
+    # Google Form bundle or shared with reviewers.
+    private_dir = args.output_dir / "_private_do_not_upload"
+    private_dir.mkdir(parents=True, exist_ok=True)
+    private_key = private_dir / "evaluation_key.csv"
+    pd.DataFrame(private_rows).sort_values("review_order").to_csv(private_key, index=False)
 
     forbidden = [column for column in fieldnames
                  if any(term in column.casefold() for term in FORBIDDEN_OUTPUT_TERMS)]
@@ -305,6 +339,7 @@ def main():
         "oct_slices": args.oct_slices,
         "output_csv": str(output_csv),
         "image_directory": str(image_dir),
+        "private_evaluation_key_do_not_upload": str(private_key),
         "doctor_bundle_contains_ground_truth_or_predictions": False,
     }
     (args.output_dir / "bundle_summary.json").write_text(
@@ -312,6 +347,7 @@ def main():
     )
     print(json.dumps(summary, indent=2))
     print("Upload form_cases.csv and all files inside images/ to one Google Drive folder.")
+    print("Do NOT upload _private_do_not_upload/evaluation_key.csv; keep it with the study team.")
 
 
 if __name__ == "__main__":
