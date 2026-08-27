@@ -8,7 +8,8 @@ demographics, creates one blinded SLO+OCT montage per case, and writes
 folder, then run ``create_google_form.gs`` using that folder's ID.
 
 Ground truth, model predictions, probabilities, correctness, and agent text are
-never copied to the Google Form bundle.
+never copied to the Google Form bundle. Mixed manifests are ordered as
+glaucoma, AMD, then DR.
 """
 
 from __future__ import annotations
@@ -46,13 +47,15 @@ FORBIDDEN_OUTPUT_TERMS = (
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Create a blinded 50-case Google Form image/metadata bundle."
+        description="Create a blinded FairVision Google Form image/metadata bundle."
     )
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--selected-rows", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--data-root", type=Path, default=Path("."))
-    parser.add_argument("--disease", choices=("glaucoma", "amd", "dr"), required=True)
+    parser.add_argument(
+        "--disease", choices=("glaucoma", "amd", "dr", "mixed"), required=True
+    )
     parser.add_argument("--oct-slices", type=int, default=8)
     parser.add_argument("--age-display", choices=("exact", "decade"), default="exact")
     parser.add_argument("--max-image-width", type=int, default=1600)
@@ -244,14 +247,50 @@ def main():
     race_col = demographic_column(merged, RACE_CANDIDATES)
     ethnicity_col = demographic_column(merged, ETHNICITY_CANDIDATES)
     truth_col = demographic_column(merged, TRUTH_CANDIDATES)
-    prediction_col = demographic_column(merged, PREDICTION_CANDIDATES[args.disease])
+    if args.disease == "mixed":
+        disease_col = demographic_column(merged, ("disease",))
+        if disease_col is None:
+            raise KeyError("A mixed manifest must contain a disease column")
+        merged["_form_disease"] = merged[disease_col].map(
+            lambda value: clean_text(value, "").casefold()
+        )
+        invalid_diseases = sorted(
+            set(merged["_form_disease"]) - set(PREDICTION_CANDIDATES)
+        )
+        if invalid_diseases:
+            raise ValueError(f"Unsupported diseases in mixed manifest: {invalid_diseases}")
+        disease_counts = merged["_form_disease"].value_counts().to_dict()
+        if disease_counts != {"glaucoma": 5, "amd": 5, "dr": 5}:
+            raise ValueError(
+                "A mixed reviewer manifest must contain exactly 5 glaucoma, "
+                f"5 AMD, and 5 DR cases; found {disease_counts}"
+            )
+        prediction_columns = {
+            disease: demographic_column(merged, candidates)
+            for disease, candidates in PREDICTION_CANDIDATES.items()
+        }
+        missing_predictions = [
+            disease for disease, column in prediction_columns.items() if column is None
+        ]
+        if missing_predictions:
+            raise KeyError(
+                "Selected-rows audit lacks prediction columns for: "
+                + ", ".join(missing_predictions)
+            )
+    else:
+        merged["_form_disease"] = args.disease
+        prediction_columns = {
+            args.disease: demographic_column(
+                merged, PREDICTION_CANDIDATES[args.disease]
+            )
+        }
     missing_demo = [name for name, column in (
         ("Age", age_col), ("Gender", gender_col), ("Race", race_col),
         ("Ethnicity", ethnicity_col),
     ) if column is None]
     if missing_demo:
         raise KeyError(f"Selected-rows audit lacks demographic columns: {missing_demo}")
-    if truth_col is None or prediction_col is None:
+    if truth_col is None or any(column is None for column in prediction_columns.values()):
         raise KeyError(
             "Selected-rows audit must contain ground truth and the disease prediction "
             "to create the private evaluation key"
@@ -267,11 +306,29 @@ def main():
     args.output_dir.mkdir(parents=True, exist_ok=True)
     image_dir = args.output_dir / "images"
     image_dir.mkdir(parents=True, exist_ok=True)
+    disease_order = {"glaucoma": 0, "amd": 1, "dr": 2}
+    if args.disease == "mixed":
+        merged["_disease_order"] = merged["_form_disease"].map(disease_order)
+        if review_column:
+            merged["_original_review_order"] = pd.to_numeric(
+                merged[review_column], errors="coerce"
+            )
+        else:
+            merged["_original_review_order"] = np.arange(1, len(merged) + 1)
+        merged = merged.sort_values(
+            ["_disease_order", "_original_review_order"], kind="stable"
+        ).reset_index(drop=True)
+
     output_rows = []
     private_rows = []
     seen_case_ids = set()
     for position, (_, row) in enumerate(merged.iterrows(), start=1):
-        review_order = int(row[review_column]) if review_column else position
+        # Mixed bundles receive a new sequential order after grouping diseases.
+        review_order = (
+            position if args.disease == "mixed"
+            else int(row[review_column]) if review_column else position
+        )
+        row_disease = row["_form_disease"]
         raw_case_id = row[case_column] if case_column else Path(str(row[joined_manifest_file])).stem
         case_id = safe_case_id(raw_case_id, f"case_{review_order:03d}")
         if case_id in seen_case_ids:
@@ -291,11 +348,12 @@ def main():
             "gender": clean_text(row[gender_col]),
             "race": clean_text(row[race_col]),
             "ethnicity": clean_text(row[ethnicity_col]),
-            "disease": args.disease,
+            "disease": row_disease,
+            "imaging_modality": "SLO/fundus photograph and OCT B-scans",
             "oct_slice_indices": json.dumps(indices),
         })
         truth = int(float(row[truth_col]))
-        prediction = int(float(row[prediction_col]))
+        prediction = int(float(row[prediction_columns[row_disease]]))
         if truth not in (0, 1) or prediction not in (0, 1):
             raise ValueError(
                 f"Case {case_id} has non-binary truth/prediction: {truth}/{prediction}"
