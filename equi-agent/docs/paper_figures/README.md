@@ -1,14 +1,46 @@
 # RetinAgent Paper Figures
 
-Start with `retinagent_paper_figures.drawio`. It opens on Figure 2; the remaining
-tabs are clearly marked quantitative layouts, not completed result figures.
-All diagram elements are native editable draw.io shapes and text.
+Start with [motivation/motivation.drawio](motivation/motivation.drawio) for the
+motivation figure: overall model performance beside paired complementary errors
+on the same 3,000 FairVision glaucoma test cases. Its message is that a lower-ranked
+model can be right when RETFound is wrong, but can also introduce new errors.
+The research question is when to trust it, not whether to replace RETFound wholesale.
+See [caption and provenance](motivation/caption.md).
+
+Use `figure_02_architecture.drawio` next for the conceptual architecture.
+The remaining tabs in `retinagent_paper_figures.drawio` are older quantitative
+layouts, not completed result figures. All elements are native editable draw.io
+shapes and text. The recovered audit figures below are not the motivation figure.
+
+## Recovered CECSL Results (2026-09-27)
+
+The transferred archive has been inspected separately from the repo's original
+outputs. Open [recovered/recovered_experiments.drawio](recovered/recovered_experiments.drawio)
+for three **data-backed historical/exploratory** figures:
+
+1. Reliability-rule comparison and positive-vote bonus sensitivity.
+2. Deterministic risk-coverage curves with retained class composition.
+3. Paired PAPILA, Drishti-GS and GAMMA changes, with bootstrap intervals.
+
+See the [audit](recovered/audit.md) and [aggregate source data](recovered/source_data.json).
+The final manuscript run identities are still unresolved: the recovered live
+glaucoma run does not match the previously supplied paper score. These figures
+therefore do not replace the main layouts or establish the paper's fixed
+reliability coefficients. No prompts or experiment outputs were changed.
+
+Rebuild from a separate extracted archive (standard library only):
+
+```bash
+python equi-agent/scripts/build_recovered_experiment_figures.py \
+  --inputs-root /path/to/separate/extracted/archive
+python -m unittest discover -s equi-agent/tests -p test_recovered_experiment_figures.py
+```
 
 ## Current Scope
 
 | Figure | Scientific question | Status |
 | --- | --- | --- |
-| 1 | Do models have complementary task- and subgroup-dependent failures? | Panel layout only; final common cohort needed |
+| 1 | Why is overall model rank insufficient for case-specific trust? | `motivation/motivation.drawio`: matched full-test glaucoma analysis; distinct from the 250-case agent evaluation |
 | 2 | How does reliability inform evidence arbitration and clinical handoff? | Complete conceptual diagram; confirm against the final run configuration |
 | 3 | What is the risk versus accepted coverage trade-off? | Axes and comparisons planned; no fabricated curves |
 | 4 | Where does arbitration help or hurt on external datasets? | Paired-comparison layout only; keep negative results |

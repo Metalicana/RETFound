@@ -1,0 +1,781 @@
+{
+  "boundaries": {
+    "hierarchical_demo_bin_f1_bonus_0p03": {
+      "n": 1000,
+      "tn": 375,
+      "fp": 136,
+      "fn": 113,
+      "tp": 376,
+      "f1": 0.7512487512487512,
+      "weighted_f1": 0.7509942729942729,
+      "accuracy": 0.751,
+      "sensitivity": 0.7689161554192229,
+      "specificity": 0.7338551859099804,
+      "balanced_accuracy": 0.7513856706646016
+    },
+    "hierarchical_demo_bin_f1_bonus_0p02": {
+      "n": 1000,
+      "tn": 385,
+      "fp": 126,
+      "fn": 124,
+      "tp": 365,
+      "f1": 0.7448979591836735,
+      "weighted_f1": 0.7500100040016007,
+      "accuracy": 0.75,
+      "sensitivity": 0.7464212678936605,
+      "specificity": 0.7534246575342466,
+      "balanced_accuracy": 0.7499229627139535
+    },
+    "hierarchical_demo_bin_f1_bonus_0p01": {
+      "n": 1000,
+      "tn": 398,
+      "fp": 113,
+      "fn": 137,
+      "tp": 352,
+      "f1": 0.7379454926624738,
+      "weighted_f1": 0.7497234147456017,
+      "accuracy": 0.75,
+      "sensitivity": 0.7198364008179959,
+      "specificity": 0.7788649706457925,
+      "balanced_accuracy": 0.7493506857318942
+    },
+    "hierarchical_demo_bin_accuracy": {
+      "n": 1000,
+      "tn": 406,
+      "fp": 105,
+      "fn": 145,
+      "tp": 344,
+      "f1": 0.7334754797441365,
+      "weighted_f1": 0.7493776075233197,
+      "accuracy": 0.75,
+      "sensitivity": 0.7034764826175869,
+      "specificity": 0.7945205479452054,
+      "balanced_accuracy": 0.7489985152813962
+    },
+    "hierarchical_demo_bin_oct_margin_0p05": {
+      "n": 1000,
+      "tn": 422,
+      "fp": 89,
+      "fn": 161,
+      "tp": 328,
+      "f1": 0.7240618101545254,
+      "weighted_f1": 0.7482929162076105,
+      "accuracy": 0.75,
+      "sensitivity": 0.6707566462167689,
+      "specificity": 0.8258317025440313,
+      "balanced_accuracy": 0.7482941743804001
+    },
+    "probability_bin_f1_bonus_0p01": {
+      "n": 1000,
+      "tn": 378,
+      "fp": 133,
+      "fn": 120,
+      "tp": 369,
+      "f1": 0.7447023208879919,
+      "weighted_f1": 0.7470296033978753,
+      "accuracy": 0.747,
+      "sensitivity": 0.754601226993865,
+      "specificity": 0.7397260273972602,
+      "balanced_accuracy": 0.7471636271955626
+    },
+    "hierarchical_demo_bin_oct_margin_0p03": {
+      "n": 1000,
+      "tn": 419,
+      "fp": 92,
+      "fn": 161,
+      "tp": 328,
+      "f1": 0.7216721672167217,
+      "weighted_f1": 0.7453981480641189,
+      "accuracy": 0.747,
+      "sensitivity": 0.6707566462167689,
+      "specificity": 0.8199608610567515,
+      "balanced_accuracy": 0.7453587536367602
+    },
+    "probability_bin_accuracy": {
+      "n": 1000,
+      "tn": 383,
+      "fp": 128,
+      "fn": 129,
+      "tp": 360,
+      "f1": 0.736949846468782,
+      "weighted_f1": 0.742994085871426,
+      "accuracy": 0.743,
+      "sensitivity": 0.7361963190184049,
+      "specificity": 0.7495107632093934,
+      "balanced_accuracy": 0.7428535411138991
+    },
+    "tree_correctness": {
+      "n": 1000,
+      "tn": 402,
+      "fp": 109,
+      "fn": 148,
+      "tp": 341,
+      "f1": 0.7263045793397231,
+      "weighted_f1": 0.742386313472431,
+      "accuracy": 0.743,
+      "sensitivity": 0.6973415132924335,
+      "specificity": 0.786692759295499,
+      "balanced_accuracy": 0.7420171362939663
+    },
+    "probability_bin_f1_bonus_0p02": {
+      "n": 1000,
+      "tn": 367,
+      "fp": 144,
+      "fn": 116,
+      "tp": 373,
+      "f1": 0.7415506958250497,
+      "weighted_f1": 0.7399563184274635,
+      "accuracy": 0.74,
+      "sensitivity": 0.7627811860940695,
+      "specificity": 0.7181996086105675,
+      "balanced_accuracy": 0.7404903973523185
+    },
+    "probability_bin_f1_bonus_0p03": {
+      "n": 1000,
+      "tn": 359,
+      "fp": 152,
+      "fn": 110,
+      "tp": 379,
+      "f1": 0.7431372549019608,
+      "weighted_f1": 0.7377798319327732,
+      "accuracy": 0.738,
+      "sensitivity": 0.7750511247443763,
+      "specificity": 0.7025440313111546,
+      "balanced_accuracy": 0.7387975780277655
+    },
+    "hierarchical_demo_bin_f1_bonus_0p05": {
+      "n": 1000,
+      "tn": 339,
+      "fp": 172,
+      "fn": 93,
+      "tp": 396,
+      "f1": 0.7492904446546831,
+      "weighted_f1": 0.7338028153470626,
+      "accuracy": 0.735,
+      "sensitivity": 0.8098159509202454,
+      "specificity": 0.6634050880626223,
+      "balanced_accuracy": 0.7366105194914339
+    },
+    "logistic_correctness": {
+      "n": 1000,
+      "tn": 392,
+      "fp": 119,
+      "fn": 145,
+      "tp": 344,
+      "f1": 0.7226890756302521,
+      "weighted_f1": 0.7356697671434985,
+      "accuracy": 0.736,
+      "sensitivity": 0.7034764826175869,
+      "specificity": 0.7671232876712328,
+      "balanced_accuracy": 0.7352998851444099
+    },
+    "probability_bin_f1_bonus_0p05": {
+      "n": 1000,
+      "tn": 339,
+      "fp": 172,
+      "fn": 100,
+      "tp": 389,
+      "f1": 0.7409523809523809,
+      "weighted_f1": 0.7270183458646615,
+      "accuracy": 0.728,
+      "sensitivity": 0.7955010224948875,
+      "specificity": 0.6634050880626223,
+      "balanced_accuracy": 0.7294530552787549
+    },
+    "directional_demographic_accuracy": {
+      "n": 1000,
+      "tn": 364,
+      "fp": 147,
+      "fn": 127,
+      "tp": 362,
+      "f1": 0.7254509018036072,
+      "weighted_f1": 0.7260109600438401,
+      "accuracy": 0.726,
+      "sensitivity": 0.7402862985685071,
+      "specificity": 0.7123287671232876,
+      "balanced_accuracy": 0.7263075328458974
+    },
+    "global_accuracy": {
+      "n": 1000,
+      "tn": 416,
+      "fp": 95,
+      "fn": 187,
+      "tp": 302,
+      "f1": 0.6817155756207675,
+      "weighted_f1": 0.7150034407155391,
+      "accuracy": 0.718,
+      "sensitivity": 0.6175869120654397,
+      "specificity": 0.8140900195694716,
+      "balanced_accuracy": 0.7158384658174557
+    },
+    "demographic_accuracy": {
+      "n": 1000,
+      "tn": 408,
+      "fp": 103,
+      "fn": 184,
+      "tp": 305,
+      "f1": 0.6800445930880713,
+      "weighted_f1": 0.7105798839892418,
+      "accuracy": 0.713,
+      "sensitivity": 0.623721881390593,
+      "specificity": 0.7984344422700587,
+      "balanced_accuracy": 0.7110781618303259
+    }
+  },
+  "selective": {
+    "tasks": {
+      "amd": {
+        "points": [
+          {
+            "coverage": 0.5,
+            "risk": 0.07533333333333334,
+            "positive_fraction": 0.48533333333333334,
+            "n": 1500
+          },
+          {
+            "coverage": 0.6,
+            "risk": 0.09333333333333334,
+            "positive_fraction": 0.43722222222222223,
+            "n": 1800
+          },
+          {
+            "coverage": 0.7,
+            "risk": 0.11190476190476191,
+            "positive_fraction": 0.4057142857142857,
+            "n": 2100
+          },
+          {
+            "coverage": 0.75,
+            "risk": 0.124,
+            "positive_fraction": 0.396,
+            "n": 2250
+          },
+          {
+            "coverage": 0.8,
+            "risk": 0.135,
+            "positive_fraction": 0.38,
+            "n": 2400
+          },
+          {
+            "coverage": 0.85,
+            "risk": 0.14666666666666667,
+            "positive_fraction": 0.36901960784313725,
+            "n": 2550
+          },
+          {
+            "coverage": 0.9,
+            "risk": 0.16,
+            "positive_fraction": 0.36407407407407405,
+            "n": 2700
+          },
+          {
+            "coverage": 0.95,
+            "risk": 0.1743859649122807,
+            "positive_fraction": 0.36140350877192984,
+            "n": 2850
+          },
+          {
+            "coverage": 1.0,
+            "risk": 0.18866666666666668,
+            "positive_fraction": 0.35633333333333334,
+            "n": 3000
+          }
+        ],
+        "full": {
+          "n": 3000,
+          "tn": 1539,
+          "fp": 392,
+          "fn": 174,
+          "tp": 895,
+          "f1": 0.7597623089983022,
+          "weighted_f1": 0.8144185373138594,
+          "accuracy": 0.8113333333333334,
+          "sensitivity": 0.8372310570626754,
+          "specificity": 0.7969963749352666,
+          "balanced_accuracy": 0.817113715998971
+        },
+        "accepted_n": 1267
+      },
+      "dr": {
+        "points": [
+          {
+            "coverage": 0.5,
+            "risk": 0.006666666666666667,
+            "positive_fraction": 0.013333333333333334,
+            "n": 1500
+          },
+          {
+            "coverage": 0.6,
+            "risk": 0.009444444444444445,
+            "positive_fraction": 0.018333333333333333,
+            "n": 1800
+          },
+          {
+            "coverage": 0.7,
+            "risk": 0.01904761904761905,
+            "positive_fraction": 0.03238095238095238,
+            "n": 2100
+          },
+          {
+            "coverage": 0.75,
+            "risk": 0.02,
+            "positive_fraction": 0.03244444444444444,
+            "n": 2250
+          },
+          {
+            "coverage": 0.8,
+            "risk": 0.029583333333333333,
+            "positive_fraction": 0.04666666666666667,
+            "n": 2400
+          },
+          {
+            "coverage": 0.85,
+            "risk": 0.04196078431372549,
+            "positive_fraction": 0.05803921568627451,
+            "n": 2550
+          },
+          {
+            "coverage": 0.9,
+            "risk": 0.056296296296296296,
+            "positive_fraction": 0.07111111111111111,
+            "n": 2700
+          },
+          {
+            "coverage": 0.95,
+            "risk": 0.07298245614035087,
+            "positive_fraction": 0.08,
+            "n": 2850
+          },
+          {
+            "coverage": 1.0,
+            "risk": 0.092,
+            "positive_fraction": 0.087,
+            "n": 3000
+          }
+        ],
+        "full": {
+          "n": 3000,
+          "tn": 2568,
+          "fp": 171,
+          "fn": 105,
+          "tp": 156,
+          "f1": 0.5306122448979592,
+          "weighted_f1": 0.9126022896963663,
+          "accuracy": 0.908,
+          "sensitivity": 0.5977011494252874,
+          "specificity": 0.9375684556407448,
+          "balanced_accuracy": 0.7676348025330161
+        },
+        "accepted_n": 0
+      },
+      "glaucoma": {
+        "points": [
+          {
+            "coverage": 0.5,
+            "risk": 0.12466666666666666,
+            "positive_fraction": 0.5433333333333333,
+            "n": 1500
+          },
+          {
+            "coverage": 0.6,
+            "risk": 0.1438888888888889,
+            "positive_fraction": 0.5277777777777778,
+            "n": 1800
+          },
+          {
+            "coverage": 0.7,
+            "risk": 0.16142857142857142,
+            "positive_fraction": 0.5133333333333333,
+            "n": 2100
+          },
+          {
+            "coverage": 0.75,
+            "risk": 0.17333333333333334,
+            "positive_fraction": 0.5071111111111111,
+            "n": 2250
+          },
+          {
+            "coverage": 0.8,
+            "risk": 0.18916666666666668,
+            "positive_fraction": 0.5004166666666666,
+            "n": 2400
+          },
+          {
+            "coverage": 0.85,
+            "risk": 0.1992156862745098,
+            "positive_fraction": 0.4980392156862745,
+            "n": 2550
+          },
+          {
+            "coverage": 0.9,
+            "risk": 0.21259259259259258,
+            "positive_fraction": 0.4937037037037037,
+            "n": 2700
+          },
+          {
+            "coverage": 0.95,
+            "risk": 0.22666666666666666,
+            "positive_fraction": 0.4919298245614035,
+            "n": 2850
+          },
+          {
+            "coverage": 1.0,
+            "risk": 0.24266666666666667,
+            "positive_fraction": 0.4886666666666667,
+            "n": 3000
+          }
+        ],
+        "full": {
+          "n": 3000,
+          "tn": 1206,
+          "fp": 328,
+          "fn": 400,
+          "tp": 1066,
+          "f1": 0.7454545454545455,
+          "weighted_f1": 0.7570609534838835,
+          "accuracy": 0.7573333333333333,
+          "sensitivity": 0.7271487039563438,
+          "specificity": 0.7861799217731421,
+          "balanced_accuracy": 0.756664312864743
+        },
+        "accepted_n": 1510
+      }
+    },
+    "score": {
+      "formula": "weight_auroc*auroc + weight_f1*f1 - weight_ece*ece - weight_fnr*fnr - weight_fpr*fpr",
+      "weights": {
+        "auroc": 0.45,
+        "ece": 0.1,
+        "f1": 0.35,
+        "fnr": 0.07,
+        "fpr": 0.03
+      }
+    },
+    "ranking": "risk_score, increasing; saved coverage grid, not a new selected policy"
+  },
+  "external": [
+    {
+      "dataset": "PAPILA",
+      "modality": "CFP",
+      "baseline": {
+        "n": 81,
+        "tn": 48,
+        "fp": 18,
+        "fn": 3,
+        "tp": 12,
+        "f1": 0.5333333333333333,
+        "weighted_f1": 0.7673314339981007,
+        "accuracy": 0.7407407407407407,
+        "sensitivity": 0.8,
+        "specificity": 0.7272727272727273,
+        "balanced_accuracy": 0.7636363636363637
+      },
+      "agent": {
+        "n": 81,
+        "tn": 48,
+        "fp": 18,
+        "fn": 8,
+        "tp": 7,
+        "f1": 0.35,
+        "weighted_f1": 0.7059805707346691,
+        "accuracy": 0.6790123456790124,
+        "sensitivity": 0.4666666666666667,
+        "specificity": 0.7272727272727273,
+        "balanced_accuracy": 0.5969696969696969
+      },
+      "clusters": 49,
+      "extra_attempts": 2,
+      "delta": -0.06135086326343153,
+      "ci": [
+        -0.17740511603166553,
+        0.047391991551801134
+      ],
+      "baseline_path": "equi-agent/outputs/benchmarks/papila_glaucoma_foundations_oof_v2/retfound/predictions_test.csv",
+      "agent_path": "OphthalmicAgent/outputs/papila/agentic_retfound_oof_v2/predictions.csv"
+    },
+    {
+      "dataset": "Drishti-GS",
+      "modality": "CFP",
+      "baseline": {
+        "n": 51,
+        "tn": 11,
+        "fp": 6,
+        "fn": 15,
+        "tp": 19,
+        "f1": 0.6440677966101694,
+        "weighted_f1": 0.5999211667323611,
+        "accuracy": 0.5882352941176471,
+        "sensitivity": 0.5588235294117647,
+        "specificity": 0.6470588235294118,
+        "balanced_accuracy": 0.6029411764705883
+      },
+      "agent": {
+        "n": 51,
+        "tn": 15,
+        "fp": 2,
+        "fn": 16,
+        "tp": 18,
+        "f1": 0.6666666666666666,
+        "weighted_f1": 0.6527777777777777,
+        "accuracy": 0.6470588235294118,
+        "sensitivity": 0.5294117647058824,
+        "specificity": 0.8823529411764706,
+        "balanced_accuracy": 0.7058823529411764
+      },
+      "clusters": 51,
+      "extra_attempts": 1,
+      "delta": 0.05285661104541661,
+      "ci": [
+        -0.10748859001945042,
+        0.21623725944839275
+      ],
+      "baseline_path": "equi-agent/outputs/benchmarks/drishti_glaucoma_foundations_v1/retfound/predictions_test.csv",
+      "agent_path": "OphthalmicAgent/outputs/drishti/agentic_retfound_cfp_v1/predictions.csv"
+    },
+    {
+      "dataset": "GAMMA",
+      "modality": "OCT + CFP",
+      "baseline": {
+        "n": 20,
+        "tn": 7,
+        "fp": 3,
+        "fn": 0,
+        "tp": 10,
+        "f1": 0.8695652173913043,
+        "weighted_f1": 0.846547314578005,
+        "accuracy": 0.85,
+        "sensitivity": 1.0,
+        "specificity": 0.7,
+        "balanced_accuracy": 0.85
+      },
+      "agent": {
+        "n": 20,
+        "tn": 7,
+        "fp": 3,
+        "fn": 0,
+        "tp": 10,
+        "f1": 0.8695652173913043,
+        "weighted_f1": 0.846547314578005,
+        "accuracy": 0.85,
+        "sensitivity": 1.0,
+        "specificity": 0.7,
+        "balanced_accuracy": 0.85
+      },
+      "clusters": 20,
+      "extra_attempts": 13,
+      "delta": 0.0,
+      "ci": [
+        0.0,
+        0.0
+      ],
+      "baseline_path": "OphthalmicAgent/outputs/gamma/retfound_oct_fairvision_init_v1/predictions_test.csv",
+      "agent_path": "OphthalmicAgent/outputs/gamma/agentic_retfound_oct_v1/predictions.csv"
+    }
+  ],
+  "live": {
+    "runs": [
+      {
+        "directory": "fairvision_balanced_250",
+        "dry_run": true,
+        "cases": 750,
+        "errors": 0
+      },
+      {
+        "directory": "fairvision_live_balanced_250_reproducible_v1",
+        "dry_run": true,
+        "cases": 0,
+        "errors": 0
+      },
+      {
+        "directory": "fairvision_live_glaucoma_250_score_cf_cdr_v1",
+        "dry_run": false,
+        "cases": 250,
+        "errors": 0
+      },
+      {
+        "directory": "fairvision_live_intersectional_balanced_250_reproducible_v1",
+        "dry_run": true,
+        "cases": 3,
+        "errors": 0
+      }
+    ],
+    "live_candidate": {
+      "n": 250,
+      "tn": 88,
+      "fp": 37,
+      "fn": 39,
+      "tp": 86,
+      "f1": 0.6935483870967742,
+      "weighted_f1": 0.6959805427547362,
+      "accuracy": 0.696,
+      "sensitivity": 0.688,
+      "specificity": 0.704,
+      "balanced_accuracy": 0.696
+    },
+    "live_candidate_case_list": "equi-agent/outputs/manifests/fairvision_intersectional_balanced_250/all_manifest.csv",
+    "ophth_glaucoma_rows": 250,
+    "ophth_glaucoma_invalid_truth": 1
+  },
+  "sources": {
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/formula_search_oof.csv": {
+      "sha256": "4281564aeda6ba6bab9350cb5b9758f1873cb8f0a2e2890d70b6ef69ca9b56f0",
+      "bytes": 5371
+    },
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/case_winners_hierarchical_demo_bin_f1_bonus_0p03.csv": {
+      "sha256": "9e2e9aef1e742433f7a9abfe44251b2b14c9635ddae3462ae63d96ee86c50841",
+      "bytes": 698925
+    },
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/case_winners_hierarchical_demo_bin_f1_bonus_0p02.csv": {
+      "sha256": "1e69b8b040f6753a84aa0f48e51d38bffb9d9c07dbb0536546b69a5f7f5da337",
+      "bytes": 698901
+    },
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/case_winners_hierarchical_demo_bin_f1_bonus_0p01.csv": {
+      "sha256": "37b49807fb841fba5b3bf038f36fce6247f50e56cd7f8142c36539b50f7af203",
+      "bytes": 698868
+    },
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/case_winners_hierarchical_demo_bin_accuracy.csv": {
+      "sha256": "92a102b94f9ad446b9d6b16d225c65c3d3b4686762f6d418568c28630670d530",
+      "bytes": 698708
+    },
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/case_winners_hierarchical_demo_bin_oct_margin_0p05.csv": {
+      "sha256": "b3c6d5e44030f8d895363ad389210df618eb9155c627d17c7a9d8131afbb7cfc",
+      "bytes": 698895
+    },
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/case_winners_probability_bin_f1_bonus_0p01.csv": {
+      "sha256": "9cefeefe4e18f9ed3ed84bd233474d51c159ea88046e108c0c8ef90540f8f281",
+      "bytes": 699798
+    },
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/case_winners_hierarchical_demo_bin_oct_margin_0p03.csv": {
+      "sha256": "f608ae4257fe3a85ab08860253447154c39fb31a8ca71ef00ac0155fd5f605ba",
+      "bytes": 699106
+    },
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/case_winners_probability_bin_accuracy.csv": {
+      "sha256": "de737d9685adef5a7d8c73c66ebf6fb5114145c77d0f4ba186525155fa98370e",
+      "bytes": 699790
+    },
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/case_winners_tree_correctness.csv": {
+      "sha256": "f9e7b80cdf366517f708a989dfc027eb85acc263e76054de4fcb156b32ad8815",
+      "bytes": 700800
+    },
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/case_winners_probability_bin_f1_bonus_0p02.csv": {
+      "sha256": "67d7b7632c2267a7a803c8d6240dbab53dcddd960ccfa16ff3c3d245aef9b74f",
+      "bytes": 699760
+    },
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/case_winners_probability_bin_f1_bonus_0p03.csv": {
+      "sha256": "037791566ff1f3be3fbd47f8d6fcae1ae8c4a6796de8852aa200bc6f4ecb615d",
+      "bytes": 699763
+    },
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/case_winners_hierarchical_demo_bin_f1_bonus_0p05.csv": {
+      "sha256": "1c3fbffba909720a41f3c8925280640136186a88cdc03526ef3b84ff0a1258ab",
+      "bytes": 699187
+    },
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/case_winners_logistic_correctness.csv": {
+      "sha256": "74a01b3ea52bc9d61d2dced246dd7b4fe427bb528c478ebf3bd2ed83c6984d5b",
+      "bytes": 700462
+    },
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/case_winners_probability_bin_f1_bonus_0p05.csv": {
+      "sha256": "bb34378e75944e20dab742bc7dafd9d27fa5f04c1699e00f76922170498f3c2d",
+      "bytes": 699760
+    },
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/case_winners_directional_demographic_accuracy.csv": {
+      "sha256": "1057dffa1611731836fb140285ef993596335184ba99efd45a3db4ca09e413ab",
+      "bytes": 702308
+    },
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/case_winners_global_accuracy.csv": {
+      "sha256": "b3fa5987ab2d04989b897479a1d44557229382e604c62320787a8f9fe443a994",
+      "bytes": 685794
+    },
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/case_winners_demographic_accuracy.csv": {
+      "sha256": "adf19eec1166acb7c270b846bad4b6d2605d2b26a75f48466534e2c234285a1c",
+      "bytes": 698771
+    },
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma_f1_bonus/methodology_report.md": {
+      "sha256": "1861166dfc3c07223e3355c0e08ab5ce108ad057dd205c310b74a1f3594c2db9",
+      "bytes": 5633
+    },
+    "equi-agent/outputs/fairvision_reliability_selective_arbitration/selective_arbitration_summary.json": {
+      "sha256": "b9ee05c2a94e952028634214c388aea2441bcda5dbce4686ec9bd4e158f4cc06",
+      "bytes": 12898
+    },
+    "equi-agent/outputs/fairvision_reliability_selective_arbitration/risk_coverage_curve.csv": {
+      "sha256": "b572ea1f59f50f1c085075e5889e849e086ecadf8ac6e904c530d97786d4370e",
+      "bytes": 9347
+    },
+    "equi-agent/outputs/fairvision_reliability_selective_arbitration/selective_arbitration_predictions.csv": {
+      "sha256": "2beb7daa2f6a1c1869cab2c919214d8894701c0b31996126320a6eb29d608530",
+      "bytes": 3680111
+    },
+    "equi-agent/outputs/benchmarks/papila_glaucoma_foundations_oof_v2/retfound/predictions_test.csv": {
+      "sha256": "d8a46d2e29492b768775248f3507646e3adf34b8dfd95b65d0de9e49ab615131",
+      "bytes": 8885
+    },
+    "OphthalmicAgent/outputs/papila/agentic_retfound_oof_v2/predictions.csv": {
+      "sha256": "fde03856fcdc56dee9c528c1fa0c0bdf71d15bc78106b03c9236d29771f44cb7",
+      "bytes": 552595
+    },
+    "equi-agent/outputs/benchmarks/drishti_glaucoma_foundations_v1/retfound/predictions_test.csv": {
+      "sha256": "2122334e917ff4c6c7cf3e7ef5559950c30f82507938782e38de51284d5b7510",
+      "bytes": 6235
+    },
+    "OphthalmicAgent/outputs/drishti/agentic_retfound_cfp_v1/predictions.csv": {
+      "sha256": "2161dbd1c59894802aaf3e6ce3f771aed46454b07d96b47a6da4280088a0c32e",
+      "bytes": 357483
+    },
+    "OphthalmicAgent/outputs/gamma/retfound_oct_fairvision_init_v1/predictions_test.csv": {
+      "sha256": "24f3792cc4bf70017d2f56474edb22ee4aa70d770ddeff885f50f7427837ce46",
+      "bytes": 1691
+    },
+    "OphthalmicAgent/outputs/gamma/agentic_retfound_oct_v1/predictions.csv": {
+      "sha256": "0a1a0b51a1d9d6ec3f9475d5c3c5e1c59606b3b926e9069f86b25e5df5244bef",
+      "bytes": 148110
+    },
+    "equi-agent/outputs/experiments/fairvision_balanced_250/equi_agent_live_error_summary.json": {
+      "sha256": "2ac1fa23b289370e2214568d86cb7a6e27a63771b2ea66167c5d38b4b813f306",
+      "bytes": 185
+    },
+    "equi-agent/outputs/experiments/fairvision_balanced_250/equi_agent_live_summary.json": {
+      "sha256": "65daa1f40a62aac342c1d6befc5f85919049b001a2e34fef3956b5c85e4d8a41",
+      "bytes": 4532
+    },
+    "equi-agent/outputs/experiments/fairvision_live_balanced_250_reproducible_v1/equi_agent_live_error_summary.json": {
+      "sha256": "2ac1fa23b289370e2214568d86cb7a6e27a63771b2ea66167c5d38b4b813f306",
+      "bytes": 185
+    },
+    "equi-agent/outputs/experiments/fairvision_live_balanced_250_reproducible_v1/equi_agent_live_summary.json": {
+      "sha256": "7360de8d3c997a7a941dd8786e335311c0ca79bd5c6e6044a61ebf959087fbee",
+      "bytes": 3313
+    },
+    "equi-agent/outputs/experiments/fairvision_live_glaucoma_250_score_cf_cdr_v1/equi_agent_live_error_summary.json": {
+      "sha256": "2ac1fa23b289370e2214568d86cb7a6e27a63771b2ea66167c5d38b4b813f306",
+      "bytes": 185
+    },
+    "equi-agent/outputs/experiments/fairvision_live_glaucoma_250_score_cf_cdr_v1/equi_agent_live_metrics_summary.json": {
+      "sha256": "a6beed6720d2ef2cdd50a6349c50d7b641c0cde9c7e5cc16755380c4ba5e1742",
+      "bytes": 1128
+    },
+    "equi-agent/outputs/experiments/fairvision_live_glaucoma_250_score_cf_cdr_v1/equi_agent_live_summary.json": {
+      "sha256": "25e9f0ff69d1bc0f49a42c3762a9286163a5c86ca256bf1148f4ce7f4f48335b",
+      "bytes": 5298
+    },
+    "equi-agent/outputs/experiments/fairvision_live_intersectional_balanced_250_reproducible_v1/equi_agent_live_error_summary.json": {
+      "sha256": "2ac1fa23b289370e2214568d86cb7a6e27a63771b2ea66167c5d38b4b813f306",
+      "bytes": 185
+    },
+    "equi-agent/outputs/experiments/fairvision_live_intersectional_balanced_250_reproducible_v1/equi_agent_live_summary.json": {
+      "sha256": "c84a4dc1c5536e68f3b74806290bc103f170a26c33793c20c26aeea77b67330f",
+      "bytes": 3566
+    },
+    "equi-agent/outputs/experiments/fairvision_live_glaucoma_250_score_cf_cdr_v1/equi_agent_live_predictions.csv": {
+      "sha256": "712ec8fc4a288050f9002b05b26d616183a7ec63464dc88f115f044156689aaf",
+      "bytes": 1695630
+    },
+    "OphthalmicAgent/outputs/glaucoma_counterfactual_250/predictions.csv": {
+      "sha256": "4586b6cf5898f6704f7be5123518a6a9c2d2c902f7887338fdf017ba68aa8a00",
+      "bytes": 21855
+    },
+    "equi-agent/outputs/experiments/fairvision_live_glaucoma_250_score_cf_cdr_v1/equi_agent_live_resolved_config.json": {
+      "sha256": "c136d7f81fcac7fdc0fecbdd07afa9ec6bdf300274bd2816a441dcc1aaab0b1d",
+      "bytes": 6191
+    }
+  }
+}
