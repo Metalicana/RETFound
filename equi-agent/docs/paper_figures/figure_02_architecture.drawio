@@ -1,0 +1,202 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="Electron" agent="RETFound paper figure builder" version="31.5.2" type="device">
+  <diagram name="02 Architecture" id="02">
+    <mxGraphModel dx="1480" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1480" pageHeight="900" math="0" shadow="0" background="#ffffff">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c2" value="FIGURE 2  /  RETINAGENT" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=17;fontColor=#087F78;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="60" y="35" width="1200" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="c3" value="A reliability layer between retinal models and the clinician" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=32;fontColor=#253238;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="60" y="82" width="1360" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="c4" value="Conceptual workflow: evidence informs the diagnosis; reliability qualifies how much each source is trusted." style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=19;fontColor=#6A757C;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="60" y="142" width="1340" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c5" value="a  Evidence" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=23;fontColor=#253238;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="60" y="235" width="290" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c6" value="b  Reliability" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=23;fontColor=#253238;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="405" y="235" width="290" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c7" value="c  Arbitration" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=23;fontColor=#253238;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="755" y="235" width="290" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c8" value="d  Clinical handoff" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=23;fontColor=#253238;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="235" width="290" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c9" value="" style="rounded=0;strokeColor=#356887;strokeWidth=1.5;fillColor=#F3F7FA;" vertex="1" parent="1">
+          <mxGeometry x="60" y="350" width="270" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="c10" value="Case evidence" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=23;fontColor=#356887;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="78" y="365" width="234" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c11" value="Available CFP / SLO / OCT&#10;FM scores + modality&#10;Clinical or structural findings&#10;Missingness + provenance" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=19;fontColor=#253238;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="78" y="425" width="234" height="142" as="geometry" />
+        </mxCell>
+        <mxCell id="c12" value="" style="rounded=0;strokeColor=#087F78;strokeWidth=1.5;fillColor=#F0F8F6;" vertex="1" parent="1">
+          <mxGeometry x="405" y="645" width="270" height="145" as="geometry" />
+        </mxCell>
+        <mxCell id="c13" value="Validation reference" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=23;fontColor=#087F78;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="423" y="660" width="234" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c14" value="Task / model / subgroup&#10;Error + calibration" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=19;fontColor=#253238;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="423" y="720" width="234" height="57" as="geometry" />
+        </mxCell>
+        <mxCell id="c15" value="" style="rounded=0;strokeColor=#087F78;strokeWidth=1.5;fillColor=#F0F8F6;" vertex="1" parent="1">
+          <mxGeometry x="405" y="350" width="270" height="245" as="geometry" />
+        </mxCell>
+        <mxCell id="c16" value="Case-specific trust" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=23;fontColor=#087F78;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="423" y="365" width="234" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c17" value="Match task + subgroup&#10;Shrink sparse estimates&#10;Fallback to global reliability&#10;Flag unstable evidence" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=19;fontColor=#253238;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="423" y="425" width="234" height="157" as="geometry" />
+        </mxCell>
+        <mxCell id="c18" value="" style="rounded=0;strokeColor=#6A757C;strokeWidth=1.5;fillColor=#F5F6F7;" vertex="1" parent="1">
+          <mxGeometry x="60" y="645" width="270" height="145" as="geometry" />
+        </mxCell>
+        <mxCell id="c19" value="Patient context" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=23;fontColor=#6A757C;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="78" y="660" width="234" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c20" value="Age / sex / race, if available&#10;Reliability context only" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=19;fontColor=#253238;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="78" y="720" width="234" height="57" as="geometry" />
+        </mxCell>
+        <mxCell id="c21" value="" style="rounded=0;strokeColor=#087F78;strokeWidth=1.5;fillColor=#F0F8F6;" vertex="1" parent="1">
+          <mxGeometry x="755" y="350" width="270" height="245" as="geometry" />
+        </mxCell>
+        <mxCell id="c22" value="Evidence arbitration" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=23;fontColor=#087F78;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="773" y="365" width="234" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c23" value="Combine findings + trust&#10;Check conflicting evidence&#10;Evidence ablations, if enabled&#10;Assess need for escalation" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=19;fontColor=#253238;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="773" y="425" width="234" height="157" as="geometry" />
+        </mxCell>
+        <mxCell id="c24" value="" style="rounded=0;strokeColor=#087F78;strokeWidth=1.5;fillColor=#F0F8F6;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="340" width="270" height="145" as="geometry" />
+        </mxCell>
+        <mxCell id="c25" value="Prediction + evidence" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=23;fontColor=#087F78;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1128" y="355" width="234" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c26" value="Provisional assessment&#10;Sources and uncertainty" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=19;fontColor=#253238;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1128" y="415" width="234" height="57" as="geometry" />
+        </mxCell>
+        <mxCell id="c27" value="" style="rounded=0;strokeColor=#AD692D;strokeWidth=1.5;fillColor=#FCF6EF;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="530" width="270" height="145" as="geometry" />
+        </mxCell>
+        <mxCell id="c28" value="Escalation + reasons" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=23;fontColor=#AD692D;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1128" y="545" width="234" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c29" value="Unreliable or conflicting&#10;evidence requires review" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=19;fontColor=#253238;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1128" y="605" width="234" height="57" as="geometry" />
+        </mxCell>
+        <mxCell id="c30" value="" style="rounded=0;fillColor=#F4F5F6;strokeColor=#6A757C;strokeWidth=1.5;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="715" width="270" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="c31" value="Ophthalmologist&#10;Final decision" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=21;fontColor=#253238;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1125" y="725" width="240" height="58" as="geometry" />
+        </mxCell>
+        <mxCell id="c32" parent="1" edge="1" style="edgeStyle=none;rounded=0;html=0;strokeColor=#356887;strokeWidth=1.6;dashed=0;endArrow=block;endFill=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="330" y="445" as="sourcePoint" />
+            <mxPoint x="405" y="445" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c33" parent="1" edge="1" style="edgeStyle=none;rounded=0;html=0;strokeColor=#087F78;strokeWidth=1.6;dashed=1;endArrow=block;endFill=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="540" y="645" as="sourcePoint" />
+            <mxPoint x="540" y="595" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c34" parent="1" edge="1" style="edgeStyle=none;rounded=0;html=0;strokeColor=#6A757C;strokeWidth=1.6;dashed=1;endArrow=block;endFill=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="330" y="717" as="sourcePoint" />
+            <mxPoint x="405" y="560" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="365" y="717" />
+              <mxPoint x="365" y="560" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c35" parent="1" edge="1" style="edgeStyle=none;rounded=0;html=0;strokeColor=#087F78;strokeWidth=1.6;dashed=0;endArrow=block;endFill=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="675" y="465" as="sourcePoint" />
+            <mxPoint x="755" y="465" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c36" parent="1" edge="1" style="edgeStyle=none;rounded=0;html=0;strokeColor=#356887;strokeWidth=1.6;dashed=0;endArrow=block;endFill=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="195" y="350" as="sourcePoint" />
+            <mxPoint x="890" y="350" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="195" y="312" />
+              <mxPoint x="890" y="312" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c37" value="Disease evidence" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=center;verticalAlign=middle;fontFamily=Arial;fontSize=17;fontColor=#356887;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="460" y="282" width="245" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="c38" parent="1" edge="1" style="edgeStyle=none;rounded=0;html=0;strokeColor=#087F78;strokeWidth=1.6;dashed=0;endArrow=block;endFill=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1025" y="425" as="sourcePoint" />
+            <mxPoint x="1110" y="390" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="1064" y="425" />
+              <mxPoint x="1064" y="390" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c39" parent="1" edge="1" style="edgeStyle=none;rounded=0;html=0;strokeColor=#AD692D;strokeWidth=1.6;dashed=0;endArrow=block;endFill=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1025" y="520" as="sourcePoint" />
+            <mxPoint x="1110" y="598" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="1064" y="520" />
+              <mxPoint x="1064" y="598" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c40" parent="1" edge="1" style="edgeStyle=none;rounded=0;html=0;strokeColor=#087F78;strokeWidth=1.6;dashed=0;endArrow=block;endFill=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1380" y="390" as="sourcePoint" />
+            <mxPoint x="1380" y="754" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="1412" y="390" />
+              <mxPoint x="1412" y="754" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c41" parent="1" edge="1" style="edgeStyle=none;rounded=0;html=0;strokeColor=#AD692D;strokeWidth=1.6;dashed=0;endArrow=block;endFill=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1245" y="675" as="sourcePoint" />
+            <mxPoint x="1245" y="715" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c42" value="Trust changes the interpretation of evidence; it is not a disease label." style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=19;fontColor=#6A757C;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="755" y="645" width="290" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="c43" parent="1" edge="1" style="edgeStyle=none;rounded=0;html=0;strokeColor=#6A757C;strokeWidth=1.6;dashed=1;endArrow=block;endFill=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="60" y="835" as="sourcePoint" />
+            <mxPoint x="110" y="835" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c44" value="Reliability conditioning" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=17;fontColor=#6A757C;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="120" y="820" width="255" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="c45" parent="1" edge="1" style="edgeStyle=none;rounded=0;html=0;strokeColor=#356887;strokeWidth=1.6;dashed=0;endArrow=block;endFill=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="460" y="835" as="sourcePoint" />
+            <mxPoint x="510" y="835" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c46" value="Evidence / decision flow" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=17;fontColor=#6A757C;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="520" y="820" width="270" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="c47" value="Sources and modules vary by experiment; no clinical benefit is assumed." style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=middle;fontFamily=Arial;fontSize=17;fontColor=#6A757C;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="840" y="815" width="550" height="42" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
