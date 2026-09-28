@@ -1,0 +1,192 @@
+{
+  "agent": {
+    "cohort": {
+      "n": 249,
+      "raw_agent_rows": 250,
+      "excluded": [
+        {
+          "case_id": "data_07199.npz",
+          "reason": "nonbinary agent-file ground truth",
+          "value": "-1"
+        }
+      ],
+      "corrected": 23,
+      "introduced": 18,
+      "both_correct": 169,
+      "both_wrong": 39,
+      "corrected_positive": 17,
+      "corrected_negative": 6,
+      "introduced_positive": 7,
+      "introduced_negative": 11,
+      "baseline": {
+        "n": 249,
+        "tn": 108,
+        "fp": 17,
+        "fn": 45,
+        "tp": 79
+      },
+      "agent": {
+        "n": 249,
+        "tn": 103,
+        "fp": 22,
+        "fn": 35,
+        "tp": 89
+      }
+    },
+    "examples": [
+      {
+        "case_id": "data_07057.npz",
+        "truth": 1,
+        "heading": "a  Missed glaucoma",
+        "evidence": "SLO report: vertically enlarged cup,\nthin inferior rim and vessel bending.\nOCT report: excavation and inner-retinal thinning.",
+        "oct_cue": "Excavation; inner-\nretinal thinning*",
+        "slo_cue": "Vertical cupping*",
+        "outcome": "Ours: Glaucoma",
+        "detail": "Matches reference diagnosis",
+        "baseline": 0,
+        "agent": 1,
+        "probability": 0.19381052255630493,
+        "threshold": 0.5,
+        "demographics": {
+          "Gender": "female",
+          "Race": "white",
+          "Age_Group": "older"
+        },
+        "cdr": 0.776,
+        "trace_attempts": 2,
+        "trace_fingerprint": "bfc4e68fcd6332bc0af52442c49f62537ceeec12521757328ee65027a7e1f3c0",
+        "prompt_version": "glaucoma_evidence_ablation_v1",
+        "scenarios": {
+          "full_evidence": 1,
+          "without_retfound_probability": 1,
+          "without_cdr_tool": 1,
+          "without_visual_interpretation": 1,
+          "without_demographic_reliability": 1
+        },
+        "trace_selection": "last recorded; consistent with final CSV; no selection by correctness",
+        "npz_sha256": "2c9f9d9c7143fd188bfc48640fdb3b28c000650661bf2e15c1643db3d07a4c3b"
+      },
+      {
+        "case_id": "data_07062.npz",
+        "truth": 0,
+        "heading": "b  False alarm",
+        "evidence": "OCT report: focal macular distortion,\nnot clear diffuse inner-retinal loss.\nSLO report: no marked notching or RNFL defect.",
+        "oct_cue": "Focal macular\ndistortion*",
+        "slo_cue": "No marked RNFL defect*",
+        "outcome": "Ours: Non-glaucoma",
+        "detail": "Without visual reports: inconclusive*",
+        "baseline": 1,
+        "agent": 0,
+        "probability": 0.7268626093864441,
+        "threshold": 0.5,
+        "demographics": {
+          "Gender": "female",
+          "Race": "white",
+          "Age_Group": "young"
+        },
+        "cdr": 0.512,
+        "trace_attempts": 2,
+        "trace_fingerprint": "287759e7c6116e7fcfd85e981059701bdd812dd95d75a934a11db6ea067fdf04",
+        "prompt_version": "glaucoma_evidence_ablation_v1",
+        "scenarios": {
+          "full_evidence": 0,
+          "without_retfound_probability": 0,
+          "without_cdr_tool": 0,
+          "without_visual_interpretation": -1,
+          "without_demographic_reliability": 0
+        },
+        "trace_selection": "last recorded; consistent with final CSV; no selection by correctness",
+        "npz_sha256": "3f1ecb78d636455d2548ad9c120f988a6056156ae4f011f2815f3408fced32bd"
+      }
+    ],
+    "sources": {
+      "OphthalmicAgent/_extras/CSVs/raw_model_predictions/retfound_glaucoma_predictions.csv": {
+        "sha256": "2070ccd3be65ad10bcacfba022d03332a7439cc9be51e4a612a103809ae1b61b",
+        "bytes": 28528
+      },
+      "OphthalmicAgent/outputs/glaucoma_counterfactual_250/predictions.csv": {
+        "sha256": "4586b6cf5898f6704f7be5123518a6a9c2d2c902f7887338fdf017ba68aa8a00",
+        "bytes": 21855
+      },
+      "OphthalmicAgent/outputs/glaucoma_counterfactual_250/counterfactual_traces.jsonl": {
+        "sha256": "e942b8e87bb6cffc19f85267ad8efc86740a448e25e533608b8e69dbdfed31e1",
+        "bytes": 5366306
+      }
+    },
+    "images_verified": true,
+    "manuscript_reported_metrics": {
+      "provenance": "Author-supplied manuscript values, not recalculated for this figure; not plotted.",
+      "baseline": {
+        "weighted_f1": 0.7477,
+        "worst_group_f1": 0.6344
+      },
+      "agent": {
+        "weighted_f1": 0.7704,
+        "worst_group_f1": 0.638
+      }
+    }
+  },
+  "foundations": {
+    "n": 3000,
+    "both_correct": 1767,
+    "both_wrong": 445,
+    "visionfm_only": 370,
+    "retfound_only": 418
+  },
+  "foundation_examples": [
+    {
+      "case_id": "data_08423.npz",
+      "truth": 1,
+      "retfound_probability": 0.3351408541202545,
+      "retfound_prediction": 0,
+      "visionfm_probability": 0.9654534841816744,
+      "visionfm_prediction": 1
+    },
+    {
+      "case_id": "data_09154.npz",
+      "truth": 0,
+      "retfound_probability": 0.2974928319454193,
+      "retfound_prediction": 0,
+      "visionfm_probability": 0.9449852658781044,
+      "visionfm_prediction": 1
+    }
+  ],
+  "calibration": [
+    {
+      "model": "retfound_oct",
+      "n": 38,
+      "positives": 37,
+      "mean_probability": 0.9323199391365051,
+      "observed_positive_fraction": 0.9736842105263158
+    },
+    {
+      "model": "urfound_oct",
+      "n": 179,
+      "positives": 159,
+      "mean_probability": 0.9609563092684048,
+      "observed_positive_fraction": 0.888268156424581
+    },
+    {
+      "model": "visionfm_oct",
+      "n": 307,
+      "positives": 259,
+      "mean_probability": 0.9831575578099274,
+      "observed_positive_fraction": 0.8436482084690554
+    }
+  ],
+  "sha256": {
+    "equi-agent/docs/paper_figures/clinical_decisions/source_data.json": "d4df13c4b0f9ab2c8dc628de16246dce19c9c4b6d53c5f5ede8c91a718916531",
+    "OphthalmicAgent/_extras/CSVs/raw_model_predictions/retfound_glaucoma_predictions.csv": "2070ccd3be65ad10bcacfba022d03332a7439cc9be51e4a612a103809ae1b61b",
+    "OphthalmicAgent/outputs/glaucoma_counterfactual_250/predictions.csv": "4586b6cf5898f6704f7be5123518a6a9c2d2c902f7887338fdf017ba68aa8a00",
+    "OphthalmicAgent/outputs/glaucoma_counterfactual_250/counterfactual_traces.jsonl": "e942b8e87bb6cffc19f85267ad8efc86740a448e25e533608b8e69dbdfed31e1",
+    "equi-agent/outputs/predictions/fairvision_oct_retfound_test_thresholded.csv": "bbb6005adfbb9a06c17cfc29402f8fabfaf41beaf9898a0e608f37d7d659e91a",
+    "equi-agent/outputs/predictions/fairvision_glaucoma_visionfm_oct_test_thresholded.csv": "b4e75001cacfcc178b3d5a4c0d5c0d5ea9b740daf46f1ed22c5c125a21f7f507",
+    "equi-agent/outputs/metrics/foundation_reliability_boundaries_glaucoma/model_case_matrix.csv": "117f20a31d462c3e705fe46c1013cae9f9e6cf42f6adfd5b10965c912fa895aa",
+    "data_07057.npz": "2c9f9d9c7143fd188bfc48640fdb3b28c000650661bf2e15c1643db3d07a4c3b",
+    "data_07062.npz": "3f1ecb78d636455d2548ad9c120f988a6056156ae4f011f2815f3408fced32bd",
+    "data_08423.npz": "5e97de4ca6199e3dabef81d84301120a2d7766a80901e3fac88f9372b805e306",
+    "data_09154.npz": "3547d66dd3017bd34aefcfcf4cc59e5944bf6201d330457d10b1c245cb3ddb1a"
+  },
+  "image_display": "OCT oct_bscans[100, :, :]; SLO slo_fundus; native 0-255 grayscale; no enhancement",
+  "scope": "Selected cases are illustrative; the three data cohorts are not interchangeable."
+}

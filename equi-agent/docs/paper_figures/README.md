@@ -1,11 +1,52 @@
 # RetinAgent Paper Figures
 
-Start with [motivation/motivation.drawio](motivation/motivation.drawio) for the
-motivation figure: overall model performance beside paired complementary errors
-on the same 3,000 FairVision glaucoma test cases. Its message is that a lower-ranked
-model can be right when RETFound is wrong, but can also introduce new errors.
-The research question is when to trust it, not whether to replace RETFound wholesale.
-See [caption and provenance](motivation/caption.md).
+## Five New Motivation Options
+
+Open **[motivation_review.pdf](motivation_options/motivation_review.pdf)** for
+the five new alternatives, or [contact_sheet.png](motivation_options/contact_sheet.png)
+to compare them at a glance. The [editable draw.io file](motivation_options/motivation_options.drawio)
+has five corresponding tabs. Each option also has its own PDF, SVG and PNG.
+
+1. **Case corrections:** real OCT/SLO examples and recorded incorrect-to-correct decisions.
+2. **Model disagreement:** nearly identical model scores, opposite correct models.
+3. **Confidence and reliability:** grouped validation-bin bars, with observed support.
+4. **Evidence ablation:** one case, three recorded evidence scenarios.
+5. **Clinical handoff:** recorded case inputs within a proposed clinician-review workflow.
+
+Start with **1** for an image-led agent motivation, or **2** for the multiple-model
+reliability problem. [Captions and source notes](motivation_options/README.md)
+separate observed results, illustrative cases, and proposed clinical workflow.
+The older `retinagent_paper_figures.pdf` is not this review pack.
+
+## Preserved Author-Edited Figure
+
+[clinical_decisions/clinical_decisions.drawio](clinical_decisions/clinical_decisions.drawio)
+and its [PDF](clinical_decisions/clinical_decisions.pdf) remain unchanged.
+This preserves the author's edited
+OCT/SLO case panels and shows recorded model errors followed by correct agent
+decisions. Panel c shows the recorded evidence-ablation response for case b:
+**inconclusive without OCT/SLO reports; non-glaucoma with full evidence**.
+These are reported scenarios within one LLM call, not independently rerun
+interventions or proof of a causal mechanism.
+See [caption and provenance](clinical_decisions/caption.md).
+
+The denominator is **249 evaluable cases**, not 250. One agent-file row has
+nonbinary truth and is absent from the baseline file. All remaining IDs and
+labels agree. The 23 corrected errors and 18 introduced errors are included in
+the saved counts. The full paired outcomes remain in the caption's results
+notes and source data: **45 to 35 missed glaucoma cases; 17 to 22 false alarms**.
+This trade-off belongs in experimental results and limitations, not as the
+motivation panel. The selected case illustrations do not demonstrate broad
+superiority or measured benefit to patients.
+Anatomical descriptions are AI-generated reports, not expert findings.
+
+The manuscript-reported RETFound worst-group F1 remains **0.6344**. Reported
+F1 values are attributed separately in the figure source data; they are not
+recalculated or plotted in this motivation figure.
+
+Superseded motivation drafts, exports and their generators have been removed.
+Experiment outputs, downloaded source images, the architecture diagram and
+the historical audit figures are retained.
 
 Use `figure_02_architecture.drawio` next for the conceptual architecture.
 The remaining tabs in `retinagent_paper_figures.drawio` are older quantitative
@@ -23,10 +64,12 @@ for three **data-backed historical/exploratory** figures:
 3. Paired PAPILA, Drishti-GS and GAMMA changes, with bootstrap intervals.
 
 See the [audit](recovered/audit.md) and [aggregate source data](recovered/source_data.json).
-The final manuscript run identities are still unresolved: the recovered live
-glaucoma run does not match the previously supplied paper score. These figures
-therefore do not replace the main layouts or establish the paper's fixed
-reliability coefficients. No prompts or experiment outputs were changed.
+The earlier audit could not reproduce the manuscript score from the other live
+glaucoma run. The clinical-decision figure instead uses the existing OphthalmicAgent
+predictions paired with its raw RETFound baseline, explicitly accounting for the invalid
+ground-truth row. The other run identities
+and the justification for fixed reliability coefficients remain unresolved.
+No prompts or experiment outputs were changed.
 
 Rebuild from a separate extracted archive (standard library only):
 
@@ -40,7 +83,7 @@ python -m unittest discover -s equi-agent/tests -p test_recovered_experiment_fig
 
 | Figure | Scientific question | Status |
 | --- | --- | --- |
-| 1 | Why is overall model rank insufficient for case-specific trust? | `motivation/motivation.drawio`: matched full-test glaucoma analysis; distinct from the 250-case agent evaluation |
+| 1 | Why might a model score alone be insufficient for a case assessment? | `clinical_decisions/clinical_decisions.drawio`: two recorded case examples and a clearly labelled evidence-ablation scenario; paired outcomes retained in supporting results |
 | 2 | How does reliability inform evidence arbitration and clinical handoff? | Complete conceptual diagram; confirm against the final run configuration |
 | 3 | What is the risk versus accepted coverage trade-off? | Axes and comparisons planned; no fabricated curves |
 | 4 | Where does arbitration help or hurt on external datasets? | Paired-comparison layout only; keep negative results |
@@ -68,8 +111,8 @@ Figure 2 deliberately omits numeric coefficients until the final method and
 run-specific configuration are confirmed.
 
 The older `equi-agent/manuscript/` directory is absent in the current checkout.
-These files are new under `docs/paper_figures`; no prior figures or manuscript
-files have been restored, overwritten or removed.
+The current figures live under `docs/paper_figures`. No manuscript or
+experimental prediction file was changed by the figure cleanup.
 
 ## First CECSL Transfer: Inventory Only
 

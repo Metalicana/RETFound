@@ -1,0 +1,122 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="Electron" agent="RETFound paper figure builder" version="31.5.2" type="device">
+  <diagram name="03_confidence_reliability" id="03_confidence_reliability">
+    <mxGraphModel dx="1480" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1830" pageHeight="1070" math="0" shadow="0" background="#ffffff">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c2" value="A 95% model score is not a 95% guarantee" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=36;fontColor=#20282D;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="25" y="17" width="1780" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="c3" value="FairVision validation cases with model scores between 90% and 100%" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=25;fontColor=#59666E;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="25" y="79" width="1780" height="43" as="geometry" />
+        </mxCell>
+        <mxCell id="c4" parent="1" edge="1" style="edgeStyle=none;rounded=0;html=0;strokeColor=#CCD3D7;strokeWidth=1.5;dashed=0;endArrow=none;endFill=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="25" y="133" as="sourcePoint" />
+            <mxPoint x="1805" y="133" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c5" value="" style="rounded=0;fillColor=white;strokeColor=#376B9C;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="305" y="169" width="36" height="27" as="geometry" />
+        </mxCell>
+        <mxCell id="c6" value="Mean model score" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=26;fontColor=#376B9C;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="362" y="163" width="540" height="42" as="geometry" />
+        </mxCell>
+        <mxCell id="c7" value="" style="rounded=0;fillColor=#087F78;strokeColor=#087F78;strokeWidth=1.5;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="169" width="36" height="27" as="geometry" />
+        </mxCell>
+        <mxCell id="c8" value="Observed glaucoma fraction" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=26;fontColor=#087F78;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1108" y="163" width="690" height="42" as="geometry" />
+        </mxCell>
+        <mxCell id="c9" parent="1" edge="1" style="edgeStyle=none;rounded=0;html=0;strokeColor=#CCD3D7;strokeWidth=1.3;dashed=0;endArrow=none;endFill=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="190" y="799" as="sourcePoint" />
+            <mxPoint x="1775" y="799" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c10" value="0%" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=right;verticalAlign=top;fontFamily=Helvetica;fontSize=24;fontColor=#59666E;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="45" y="781" width="110" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="c11" parent="1" edge="1" style="edgeStyle=none;rounded=0;html=0;strokeColor=#CCD3D7;strokeWidth=1.3;dashed=0;endArrow=none;endFill=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="190" y="546.0" as="sourcePoint" />
+            <mxPoint x="1775" y="546.0" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c12" value="50%" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=right;verticalAlign=top;fontFamily=Helvetica;fontSize=24;fontColor=#59666E;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="45" y="528.0" width="110" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="c13" parent="1" edge="1" style="edgeStyle=none;rounded=0;html=0;strokeColor=#CCD3D7;strokeWidth=1.3;dashed=0;endArrow=none;endFill=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="190" y="293" as="sourcePoint" />
+            <mxPoint x="1775" y="293" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c14" value="100%" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=right;verticalAlign=top;fontFamily=Helvetica;fontSize=24;fontColor=#59666E;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="45" y="275" width="110" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="c15" value="" style="rounded=0;fillColor=white;strokeColor=#376B9C;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="302" y="327.2461107969284" width="120" height="471.7538892030716" as="geometry" />
+        </mxCell>
+        <mxCell id="c16" value="93.2%" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=center;verticalAlign=top;fontFamily=Helvetica;fontSize=30;fontColor=#376B9C;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="277" y="269.2461107969284" width="170" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c17" value="" style="rounded=0;fillColor=#087F78;strokeColor=#087F78;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="482" y="306.3157894736842" width="120" height="492.6842105263158" as="geometry" />
+        </mxCell>
+        <mxCell id="c18" value="97.4%" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=center;verticalAlign=top;fontFamily=Helvetica;fontSize=30;fontColor=#087F78;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="457" y="248.31578947368422" width="170" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c19" value="RETFound" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=center;verticalAlign=top;fontFamily=Helvetica;fontSize=34;fontColor=#20282D;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="222" y="829" width="460" height="49" as="geometry" />
+        </mxCell>
+        <mxCell id="c20" value="37 / 38 cases positive" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=center;verticalAlign=top;fontFamily=Helvetica;fontSize=25;fontColor=#59666E;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="222" y="889" width="460" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c21" value="" style="rounded=0;fillColor=white;strokeColor=#376B9C;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="830" y="312.7561075101872" width="120" height="486.2438924898128" as="geometry" />
+        </mxCell>
+        <mxCell id="c22" value="96.1%" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=center;verticalAlign=top;fontFamily=Helvetica;fontSize=30;fontColor=#376B9C;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="805" y="254.75610751018718" width="170" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c23" value="" style="rounded=0;fillColor=#087F78;strokeColor=#087F78;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="349.536312849162" width="120" height="449.463687150838" as="geometry" />
+        </mxCell>
+        <mxCell id="c24" value="88.8%" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=center;verticalAlign=top;fontFamily=Helvetica;fontSize=30;fontColor=#087F78;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="985" y="291.536312849162" width="170" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c25" value="URFound" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=center;verticalAlign=top;fontFamily=Helvetica;fontSize=34;fontColor=#20282D;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="750" y="829" width="460" height="49" as="geometry" />
+        </mxCell>
+        <mxCell id="c26" value="159 / 179 cases positive" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=center;verticalAlign=top;fontFamily=Helvetica;fontSize=25;fontColor=#59666E;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="750" y="889" width="460" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c27" value="" style="rounded=0;fillColor=white;strokeColor=#376B9C;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="1358" y="301.52227574817675" width="120" height="497.47772425182325" as="geometry" />
+        </mxCell>
+        <mxCell id="c28" value="98.3%" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=center;verticalAlign=top;fontFamily=Helvetica;fontSize=30;fontColor=#376B9C;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1333" y="243.52227574817675" width="170" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c29" value="" style="rounded=0;fillColor=#087F78;strokeColor=#087F78;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="1538" y="372.11400651465794" width="120" height="426.88599348534206" as="geometry" />
+        </mxCell>
+        <mxCell id="c30" value="84.4%" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=center;verticalAlign=top;fontFamily=Helvetica;fontSize=30;fontColor=#087F78;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1513" y="314.11400651465794" width="170" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c31" value="VisionFM" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=center;verticalAlign=top;fontFamily=Helvetica;fontSize=34;fontColor=#20282D;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1278" y="829" width="460" height="49" as="geometry" />
+        </mxCell>
+        <mxCell id="c32" value="259 / 307 cases positive" style="text;html=0;whiteSpace=wrap;overflow=hidden;align=center;verticalAlign=top;fontFamily=Helvetica;fontSize=25;fontColor=#59666E;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1278" y="889" width="460" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c33" value="Trust needs an empirical reference, not just a raw score." style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=32;fontColor=#20282D;fontStyle=1;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="25" y="955" width="1780" height="51" as="geometry" />
+        </mxCell>
+        <mxCell id="c34" value="Different model-specific case sets; descriptive bin estimates, not a paired ranking or a validated routing rule." style="text;html=0;whiteSpace=wrap;overflow=hidden;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=23;fontColor=#59666E;fontStyle=0;spacing=0;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="25" y="1018" width="1780" height="38" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
