@@ -1,5 +1,24 @@
 # RetinAgent Paper Figures
 
+## Illustrated Agent Workflow
+
+Open **[agentic_walkthrough.pdf](agentic_walkthrough/agentic_walkthrough.pdf)**
+for the new image-led architecture, or the
+[editable draw.io file](agentic_walkthrough/agentic_walkthrough.drawio).
+It includes bot-style agents, a genuine Drishti-GS fundus, a verified SegFormer
+disc/cup overlay, model probabilities, CDR measurements, evidence-ablation
+decisions and clinician handoff. The revised layout follows a clinician-facing
+case story: image input, conflicting model/structural evidence, AI-reported
+reasoning and an assessment with its limitation for the doctor to review.
+Actions replace internal agent names. Unused framework capabilities are
+separated from the recorded case, with full model comparisons and technical
+names retained in the caption.
+[Caption and provenance](agentic_walkthrough/README.md)
+distinguish the recorded case from configuration-dependent framework modules.
+
+**This is the new figure.** The old `retinagent_paper_figures.pdf` below is
+preserved, not overwritten; it does not contain this illustrated walkthrough.
+
 ## Five New Motivation Options
 
 Open **[motivation_review.pdf](motivation_options/motivation_review.pdf)** for

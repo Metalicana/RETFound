@@ -171,18 +171,20 @@ def load_evidence(inputs, image_root):
 class Canvas:
     """One geometry for publication exports and native editable draw.io cells."""
 
-    def __init__(self, name, title, subtitle):
+    def __init__(self, name, title, subtitle, width=W, height=H):
         self.name = name
-        self.page = Page(name, W, H)
-        self.fig = plt.figure(figsize=(W / 254, H / 254), facecolor="white")
+        self.width, self.height = width, height
+        self.page = Page(name, width, height)
+        self.fig = plt.figure(figsize=(width / 254, height / 254), facecolor="white")
         self.ax = self.fig.add_axes([0, 0, 1, 1])
-        self.ax.set(xlim=(0, W), ylim=(H, 0))
+        self.ax.set(xlim=(0, width), ylim=(height, 0))
         self.ax.axis("off")
         self.text_bounds = []
         self.footprint = []
         self.text(title, 25, 17, 1780, 55, 36, bold=True)
-        self.text(subtitle, 25, 79, 1780, 43, 25, GRAY)
-        self.line([(25, 133), (1805, 133)], LIGHT, width=1.5)
+        if subtitle:
+            self.text(subtitle, 25, 79, 1780, 43, 25, GRAY)
+        self.line([(25, 133 if subtitle else 81), (1805, 133 if subtitle else 81)], LIGHT, width=1.5)
 
     def text(self, value, x, y, w, h=42, size=27, color=INK, bold=False, align="left"):
         # Text is never auto-shrunk: a layout overflow fails the build.
@@ -247,7 +249,7 @@ class Canvas:
             top, bottom = sorted((box.y0, box.y1))
             if left < x-2 or right > x+w+2 or top < y-2 or bottom > y+h+2:
                 errors.append(f"Text outside its box: {value!r}: {(left,top,right,bottom)} vs {(x,y,w,h)}")
-            if left < 0 or right > W or top < 0 or bottom > H:
+            if left < 0 or right > self.width or top < 0 or bottom > self.height:
                 errors.append(f"Text outside page: {value!r}")
             rendered.append((value, left, top, right, bottom))
         for i, a in enumerate(rendered):

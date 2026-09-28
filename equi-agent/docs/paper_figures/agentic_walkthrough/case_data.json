@@ -1,0 +1,113 @@
+{
+  "case_id": "drishtiGS_053",
+  "dataset": "Drishti-GS",
+  "truth": 1,
+  "foundations": {
+    "retfound": {
+      "probability": 0.24040469527244568,
+      "threshold": 0.5301506519317627,
+      "prediction": 0
+    },
+    "mirage": {
+      "probability": 0.4315968155860901,
+      "threshold": 0.3543623387813568,
+      "prediction": 1
+    },
+    "ret_clip": {
+      "probability": 0.9275453686714172,
+      "threshold": 0.7316763401031494,
+      "prediction": 1
+    },
+    "retizero": {
+      "probability": 0.4326057434082031,
+      "threshold": 0.2960010766983032,
+      "prediction": 1
+    },
+    "urfound": {
+      "probability": 0.6782082915306091,
+      "threshold": 0.3139673173427582,
+      "prediction": 1
+    }
+  },
+  "agent": {
+    "raw_probability": 0.24040469527244568,
+    "input_probability_pct": 21.90499899301915,
+    "vertical_cdr": 0.690265,
+    "prediction": 1,
+    "visual_report": "Gradability:  \n- Image is well focused with adequate illumination and contrast. Disc margins and peripapillary region are clearly visible. Gradable for glaucoma assessment.\n\nVertical cupping:  \n- Disc shows relatively large central excavation with a vertically elongated appearance. The cup extends close to the disc margin, especially inferiorly.\n\nNeuroretinal rim thinning / notching:  \n- Inferior rim appears thinned compared with the superior rim.  \n- No focal sharp notch is clearly evident, but generalized inferior thinning is suspected.\n\nSuperior\u2013inferior asymmetry:  \n- Inferior rim thinner than superior rim, suggesting vertical asymmetry consistent with glaucomatous change.\n\nVessel displacement / bayoneting:  \n- Retinal vessels emerge from the disc and appear displaced nasally with some bending over the cup margin, compatible with vessel displacement; clear bayoneting is not obvious.\n\nLaminar dots:  \n- Laminar pores within the cup are visible, indicating deep cupping.\n\nDisc hemorrhage:  \n- No peripapillary or disc hemorrhage is seen.\n\nRNFL defects:  \n- No obvious localized wedge-shaped RNFL defects are visible on this color image; RNFL texture appears relatively uniform, though subtle loss cannot be excluded.\n\nPeripapillary atrophy:  \n- Mild peripapillary atrophy is present, more evident temporally/inferotemporally.\n\nIMPRESSION: supports glaucoma \u2013 driven by large vertically oriented cup, inferior neuroretinal rim thinning with superior\u2013inferior asymmetry, vessel displacement, visible laminar dots, and mild peripapillary atrophy.",
+    "decision": "[LABELS]\nGLAUCOMA_DETECTED: 1\n[/LABELS]\n\nReasoning:\nSpecialist CFP interpretation describes classic glaucomatous optic nerve changes: a large vertically oriented cup (vertical CDR ~0.69), inferior neuroretinal rim thinning with superior\u2013inferior asymmetry, vessel displacement over the cup, visible laminar dots indicating deep cupping, and mild peripapillary atrophy. The image is well gradable, and the impression explicitly supports glaucoma. RETFound\u2019s ~22% score is derived from the same CFP and is not strongly negative; combined with the structural findings and CDR, the net evidence supports glaucoma.",
+    "scenarios": {
+      "full_evidence": 1,
+      "without_retfound_probability": 1,
+      "without_visual_interpretation": 0,
+      "without_cdr_tool": 1
+    }
+  },
+  "source_csv_sha256": {
+    "equi-agent/outputs/benchmarks/drishti_glaucoma_foundations_v1/retfound/predictions_test.csv": "2122334e917ff4c6c7cf3e7ef5559950c30f82507938782e38de51284d5b7510",
+    "equi-agent/outputs/benchmarks/drishti_glaucoma_foundations_v1/mirage/predictions_test.csv": "b3075556fcc6c5cc85a27f839290e0f95027b3ab005b14873fac335551136ba8",
+    "equi-agent/outputs/benchmarks/drishti_glaucoma_foundations_v1/ret_clip/predictions_test.csv": "575d087616b6f314f2e119c438024fa6a296e35d072cf06e87940ee8d2eb03d9",
+    "equi-agent/outputs/benchmarks/drishti_glaucoma_foundations_v1/retizero/predictions_test.csv": "2df8b423700f3d4356ebc9f9ffa2acfffb0cff49a994f44508613d5106cecb2e",
+    "equi-agent/outputs/benchmarks/drishti_glaucoma_foundations_v1/urfound/predictions_test.csv": "bedca7781fe668b48b5749b54a9da145510d26801efddd77f4428fec114b5aea",
+    "OphthalmicAgent/outputs/drishti/agentic_retfound_cfp_v1/predictions.csv": "2161dbd1c59894802aaf3e6ce3f771aed46454b07d96b47a6da4280088a0c32e"
+  },
+  "scope": "Standalone scores for five FMs; recorded agent uses RETFound, AI visual report and vertical CDR only.",
+  "segmentation": {
+    "vertical_cdr": 0.6902654867256637,
+    "horizontal_cdr": 0.6266094420600858,
+    "area_cdr": 0.42203534094178574,
+    "disc_area_pixels": 166832,
+    "cup_area_pixels": 70409,
+    "disc_height_pixels": 452,
+    "cup_height_pixels": 312,
+    "disc_bbox_xyxy": [
+      876,
+      742,
+      1342,
+      1194
+    ],
+    "cup_bbox_xyxy": [
+      959,
+      818,
+      1251,
+      1130
+    ],
+    "case_id": "drishtiGS_053",
+    "dataset": "drishti",
+    "split": "test",
+    "source_image_sha256": "2f5aedd85afc0f767bd15b864aeb5a68d24eeeda4f89f0034c37b9287f483260",
+    "source_path": "/home/ab575577/RETFound/OphthalmicAgent/data_drishti/Glaucoma/drishtiGS_053.png",
+    "rgb_pixel_sha256": "01d56e2c5c1c378100fb268b0bd47c4c6d0ff8bf4492ba2529aaa67d26b0a465",
+    "model": "pamixsun/segformer_for_optic_disc_cup_segmentation",
+    "preprocessing": "RGB -> PIL ImageOps.equalize -> SegformerImageProcessor",
+    "postprocessing": "bilinear upsample logits to source dimensions, align_corners=False; argmax",
+    "class_mapping": {
+      "0": "background",
+      "1": "disc excluding cup",
+      "2": "cup"
+    },
+    "inference_device": "cuda:0",
+    "torch_version": "2.8.0+cu128",
+    "model_commit": "a0463fb6c2bf184cf398e5fd82a8194e01e66e7f",
+    "clinically_verified": false,
+    "note": "New one-case tool export. Compare with saved CDR before using it as the historical mask.",
+    "files": {
+      "model_input_equalized.png": "6b2adce419fce3efd763a0bcac9097ed8189e2983f5a69b2a821805ac915db62",
+      "fundus.png": "a385b0d62d38d6562729d228d38a7e213d98442b0494732e3d12bbb625a3992d",
+      "overlay.png": "ba7cb030a11dc34cfe388f24f6f40098bca5ba440ba4f7e34e8480140754232f",
+      "mask.png": "bbdb32dd7ca8064cc9b8ac0bb4062d96571ade3ba525c948020517b50800cded"
+    }
+  },
+  "display": {
+    "crop_box_xyxy": [
+      772,
+      631,
+      1447,
+      1306
+    ],
+    "image_enhancement": "none; original RGB and exported mask contours",
+    "width_mm": 183,
+    "height_mm": 111,
+    "smallest_font_pt": 6.2362204724409445
+  }
+}
