@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 import time
@@ -103,6 +104,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--chars-per-token", type=float, default=4.0)
     parser.add_argument("--max-cases", type=int, default=0)
     parser.add_argument("--expected-cases", type=int, default=200)
+    parser.add_argument("--require-oof-priors", action="store_true")
+    parser.add_argument("--expected-prior-cases", type=int, default=300)
+    parser.add_argument("--max-consecutive-errors", type=int, default=0,
+                        help="Stop after this many failed cases; 0 disables the circuit breaker")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
@@ -145,7 +150,10 @@ def save_predictions(
 ) -> None:
     for target in targets:
         rows = [predictions[target][key] for key in sorted(predictions[target])]
-        write_csv(prediction_path(out_dir, target), rows, OUTPUT_FIELDS)
+        path = prediction_path(out_dir, target)
+        temporary = path.with_suffix(".csv.tmp")
+        write_csv(temporary, rows, OUTPUT_FIELDS)
+        temporary.replace(path)
 
 
 def load_target_inputs(args: argparse.Namespace, case_key_columns: tuple[str, ...]):
@@ -168,6 +176,8 @@ def load_target_inputs(args: argparse.Namespace, case_key_columns: tuple[str, ..
             prediction_prefix,
             list(by_model),
         )
+        if getattr(args, "require_oof_priors", False):
+            validate_oof_inputs(args, target, by_model, loaded_files, missing_files, loaded_priors)
         common = set.intersection(*(set(rows) for rows in by_model.values()))
         if len(common) != args.expected_cases:
             counts = {model: len(rows) for model, rows in by_model.items()}
@@ -191,6 +201,67 @@ def load_target_inputs(args: argparse.Namespace, case_key_columns: tuple[str, ..
             f"{len(canonical_keys or [])}"
         )
     return target_inputs, sorted(canonical_keys)
+
+
+def validate_oof_inputs(args, target, by_model, loaded_files, missing_files, loaded_priors):
+    if missing_files or set(by_model) != set(args.models):
+        raise ValueError(f"Missing requested models for {target}: {missing_files}")
+    if {r["model"] for r in loaded_priors} != set(args.models):
+        raise ValueError(f"Missing OOF priors for {target}")
+    priors_by_model = {r["model"]: read_csv(Path(r["path"])) for r in loaded_priors}
+    for entry in loaded_files:
+        model = entry["model"]
+        raw_rows = read_csv(Path(entry["path"]))
+        if len(raw_rows) != args.expected_cases or len(by_model[model]) != args.expected_cases:
+            raise ValueError(f"Duplicate, missing or non-test predictions: {target}/{model}")
+        prior_rows = priors_by_model[model]
+        if len(prior_rows) != 1:
+            raise ValueError(f"Expected one OOF aggregate: {target}/{model}")
+        prior = prior_rows[0]
+        if (prior.get("split") != "oof" or prior.get("prior_source") != "development_oof"
+                or prior.get("progression_target") != target or prior.get("model_name") != model
+                or prior.get("f1_average") != "binary"
+                or float(prior.get("n", 0)) != args.expected_prior_cases or not prior.get("run_fingerprint")):
+            raise ValueError(f"Refusing non-OOF, incomplete or mismatched priors: {target}/{model}")
+        for metric in ("f1", "auroc", "balanced_accuracy", "ece", "fpr", "fnr", "sensitivity", "specificity"):
+            number = float(prior[metric])
+            if not math.isfinite(number) or not 0 <= number <= 1:
+                raise ValueError(f"Invalid OOF {metric}: {target}/{model}")
+        for row in raw_rows:
+            probability = float(row["y_prob"])
+            if (row.get("progression_target") != target or row.get("model_name") != model
+                    or row.get("run_fingerprint") != prior["run_fingerprint"]
+                    or float(row["y_true"]) not in (0, 1) or float(row["y_pred"]) not in (0, 1)
+                    or not math.isfinite(probability) or not 0 <= probability <= 1):
+                raise ValueError(f"Invalid prediction/provenance: {target}/{model}")
+    shared = set.intersection(*(set(rows) for rows in by_model.values()))
+    for key in shared:
+        if len({float(rows[key]["y_true"]) for rows in by_model.values()}) != 1:
+            raise ValueError(f"Models disagree on ground truth: {target}/{key}")
+
+
+def strict_resume_guard(args, target_inputs):
+    def digest(path):
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+    excluded = {"out_dir", "max_cases", "max_retries", "retry_sleep_sec", "request_sleep_sec", "max_consecutive_errors"}
+    configuration = {
+        "arguments": {key: str(value) if isinstance(value, Path) else value
+                      for key, value in vars(args).items() if key not in excluded},
+        "inputs": {target: {item["path"]: digest(item["path"])
+                            for field in ("loaded_files", "loaded_priors") for item in inputs[field]}
+                   for target, inputs in target_inputs.items()},
+        "implementation": {name: digest(Path(__file__).with_name(name)) for name in (
+            Path(__file__).name, "run_equi_agent_gdp_progression_live.py")},
+    }
+    path = args.out_dir / "input_fingerprint.json"
+    if path.exists():
+        if json.loads(path.read_text()) != configuration:
+            raise ValueError("Agent inputs/configuration changed; use a new --out-dir, not mixed predictions")
+    elif any(args.out_dir.iterdir()):
+        raise ValueError("Strict OOF agent requires an empty output directory or its own matching provenance record")
+    else:
+        write_json(path, configuration)
 
 
 def build_multitarget_messages(packets: dict[str, dict[str, Any]]) -> list[dict[str, str]]:
@@ -354,16 +425,31 @@ def main() -> None:
     args.out_dir.mkdir(parents=True, exist_ok=True)
     case_key_columns = parse_case_key_columns(args.case_key_columns)
     target_inputs, keys = load_target_inputs(args, case_key_columns)
+    full_keys = set(keys)
+    if args.require_oof_priors:
+        strict_resume_guard(args, target_inputs)
     if args.max_cases > 0:
         keys = keys[: args.max_cases]
 
     existing = load_existing(args.out_dir, args.targets, case_key_columns)
+    if args.require_oof_priors:
+        for target, rows in existing.items():
+            source = next(iter(target_inputs[target]["by_model"].values()))
+            raw_path = prediction_path(args.out_dir, target)
+            if raw_path.exists() and len(read_csv(raw_path)) != len(rows):
+                raise ValueError(f"Duplicate cached agent predictions: {target}")
+            for key, row in rows.items():
+                if (key not in full_keys or row.get("split") != "test"
+                        or float(row["y_true"]) != float(source[key]["y_true"])
+                        or float(row["y_pred"]) not in (0, 1)
+                        or not math.isfinite(float(row["y_prob"])) or not 0 <= float(row["y_prob"]) <= 1):
+                    raise ValueError(f"Invalid cached agent prediction: {target}/{key}")
     completed = set.intersection(*(set(existing[target]) for target in args.targets))
     pending = [key for key in keys if key not in completed]
 
     provider = "dry_run"
     client = None
-    if not args.dry_run:
+    if not args.dry_run and pending:
         provider, client = make_client(args.provider, args.api_version)
 
     attempts_path = args.out_dir / "attempts.jsonl"
@@ -371,6 +457,7 @@ def main() -> None:
     prompt_path = args.out_dir / "prompt_snapshot.json"
     run_config_path = args.out_dir / "resolved_config.json"
     new_errors = 0
+    consecutive_errors = 0
 
     sample_packets = {}
     sample_key = keys[0]
@@ -394,7 +481,8 @@ def main() -> None:
             "deployment": args.deployment,
             "provider": args.provider,
             "dry_run": args.dry_run,
-            "calls_required_for_full_cohort": len(keys),
+            "calls_required_for_full_cohort": len(full_keys),
+            "requested_cases": len(keys),
             "predictions_per_call": len(args.targets),
             "target_sources": {
                 target: {
@@ -458,8 +546,9 @@ def main() -> None:
                     parsed_by_target = normalize_multitarget_response(raw, args.targets)
                     usage = usage_dict(response)
 
+                case_outputs = {}
                 for target_index, target in enumerate(args.targets):
-                    existing[target][key] = normalize_target_row(
+                    case_outputs[target] = normalize_target_row(
                         metas[target],
                         arbitrations[target],
                         parsed_by_target[target],
@@ -467,6 +556,8 @@ def main() -> None:
                         allocate_usage(usage, target_index, len(args.targets)),
                         provider,
                     )
+                for target in args.targets:
+                    existing[target][key] = case_outputs[target]
                 save_predictions(args.out_dir, args.targets, existing)
                 append_jsonl(
                     attempts_path,
@@ -489,6 +580,7 @@ def main() -> None:
                     flush=True,
                 )
                 last_error = None
+                consecutive_errors = 0
                 break
             except Exception as exc:
                 last_error = exc
@@ -509,6 +601,7 @@ def main() -> None:
                     time.sleep(args.retry_sleep_sec * (attempt + 1))
         if last_error is not None:
             new_errors += 1
+            consecutive_errors += 1
             append_jsonl(
                 errors_path,
                 {
@@ -519,6 +612,9 @@ def main() -> None:
                 },
             )
             print(f"error {position}/{len(pending)} case={key[0]}: {last_error}", flush=True)
+            if args.max_consecutive_errors > 0 and consecutive_errors >= args.max_consecutive_errors:
+                print("Stopped after consecutive failures; completed cases are preserved for resume", flush=True)
+                break
         if args.request_sleep_sec > 0:
             time.sleep(args.request_sleep_sec)
 
@@ -530,9 +626,11 @@ def main() -> None:
         "models_requested": args.models,
         "case_key_columns": list(case_key_columns),
         "completed_calls": len(completed),
-        "missing_calls": len(keys) - len(completed),
+        "missing_calls": len(full_keys - completed),
         "predictions_per_completed_call": len(args.targets),
-        "complete_locked_cohort": len(completed) == len(keys),
+        "complete_locked_cohort": completed == full_keys,
+        "complete_requested_cohort": set(keys).issubset(completed),
+        "complete_live_cohort": not args.dry_run and completed == full_keys,
         "new_errors": new_errors,
         "error_types": dict(
             Counter(
@@ -557,7 +655,7 @@ def main() -> None:
     }
     write_json(args.out_dir / "summary.json", summary)
     print(json.dumps(summary, indent=2, sort_keys=True))
-    if not summary["complete_locked_cohort"]:
+    if not summary["complete_requested_cohort"]:
         raise SystemExit(2)
 
 

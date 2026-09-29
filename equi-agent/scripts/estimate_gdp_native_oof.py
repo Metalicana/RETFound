@@ -20,6 +20,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 TARGET = "td_pointwise_no_p_cut"
+TARGETS = ("md", "vfi", "td_pointwise", "md_fast", "md_fast_no_p_cut", TARGET)
+# This exact predecessor has the same primary-target training/evaluation protocol.
+# Only allow its receipts after every other config, source and data field matches.
+COMPATIBLE_PRIMARY_RUNNERS = {"24861aacab809caa786032ea08b851192832f516fac98cfeae7df0674041abc8"}
 MODEL = "gdp_native_rnflt_tds_efficientnet"
 PREFIX = f"gdp_progression_forecasting_{TARGET}"
 THRESHOLD = 0.5
@@ -86,12 +90,12 @@ def label(row):
     return int(value)
 
 
-def validate_cohort(rows, expected_dev=300, expected_test=200):
+def validate_cohort(rows, expected_dev=300, expected_test=200, target=TARGET):
     ids = [case_id(row) for row in rows]
     if len(ids) != len(set(ids)):
         raise ValueError("Duplicate image IDs in manifest")
     for row in rows:
-        if row.get("progression_target") != TARGET:
+        if row.get("progression_target") != target:
             raise ValueError(f"Wrong progression target for {case_id(row)}")
         if not row.get("patient_id", "").strip():
             raise ValueError(f"Missing patient_id for {case_id(row)}; cannot enforce group separation")
@@ -186,7 +190,7 @@ def staged_paths(data_root, settings, dev, test):
     return paths
 
 
-def audit_development_npzs(dev, paths):
+def audit_development_npzs(dev, paths, target=TARGET):
     import numpy as np
 
     hashes = {}
@@ -201,7 +205,7 @@ def audit_development_npzs(dev, paths):
                 raise ValueError(f"Unexpected native input shapes: {key}")
             if not np.isfinite(rnflt).all() or not np.isfinite(tds).all():
                 raise ValueError(f"Nonfinite native input: {key}")
-            if float(progression[5]) != label(row):
+            if float(progression[TARGETS.index(target)]) != label(row):
                 raise ValueError(f"Manifest/NPZ target mismatch: {key}")
         hashes[key] = sha256(path)
     if len(set(hashes.values())) != len(hashes):
@@ -219,7 +223,7 @@ def load_native(native_root):
     return modules.create_model, datasets.Longitudinal_Dataset
 
 
-def native_dataset(dataset_class, rows, paths, directory):
+def native_dataset(dataset_class, rows, paths, directory, target=TARGET):
     directory.mkdir(parents=True, exist_ok=True)
     expected = {case_id(r) + ".npz" for r in rows}
     if {p.name for p in directory.iterdir()} - expected:
@@ -239,6 +243,10 @@ def native_dataset(dataset_class, rows, paths, directory):
                             resolution=224, data_type="label+unlabel")
     if set(dataset.rnflt_data) != expected or dataset.unlabel_flags is not None:
         raise ValueError("Native loader changed cohort or enabled unlabeled training")
+    # The native constructor recognizes only two target names, but __getitem__
+    # indexes the six-label progression vector. Extend label selection only.
+    dataset.progression_index = TARGETS.index(target)
+    dataset.progression_type = f"progression_outcome_{target}"
     dataset.rnflt_data = [case_id(r) + ".npz" for r in rows]
     dataset.dataset_len = len(rows)
     return dataset
@@ -285,7 +293,7 @@ def fit_model(factory, dataset, recipe, seed, device, workers, run_name):
     return model
 
 
-def predict(model, dataset, rows, split, fold, run_fingerprint, device, workers):
+def predict(model, dataset, rows, split, fold, run_fingerprint, device, workers, target=TARGET):
     import torch
     from torch.utils.data import DataLoader
 
@@ -305,14 +313,14 @@ def predict(model, dataset, rows, split, fold, run_fingerprint, device, workers)
                                "dataset": "harvard_gdp", "task": "progression_forecasting", "model_name": MODEL,
                                "y_true": int(truth), "y_prob": probability, "y_pred": int(probability >= THRESHOLD),
                                "applied_threshold": THRESHOLD, "split": split, "fold": fold,
-                               "run_fingerprint": run_fingerprint, "progression_target": TARGET})
+                               "run_fingerprint": run_fingerprint, "progression_target": target})
                 offset += 1
     if offset != len(rows):
         raise ValueError("Incomplete evaluation output")
     return output
 
 
-def validate_predictions(predictions, expected, split, fold, run_fingerprint):
+def validate_predictions(predictions, expected, split, fold, run_fingerprint, target=TARGET):
     by_id = {case_id(r): r for r in predictions}
     if len(by_id) != len(predictions) or set(by_id) != {case_id(r) for r in expected}:
         raise ValueError("Incomplete or duplicate prediction cohort")
@@ -324,7 +332,7 @@ def validate_predictions(predictions, expected, split, fold, run_fingerprint):
         if (label(result) != label(row) or result["patient_id"] != row["patient_id"]
                 or result["split"] != split or str(result["fold"]) != str(fold)
                 or result["run_fingerprint"] != run_fingerprint or result["model_name"] != MODEL
-                or result["progression_target"] != TARGET or float(result["applied_threshold"]) != THRESHOLD
+                or result["progression_target"] != target or float(result["applied_threshold"]) != THRESHOLD
                 or float(result["y_pred"]) != int(probability >= THRESHOLD)):
             raise ValueError(f"Prediction provenance mismatch: {case_id(row)}")
 
@@ -343,7 +351,7 @@ def metrics(rows, split):
             "f1_average": "binary", "prior_source": "development_oof" if split == "oof" else "final_test_only"}
 
 
-def run_partition(args, recipe, factory, dataset_class, paths, train, heldout, name, split, seed, run_fingerprint):
+def run_partition(args, recipe, factory, dataset_class, paths, train, heldout, name, split, seed, run_fingerprint, target=TARGET):
     directory = args.out_dir / name
     directory.mkdir(parents=True, exist_ok=True)
     csv_path = directory / "predictions.csv"
@@ -361,12 +369,12 @@ def run_partition(args, recipe, factory, dataset_class, paths, train, heldout, n
         if split == "test" and saved.get("test_npz_sha256") != {case_id(r): sha256(paths[case_id(r)]) for r in heldout}:
             raise ValueError("Final test inputs changed")
         rows = read_csv(csv_path)
-        validate_predictions(rows, heldout, split, fold, run_fingerprint)
+        validate_predictions(rows, heldout, split, fold, run_fingerprint, target)
         print(f"reuse {name}: {len(rows)} cases", flush=True)
         return rows
     if {r["patient_id"] for r in train} & {r["patient_id"] for r in heldout}:
         raise ValueError("Training/evaluation patient overlap")
-    training_dataset = native_dataset(dataset_class, train, paths, directory / "inputs" / "train")
+    training_dataset = native_dataset(dataset_class, train, paths, directory / "inputs" / "train", target)
     model = fit_model(factory, training_dataset, recipe, seed, args.device, args.num_workers, name)
     if split == "test":
         import torch
@@ -377,9 +385,9 @@ def run_partition(args, recipe, factory, dataset_class, paths, train, heldout, n
         receipt["checkpoint_sha256"] = sha256(checkpoint)
         receipt["test_npz_sha256"] = {case_id(r): sha256(paths[case_id(r)]) for r in heldout}
     # Held-out NPZs are loaded only after the training loop has finished.
-    evaluation_dataset = native_dataset(dataset_class, heldout, paths, directory / "inputs" / split)
-    rows = predict(model, evaluation_dataset, heldout, split, fold, run_fingerprint, args.device, args.num_workers)
-    validate_predictions(rows, heldout, split, fold, run_fingerprint)
+    evaluation_dataset = native_dataset(dataset_class, heldout, paths, directory / "inputs" / split, target)
+    rows = predict(model, evaluation_dataset, heldout, split, fold, run_fingerprint, args.device, args.num_workers, target)
+    validate_predictions(rows, heldout, split, fold, run_fingerprint, target)
     write_csv(csv_path, rows, FIELDS)
     write_json(receipt_path, {**receipt, "predictions_sha256": sha256(csv_path)})
     return rows
@@ -387,9 +395,10 @@ def run_partition(args, recipe, factory, dataset_class, paths, train, heldout, n
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--target", choices=TARGETS, default=TARGET)
     parser.add_argument("--native-root", type=Path, default=Path.home() / "Harvard-GDP")
     parser.add_argument("--original-args", type=Path, required=True)
-    parser.add_argument("--manifest", type=Path, default=ROOT / f"equi-agent/outputs/manifests/{PREFIX}.csv")
+    parser.add_argument("--manifest", type=Path)
     parser.add_argument("--data-root", type=Path, help="Override saved staged-data location; preserve original train/val/test membership")
     parser.add_argument("--out-dir", type=Path, default=ROOT / "equi-agent/outputs/gdp_native_oof_v1")
     parser.add_argument("--folds", type=int, default=5)
@@ -397,7 +406,21 @@ def parse_args():
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--prepare-only", action="store_true", help="Check source, cohorts, development NPZs and imports; no model creation/training")
     parser.add_argument("--fit-final", action="store_true", help="After OOF, fit all 300 development cases and evaluate the locked 200 test cases")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.manifest is None:
+        args.manifest = ROOT / f"equi-agent/outputs/manifests/gdp_progression_forecasting_{args.target}.csv"
+    return args
+
+
+def reconcile_config(config, previous, target):
+    if previous == config:
+        return config
+    compatible = dict(config)
+    if target == TARGET and previous.get("runner_sha256") in COMPATIBLE_PRIMARY_RUNNERS:
+        compatible["runner_sha256"] = previous["runner_sha256"]
+        if previous == compatible:
+            return compatible
+    raise ValueError("Run configuration/source/data changed. Use a NEW --out-dir; existing results were not overwritten")
 
 
 def execute(args):
@@ -408,13 +431,15 @@ def execute(args):
     sys.path.insert(0, str(ROOT / "equi-agent"))
     importlib.import_module("src.metrics.classification")
     args.native_root = args.native_root.expanduser().resolve()
+    target = getattr(args, "target", TARGET)
+    prefix = f"gdp_progression_forecasting_{target}"
     settings = json.loads(args.original_args.read_text())
     recipe = validate_recipe(settings)
     native_hashes = source_hashes(args.native_root)
-    dev, test = validate_cohort(read_csv(args.manifest))
+    dev, test = validate_cohort(read_csv(args.manifest), target=target)
     data_root = (args.data_root or Path(settings["data_dir"])).expanduser().resolve()
     paths = staged_paths(data_root, settings, dev, test)
-    data_hashes = audit_development_npzs(dev, paths)
+    data_hashes = audit_development_npzs(dev, paths, target)
     folds = make_folds(dev, args.folds, recipe["random_seed"])
     factory, dataset_class = load_native(args.native_root)
     config = {
@@ -434,11 +459,19 @@ def execute(args):
         "grouping": "manifest patient_id; synthetic IDs cannot establish identity beyond dataset identifiers",
         "old_epoch_selection_reproduced": False, "bitwise_reproduction_of_old_run": False,
     }
-    run_fingerprint = fingerprint(config)
+    if target != TARGET:
+        config["progression_target"] = target
+        config["label_index"] = TARGETS.index(target)
     config_path = args.out_dir / "resolved_config.json"
-    if config_path.exists() and json.loads(config_path.read_text()) != config:
-        raise ValueError("Run configuration/source/data changed. Use a NEW --out-dir; existing results were not overwritten")
+    if config_path.exists():
+        config = reconcile_config(config, json.loads(config_path.read_text()), target)
+    run_fingerprint = fingerprint(config)
     write_json(config_path, config)
+    write_json(args.out_dir / "execution_version.json", {
+        "current_runner_sha256": sha256(__file__), "protocol_runner_sha256": config["runner_sha256"],
+        "compatible_primary_resume": config["runner_sha256"] != sha256(__file__),
+        "progression_target": target,
+    })
     write_json(args.out_dir / "original_args.json", settings)
     write_csv(args.out_dir / "fold_assignments.csv", [
         {"image_id": case_id(r), "patient_id": r["patient_id"], "y_true": label(r), "fold": folds[case_id(r)]}
@@ -456,7 +489,7 @@ def execute(args):
         training = [r for r in dev if folds[case_id(r)] != fold]
         heldout = [r for r in dev if folds[case_id(r)] == fold]
         oof.extend(run_partition(args, recipe, factory, dataset_class, paths, training, heldout,
-                                 f"fold_{fold}", "oof", recipe["random_seed"] + fold, run_fingerprint))
+                                 f"fold_{fold}", "oof", recipe["random_seed"] + fold, run_fingerprint, target))
     oof.sort(key=case_id)
     if len(oof) != len(dev) or {case_id(r) for r in oof} != {case_id(r) for r in dev}:
         raise ValueError("Incomplete OOF cohort; no priors exported")
@@ -467,10 +500,11 @@ def execute(args):
         {"fold": fold, **metrics([r for r in oof if str(r["fold"]) == str(fold)], "oof")}
         for fold in range(1, args.folds + 1)
     ])
-    prior_path = args.out_dir / "priors" / f"exp8_{PREFIX}_{MODEL}" / f"{PREFIX}_{MODEL}_aggregate.csv"
-    write_csv(prior_path, [{**oof_metrics, "run_fingerprint": run_fingerprint}])
+    prior_path = args.out_dir / "priors" / f"exp8_{prefix}_{MODEL}" / f"{prefix}_{MODEL}_aggregate.csv"
+    write_csv(prior_path, [{**oof_metrics, "progression_target": target, "run_fingerprint": run_fingerprint}])
     write_json(args.out_dir / "oof_summary.json", {
         "complete_development_oof": True, "cases": len(oof), "folds": args.folds,
+        "progression_target": target,
         "test_used_for_fitting_selection_or_priors": False, "run_fingerprint": run_fingerprint,
         "metrics": oof_metrics, "prior_aggregate": str(prior_path),
         "warning": "A new fixed-epoch protocol, not retrospective validation of the old test-informed run",
@@ -478,9 +512,9 @@ def execute(args):
     print(json.dumps({"oof_metrics": oof_metrics, "prior_aggregate": str(prior_path)}, indent=2), flush=True)
     if args.fit_final:
         predictions = run_partition(args, recipe, factory, dataset_class, paths, dev, test, "final",
-                                    "test", recipe["random_seed"] + 1000, run_fingerprint)
+                                    "test", recipe["random_seed"] + 1000, run_fingerprint, target)
         test_metrics = metrics(predictions, "test")
-        write_csv(args.out_dir / "predictions" / f"{PREFIX}_{MODEL}.csv", predictions, FIELDS)
+        write_csv(args.out_dir / "predictions" / f"{prefix}_{MODEL}.csv", predictions, FIELDS)
         write_csv(args.out_dir / "test_metrics" / "aggregate.csv", [test_metrics])
         write_json(args.out_dir / "final_summary.json", {"complete_test_cohort": True, "cases": len(predictions),
                    "metrics": test_metrics, "run_fingerprint": run_fingerprint,

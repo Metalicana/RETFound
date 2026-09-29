@@ -3,6 +3,10 @@
 Scope: the **single-target** RNFLT+TDS helper for `td_pointwise_no_p_cut`.
 This is not the six-output EfficientNet, an LLM baseline, or an agent run.
 
+The runner now accepts `--target` for any of the six endpoints, training a separate
+single-output model for each. For the all-endpoint OOF, final-fit and API workflow,
+see [Clean Six-Endpoint GDP Rerun](gdp_progression_clean_suite.md).
+
 ## Recovered Implementation
 
 The source exported from CECSL's `~/Harvard-GDP` on 2026-09-28 confirms:
@@ -81,7 +85,10 @@ tail -n 25 "$OUT/run.log"
 The command makes no LLM calls. Existing experiments remain untouched. It reuses
 completed folds only after checking configuration, file hashes, cohort and labels.
 A partially trained fold restarts from scratch. Concurrent runs in the same output
-directory are blocked. Changed code/settings/data require a new output directory.
+directory are blocked. Changed settings/data require a new output directory.
+The six-endpoint extension explicitly accepts the known original primary runner's
+hash only when every other configuration field is unchanged. It records both code
+versions in `execution_version.json`; other code changes require a new directory.
 
 ## Outputs
 

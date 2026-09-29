@@ -209,7 +209,7 @@ class GDPNativeOOFTest(unittest.TestCase):
         train, heldout = rows[:6], rows[6:]
         events = []
 
-        def dataset_factory(cls, selected, paths, directory):
+        def dataset_factory(cls, selected, paths, directory, target=runner.TARGET):
             events.append(directory.name)
             return object()
 
@@ -252,7 +252,7 @@ class GDPNativeOOFTest(unittest.TestCase):
                     stack.enter_context(patch.object(runner, "load_native", return_value=(None, None)))
                     calls = []
 
-                    def partition(args, recipe, factory, cls, paths, train, heldout, name, split, seed, signature):
+                    def partition(args, recipe, factory, cls, paths, train, heldout, name, split, seed, signature, target=runner.TARGET):
                         calls.append((name, train, heldout))
                         self.assertFalse({runner.case_id(r) for r in train} & {runner.case_id(r) for r in heldout})
                         if split == "oof":
@@ -311,6 +311,32 @@ class GDPNativeOOFTest(unittest.TestCase):
             runner.write_json(original, settings)
             with self.assertRaisesRegex(ValueError, "configuration/source/data changed"):
                 runner.execute(args)
+
+    def test_compatible_primary_resume_is_narrow(self):
+        previous = {"runner_sha256": next(iter(runner.COMPATIBLE_PRIMARY_RUNNERS)), "recipe": {"epochs": 60},
+                    "manifest_sha256": "unchanged", "development_npz_sha256": {"case": "same"}}
+        current = {**previous, "runner_sha256": "new-runner"}
+        self.assertEqual(runner.reconcile_config(current, previous, runner.TARGET), previous)
+        for field, value in [("recipe", {"epochs": 10}), ("manifest_sha256", "different"),
+                             ("development_npz_sha256", {"case": "different"})]:
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                runner.reconcile_config({**current, field: value}, previous, runner.TARGET)
+        with self.assertRaises(ValueError):
+            runner.reconcile_config(current, previous, "md")
+        with self.assertRaises(ValueError):
+            runner.reconcile_config(current, {**previous, "runner_sha256": "unknown-code"}, runner.TARGET)
+
+    def test_all_six_target_labels_use_correct_npz_index(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "data_0000.npz"
+            values = [0, 1, 0, 1, 0, 1]
+            np.savez(path, rnflt=np.zeros((225, 225)), tds=np.zeros(52), progression=np.array(values))
+            for index, target in enumerate(runner.TARGETS):
+                row = {**cohort()[0], "progression_target": target, "y_true": str(values[index])}
+                runner.audit_development_npzs([row], {runner.case_id(row): path}, target)
+                wrong = {**row, "y_true": str(1 - values[index])}
+                with self.subTest(target=target), self.assertRaisesRegex(ValueError, "target mismatch"):
+                    runner.audit_development_npzs([wrong], {runner.case_id(row): path}, target)
 
 
 if __name__ == "__main__":
