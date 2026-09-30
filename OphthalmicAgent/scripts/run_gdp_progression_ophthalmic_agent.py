@@ -18,7 +18,14 @@ sys.path.insert(0, str(ROOT / "OphthalmicAgent"))
 
 from Progression import evidence, reporting
 from Progression.prompts import ENDPOINTS, SYSTEM_PROMPTS, VERSION
-from Progression.workflow import CachedCaller, digest, run_case, write_json
+from Progression.workflow import CachedCaller, digest, response_format, run_case, write_json
+
+
+# Only this reviewed JSON-mode implementation can upgrade a failed, zero-case run.
+LEGACY_OUTPUT_IMPLEMENTATION = {
+    "OphthalmicAgent/Progression/workflow.py": "34d9398adeff06d80b98f9a81d92b6397f9d20b25f888e79d8df1d5b3b07f3f2",
+    "OphthalmicAgent/scripts/run_gdp_progression_ophthalmic_agent.py": "e8d723dd9e2525c21e6ba0258de0d2ab0ed1d1146af34a6265cda687e6f45d56",
+}
 
 
 def parse_args():
@@ -34,6 +41,8 @@ def parse_args():
     parser.add_argument("--path-prefix-from", default="")
     parser.add_argument("--path-prefix-to", default="")
     parser.add_argument("--max-attempts", type=int, default=3)
+    parser.add_argument("--upgrade-output-contract", action="store_true",
+                        help="Upgrade a failed v1 run with zero completed cases to strict final-response JSON. Keeps unchanged upstream stage caches and archives original provenance.")
     args = parser.parse_args()
     for key, value in vars(args).items():
         if isinstance(value, Path):
@@ -56,6 +65,38 @@ def make_client(args):
                        api_key=require_shared_api_key(), timeout=180, max_retries=0)
 
 
+def upgrade_failed_output_contract(args, saved, config, fingerprint):
+    previous = {k: v for k, v in saved.items() if k != "fingerprint"}
+    if saved.get("fingerprint") != digest(previous):
+        raise ValueError("Invalid saved configuration fingerprint; cannot upgrade")
+    expected_previous = {k: v for k, v in config.items() if k != "response_formats"}
+    expected_previous["implementation"] = {**config["implementation"], **LEGACY_OUTPUT_IMPLEMENTATION}
+    if previous != expected_previous:
+        raise ValueError("Output-contract upgrade requires the original v1 code and identical prompts, evidence and settings")
+    if (any((args.out_dir / "cases").glob("*.json"))
+            or any(args.out_dir.glob("predictions_*.csv"))
+            or any((args.out_dir / "stage_cache").glob("*/orchestrator.json"))
+            or (args.out_dir / "results").exists()):
+        raise ValueError("Cannot upgrade a run with completed final predictions; use a new --out-dir")
+    summary_path = args.out_dir / "summary.json"
+    if summary_path.exists():
+        summary = json.loads(summary_path.read_text())
+        if summary.get("completed_cases", 0) != 0 or summary.get("complete_live_cohort"):
+            raise ValueError("Cannot upgrade a completed or partially completed cohort")
+    backup = args.out_dir / "resolved_config.before_output_contract.json"
+    if backup.exists() and json.loads(backup.read_text()) != saved:
+        raise ValueError("An incompatible output-contract backup already exists")
+    write_json(backup, saved)
+    write_json(args.out_dir / "output_contract_upgrade.json", {
+        "previous_fingerprint": saved["fingerprint"], "new_fingerprint": fingerprint,
+        "change": "orchestrator response_format: json_object -> strict json_schema",
+        "clinical_prompts_changed": False, "previous_config": str(backup),
+        "retained_upstream_cache_files": sorted(str(p.relative_to(args.out_dir))
+                    for p in (args.out_dir / "stage_cache").glob("*/*.json")),
+    })
+    print("Upgraded final output contract; retained upstream stage caches and archived original configuration", flush=True)
+
+
 def freeze_run(args, cases, answers, sources):
     files = list((ROOT / "OphthalmicAgent/Progression").glob("*.py")) + [Path(__file__),
         ROOT / "OphthalmicAgent/EquityAgent/compute_demographic_reliability_score.py",
@@ -72,12 +113,18 @@ def freeze_run(args, cases, answers, sources):
               "implementation": {str(p.relative_to(ROOT)): evidence.native.sha256(p) for p in files},
               "input_protocol": "RNFLT + baseline TDS + descriptive/reliability-only demographics" + (" + OCT" if args.include_oct else ""),
               "label_policy": "direct_orchestrator_label; no probability clamp, rethreshold, confidence bypass or helper lock",
-              "test_used_for_fitting_selection_or_priors": False}
+              "test_used_for_fitting_selection_or_priors": False,
+              "response_formats": {stage: response_format(stage) for stage in SYSTEM_PROMPTS}}
     fingerprint = digest(config)
     path = args.out_dir / "resolved_config.json"
     if path.exists():
-        if json.loads(path.read_text()) != {**config, "fingerprint": fingerprint}:
-            raise ValueError("Run inputs, prompts, settings or implementation changed; use a new --out-dir")
+        saved = json.loads(path.read_text())
+        if saved != {**config, "fingerprint": fingerprint}:
+            if getattr(args, "upgrade_output_contract", False):
+                upgrade_failed_output_contract(args, saved, config, fingerprint)
+            else:
+                raise ValueError("Run inputs, prompts, settings or implementation changed; use a new --out-dir. "
+                                 "For the failed v1 smoke with zero completed cases, use --upgrade-output-contract.")
     elif any((args.out_dir / name).exists() for name in ("stage_cache", "cases", "summary.json")):
         raise ValueError("Refusing unprovenanced existing outputs; use an empty --out-dir")
     write_json(path, {**config, "fingerprint": fingerprint})

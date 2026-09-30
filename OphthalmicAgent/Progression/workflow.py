@@ -35,6 +35,29 @@ def text(value):
     return value.strip()
 
 
+def response_format(stage):
+    if stage != "orchestrator":
+        return {"type": "json_object"}
+
+    def object_schema(properties):
+        return {"type": "object", "properties": properties,
+                "required": list(properties), "additionalProperties": False}
+
+    endpoint = object_schema({
+        "prediction": {"type": "integer", "enum": [0, 1]},
+        "reasoning": {"type": "string"},
+        "review_required": {"type": "boolean"},
+    })
+    schema = object_schema({"predictions": object_schema({t: endpoint for t in ENDPOINTS})})
+    return {"type": "json_schema", "json_schema": {
+        "name": "gdp_progression_orchestrator", "strict": True, "schema": schema,
+    }}
+
+
+class ResponseRefusal(RuntimeError):
+    """A refusal is not a malformed prediction to repair or retry."""
+
+
 def validate(stage, value):
     if not isinstance(value, dict):
         raise ValueError("Expected a JSON object")
@@ -57,7 +80,9 @@ def validate(stage, value):
     else:
         predictions = value.get("predictions", {})
         if not isinstance(predictions, dict) or set(predictions) != set(ENDPOINTS):
-            raise ValueError("Final response must contain exactly all six endpoints")
+            found = sorted(predictions) if isinstance(predictions, dict) else type(predictions).__name__
+            raise ValueError("Final response must contain exactly all six endpoints under 'predictions'; "
+                             f"expected={sorted(ENDPOINTS)} found={found} top_level_keys={sorted(value)}")
         for target, prediction in predictions.items():
             if not isinstance(prediction, dict):
                 raise ValueError(f"Invalid endpoint {target}")
@@ -87,7 +112,7 @@ class CachedCaller:
 
     def call(self, case_id, stage, evidence, image_path=None):
         request = {"model": self.deployment, "messages": messages(stage, evidence, image_path),
-                   "temperature": 0.2, "response_format": {"type": "json_object"},
+                   "temperature": 0.2, "response_format": response_format(stage),
                    "max_completion_tokens": 8000}
         signature = digest({"request": request, "prompt_version": VERSION})
         path = self.root / "stage_cache" / case_id / f"{stage}.json"
@@ -101,7 +126,8 @@ class CachedCaller:
         log = self.root / "attempts.jsonl"
         last_error = None
         for attempt in range(1, self.max_attempts + 1):
-            record = {"case_id": case_id, "stage": stage, "attempt": attempt, "fingerprint": signature}
+            record = {"case_id": case_id, "stage": stage, "attempt": attempt, "fingerprint": signature,
+                      "response_format": request["response_format"]}
             try:
                 response = self.client.chat.completions.create(**request)
                 raw = response.choices[0].message.content or ""
@@ -109,6 +135,11 @@ class CachedCaller:
                 usage = response.usage
                 record["usage"] = {k: int(getattr(usage, k, 0) or 0) for k in (
                     "prompt_tokens", "completion_tokens", "total_tokens")}
+                record["finish_reason"] = response.choices[0].finish_reason
+                refusal = getattr(response.choices[0].message, "refusal", None)
+                if refusal:
+                    record["refusal"] = refusal
+                    raise ResponseRefusal(f"{case_id}/{stage}: API refusal: {refusal}")
                 if response.choices[0].finish_reason != "stop":
                     raise ValueError(f"Incomplete response: {response.choices[0].finish_reason}")
                 result = validate(stage, json.loads(raw))
@@ -117,7 +148,7 @@ class CachedCaller:
             except Exception as error:
                 last_error = error
                 record["error"] = str(error)
-                if getattr(error, "status_code", None) in {400, 401, 403, 404}:
+                if isinstance(error, ResponseRefusal) or getattr(error, "status_code", None) in {400, 401, 403, 404}:
                     raise
                 if attempt < self.max_attempts:
                     time.sleep(self.retry_sleep)

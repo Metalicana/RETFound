@@ -99,6 +99,113 @@ class StagedProgressionTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Cached evidence changed"):
                 workflow.run_case(patient, reused)
 
+    def test_final_request_requires_exact_six_endpoint_schema(self):
+        output = workflow.response_format("orchestrator")
+        self.assertEqual(output["type"], "json_schema")
+        self.assertIs(output["json_schema"]["strict"], True)
+        root = output["json_schema"]["schema"]
+        self.assertEqual(root["required"], ["predictions"])
+        endpoints = root["properties"]["predictions"]
+        self.assertEqual(set(endpoints["required"]), set(ENDPOINTS))
+        self.assertEqual(set(endpoints["properties"]), set(ENDPOINTS))
+        for schema in [root, endpoints, *endpoints["properties"].values()]:
+            self.assertEqual(schema["type"], "object")
+            self.assertIs(schema["additionalProperties"], False)
+            self.assertEqual(set(schema["required"]), set(schema["properties"]))
+        for item in endpoints["properties"].values():
+            self.assertEqual(item["properties"]["prediction"], {"type": "integer", "enum": [0, 1]})
+            self.assertEqual(item["properties"]["review_required"], {"type": "boolean"})
+        for stage in set(SYSTEM_PROMPTS) - {"orchestrator"}:
+            self.assertEqual(workflow.response_format(stage), {"type": "json_object"})
+        with self.assertRaisesRegex(ValueError, "top_level_keys"):
+            workflow.validate("orchestrator", valid_response("orchestrator")["predictions"])
+
+    def test_api_refusal_is_logged_without_retry_or_prediction(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fake = FakeClient()
+            refusal = SimpleNamespace(choices=[SimpleNamespace(finish_reason="stop",
+                      message=SimpleNamespace(content=None, refusal="Synthetic refusal"))], usage=None)
+            caller = workflow.CachedCaller(root, "gpt-5.1", lambda: fake, retry_sleep=0)
+            with patch.object(fake, "create", return_value=refusal) as request:
+                with self.assertRaisesRegex(workflow.ResponseRefusal, "Synthetic refusal"):
+                    caller.call("fixture", "orchestrator", {})
+                self.assertEqual(request.call_count, 1)
+            self.assertFalse((root / "stage_cache/fixture/orchestrator.json").exists())
+            record = json.loads((root / "attempts.jsonl").read_text())
+            self.assertEqual(record["refusal"], "Synthetic refusal")
+            self.assertEqual(record["response_format"]["type"], "json_schema")
+
+    def legacy_configuration(self, args, patient):
+        runner.freeze_run(args, [patient], {}, {})
+        current = json.loads((args.out_dir / "resolved_config.json").read_text())
+        legacy = {k: v for k, v in current.items() if k not in {"response_formats", "fingerprint"}}
+        legacy["implementation"] = {**legacy["implementation"], **runner.LEGACY_OUTPUT_IMPLEMENTATION}
+        legacy["fingerprint"] = workflow.digest(legacy)
+        workflow.write_json(args.out_dir / "resolved_config.json", legacy)
+        return legacy
+
+    def test_failed_legacy_smoke_upgrades_and_only_final_call_is_reissued(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            args = SimpleNamespace(out_dir=root, deployment="gpt-5.1", include_oct=False)
+            patient = case(root)
+            legacy = self.legacy_configuration(args, patient)
+            fake = FakeClient()
+            fake.fail_final = True
+            caller = workflow.CachedCaller(root, "gpt-5.1", lambda: fake, max_attempts=1, retry_sleep=0)
+            with patch.object(workflow, "response_format", return_value={"type": "json_object"}):
+                with self.assertRaisesRegex(RuntimeError, "orchestrator failed"):
+                    workflow.run_case(patient, caller)
+            caches = {p: p.read_bytes() for p in (root / "stage_cache").glob("*/*.json")}
+            self.assertEqual(len(caches), 4)
+            with self.assertRaisesRegex(ValueError, "upgrade-output-contract"):
+                runner.freeze_run(args, [patient], {}, {})
+            args.upgrade_output_contract = True
+            with redirect_stdout(StringIO()):
+                fingerprint = runner.freeze_run(args, [patient], {}, {})
+            self.assertNotEqual(fingerprint, legacy["fingerprint"])
+            self.assertEqual(json.loads((root / "resolved_config.before_output_contract.json").read_text()), legacy)
+            audit = json.loads((root / "output_contract_upgrade.json").read_text())
+            self.assertEqual(len(audit["retained_upstream_cache_files"]), 4)
+            fake.fail_final = False
+            before = len(fake.requests)
+            result = workflow.run_case(patient, caller)
+            self.assertEqual(len(fake.requests) - before, 1)
+            self.assertEqual(fake.requests[-1]["response_format"]["type"], "json_schema")
+            self.assertEqual(set(result["predictions"]), set(ENDPOINTS))
+            for path, raw in caches.items():
+                self.assertEqual(path.read_bytes(), raw)
+            self.assertEqual(runner.freeze_run(args, [patient], {}, {}), fingerprint)
+
+    def test_contract_upgrade_cannot_bypass_other_provenance_guards(self):
+        for alteration in ("evidence", "prompt", "implementation", "fingerprint", "completed_case", "cached_final", "summary"):
+            with self.subTest(alteration=alteration), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                args = SimpleNamespace(out_dir=root, deployment="gpt-5.1", include_oct=False,
+                                       upgrade_output_contract=True)
+                patient = case(root)
+                saved = self.legacy_configuration(args, patient)
+                if alteration == "evidence":
+                    patient["demographics"]["age"] = 50
+                elif alteration in {"prompt", "implementation", "fingerprint"}:
+                    if alteration == "prompt":
+                        saved["system_prompts"]["orchestrator"] = "Different clinical instructions"
+                    elif alteration == "implementation":
+                        saved["implementation"]["OphthalmicAgent/Progression/evidence.py"] = "different"
+                    saved["fingerprint"] = ("invalid" if alteration == "fingerprint" else
+                                              workflow.digest({k: v for k, v in saved.items() if k != "fingerprint"}))
+                    workflow.write_json(root / "resolved_config.json", saved)
+                elif alteration == "completed_case":
+                    workflow.write_json(root / "cases/data_0301.json", {})
+                elif alteration == "cached_final":
+                    workflow.write_json(root / "stage_cache/data_0301/orchestrator.json", {})
+                else:
+                    workflow.write_json(root / "summary.json", {"completed_cases": 1})
+                with self.assertRaises(ValueError):
+                    runner.freeze_run(args, [patient], {}, {})
+                self.assertFalse((root / "resolved_config.before_output_contract.json").exists())
+
     def test_failed_final_stage_not_cached_or_replaced_by_helper(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
