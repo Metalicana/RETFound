@@ -41,6 +41,7 @@ class FakeClient:
         self.chat = SimpleNamespace(completions=self)
         self.requests = []
         self.fail_final = False
+        self.fail_counterfactual = False
 
     def create(self, **request):
         self.requests.append(request)
@@ -48,6 +49,8 @@ class FakeClient:
         value = valid_response(stage)
         if stage == "orchestrator" and self.fail_final:
             del value["predictions"]["vfi"]
+        if stage == "counterfactual" and self.fail_counterfactual:
+            del value["scenarios"]["full_evidence"]
         return SimpleNamespace(choices=[SimpleNamespace(finish_reason="stop", message=SimpleNamespace(content=json.dumps(value)))],
                                usage=SimpleNamespace(prompt_tokens=10, completion_tokens=20, total_tokens=30))
 
@@ -173,10 +176,34 @@ class StagedProgressionTest(unittest.TestCase):
         for item in endpoints["properties"].values():
             self.assertEqual(item["properties"]["prediction"], {"type": "integer", "enum": [0, 1]})
             self.assertEqual(item["properties"]["review_required"], {"type": "boolean"})
-        for stage in set(SYSTEM_PROMPTS) - {"orchestrator"}:
+        for stage in set(SYSTEM_PROMPTS) - {"orchestrator", "counterfactual"}:
             self.assertEqual(workflow.response_format(stage), {"type": "json_object"})
         with self.assertRaisesRegex(ValueError, "top_level_keys"):
             workflow.validate("orchestrator", valid_response("orchestrator")["predictions"])
+
+    def test_counterfactual_request_requires_five_scenarios_and_six_binary_endpoints(self):
+        output = workflow.response_format("counterfactual")
+        self.assertEqual(output["type"], "json_schema")
+        self.assertTrue(output["json_schema"]["strict"])
+        self.assertEqual(output["json_schema"]["name"], "gdp_progression_counterfactual")
+        root = output["json_schema"]["schema"]
+        self.assertEqual(root["required"], ["scenarios", "interpretation"])
+        scenarios = root["properties"]["scenarios"]
+        self.assertEqual(scenarios["required"], list(SCENARIOS))
+        objects = [root, scenarios]
+        for scenario in scenarios["properties"].values():
+            self.assertEqual(scenario["required"], ["predictions", "reasoning"])
+            endpoints = scenario["properties"]["predictions"]
+            self.assertEqual(endpoints["required"], list(ENDPOINTS))
+            for label in endpoints["properties"].values():
+                self.assertEqual(label, {"type": "integer", "enum": [0, 1]})
+            objects.extend([scenario, endpoints])
+        for schema in objects:
+            self.assertEqual(schema["type"], "object")
+            self.assertFalse(schema["additionalProperties"])
+            self.assertEqual(set(schema["required"]), set(schema["properties"]))
+        with self.assertRaisesRegex(ValueError, "top_level_keys"):
+            workflow.validate("counterfactual", valid_response("counterfactual")["scenarios"])
 
     def test_api_refusal_is_logged_without_retry_or_prediction(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -194,21 +221,24 @@ class StagedProgressionTest(unittest.TestCase):
             self.assertEqual(record["refusal"], "Synthetic refusal")
             self.assertEqual(record["response_format"]["type"], "json_schema")
 
-    def legacy_configuration(self, args, patient):
-        runner.freeze_run(args, [patient], {}, {})
+    def legacy_configuration(self, args, patients, *, counterfactual=False):
+        runner.freeze_run(args, patients, {}, {})
         current = json.loads((args.out_dir / "resolved_config.json").read_text())
         legacy = {k: v for k, v in current.items() if k not in {"response_formats", "fingerprint"}}
         legacy["implementation"] = {**legacy["implementation"], **runner.LEGACY_OUTPUT_IMPLEMENTATION}
+        if counterfactual:
+            legacy["implementation"] = {**current["implementation"], **runner.LEGACY_COUNTERFACTUAL_IMPLEMENTATION}
+            legacy["response_formats"] = {**current["response_formats"], "counterfactual": {"type": "json_object"}}
         legacy["fingerprint"] = workflow.digest(legacy)
         workflow.write_json(args.out_dir / "resolved_config.json", legacy)
         return legacy
 
-    def test_failed_legacy_smoke_upgrades_and_only_final_call_is_reissued(self):
+    def test_failed_legacy_smoke_upgrades_both_contracts_and_preserves_specialists(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             args = SimpleNamespace(out_dir=root, deployment="gpt-5.1", include_oct=False)
             patient = case(root)
-            legacy = self.legacy_configuration(args, patient)
+            legacy = self.legacy_configuration(args, [patient])
             fake = FakeClient()
             fake.fail_final = True
             caller = workflow.CachedCaller(root, "gpt-5.1", lambda: fake, max_attempts=1, retry_sleep=0)
@@ -225,25 +255,74 @@ class StagedProgressionTest(unittest.TestCase):
             self.assertNotEqual(fingerprint, legacy["fingerprint"])
             self.assertEqual(json.loads((root / "resolved_config.before_output_contract.json").read_text()), legacy)
             audit = json.loads((root / "output_contract_upgrade.json").read_text())
-            self.assertEqual(len(audit["retained_upstream_cache_files"]), 4)
+            self.assertEqual(len(audit["retained_upstream_cache_files"]), 3)
+            self.assertEqual(set(audit["response_format_changes"]), {"counterfactual", "orchestrator"})
+            self.assertEqual(len(audit["archived_cache_files"]), 1)
             fake.fail_final = False
             before = len(fake.requests)
             result = workflow.run_case(patient, caller)
-            self.assertEqual(len(fake.requests) - before, 1)
+            self.assertEqual(len(fake.requests) - before, 2)
             self.assertEqual(fake.requests[-1]["response_format"]["type"], "json_schema")
             self.assertEqual(set(result["predictions"]), set(ENDPOINTS))
             for path, raw in caches.items():
+                if path.stem == "counterfactual":
+                    archived = root / "stage_cache.before_output_contract" / path.relative_to(root / "stage_cache")
+                    self.assertEqual(archived.read_bytes(), raw)
+                    self.assertEqual(json.loads(path.read_text())["response_format"]["type"], "json_schema")
+                else:
+                    self.assertEqual(path.read_bytes(), raw)
+            self.assertEqual(runner.freeze_run(args, [patient], {}, {}), fingerprint)
+
+    def test_failed_counterfactual_smoke_upgrades_and_reuses_three_specialists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            args = SimpleNamespace(out_dir=root, deployment="gpt-5.1", include_oct=False)
+            patient = case(root)
+            legacy = self.legacy_configuration(args, [patient], counterfactual=True)
+            fake = FakeClient()
+            fake.fail_counterfactual = True
+            caller = workflow.CachedCaller(root, "gpt-5.1", lambda: fake, max_attempts=3, retry_sleep=0)
+            current_format = workflow.response_format
+            with patch.object(workflow, "response_format", side_effect=lambda stage:
+                              {"type": "json_object"} if stage == "counterfactual" else current_format(stage)):
+                with self.assertRaisesRegex(RuntimeError, "counterfactual failed after 3 attempts"):
+                    workflow.run_case(patient, caller)
+            self.assertEqual(len(fake.requests), 6)
+            caches = {p: p.read_bytes() for p in (root / "stage_cache").glob("*/*.json")}
+            self.assertEqual(len(caches), 3)
+            original_attempts = (root / "attempts.jsonl").read_bytes()
+            with self.assertRaisesRegex(ValueError, "upgrade-output-contract"):
+                runner.freeze_run(args, [patient], {}, {})
+            args.upgrade_output_contract = True
+            with redirect_stdout(StringIO()):
+                fingerprint = runner.freeze_run(args, [patient], {}, {})
+            self.assertNotEqual(fingerprint, legacy["fingerprint"])
+            self.assertEqual(json.loads((root / "resolved_config.before_output_contract.json").read_text()), legacy)
+            audit = json.loads((root / "output_contract_upgrade.json").read_text())
+            self.assertEqual(set(audit["response_format_changes"]), {"counterfactual"})
+            self.assertFalse(audit["clinical_prompts_changed"])
+            self.assertEqual(len(audit["retained_upstream_cache_files"]), 3)
+            self.assertEqual(audit["archived_cache_files"], [])
+            fake.fail_counterfactual = False
+            before = len(fake.requests)
+            workflow.run_case(patient, caller)
+            self.assertEqual(len(fake.requests) - before, 2)
+            for request in fake.requests[-2:]:
+                self.assertEqual(request["response_format"]["type"], "json_schema")
+            for path, raw in caches.items():
                 self.assertEqual(path.read_bytes(), raw)
+            self.assertTrue((root / "attempts.jsonl").read_bytes().startswith(original_attempts))
             self.assertEqual(runner.freeze_run(args, [patient], {}, {}), fingerprint)
 
     def test_contract_upgrade_cannot_bypass_other_provenance_guards(self):
-        for alteration in ("evidence", "prompt", "implementation", "fingerprint", "completed_case", "cached_final", "summary"):
-            with self.subTest(alteration=alteration), tempfile.TemporaryDirectory() as tmp:
+        alterations = ("evidence", "prompt", "implementation", "fingerprint", "completed_case", "cached_final", "summary")
+        for counterfactual, alteration in ((c, a) for c in (False, True) for a in alterations):
+            with self.subTest(counterfactual=counterfactual, alteration=alteration), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 args = SimpleNamespace(out_dir=root, deployment="gpt-5.1", include_oct=False,
                                        upgrade_output_contract=True)
                 patient = case(root)
-                saved = self.legacy_configuration(args, patient)
+                saved = self.legacy_configuration(args, [patient], counterfactual=counterfactual)
                 if alteration == "evidence":
                     patient["demographics"]["age"] = 50
                 elif alteration in {"prompt", "implementation", "fingerprint"}:
@@ -263,6 +342,44 @@ class StagedProgressionTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     runner.freeze_run(args, [patient], {}, {})
                 self.assertFalse((root / "resolved_config.before_output_contract.json").exists())
+
+    def test_five_case_runner_resumes_after_counterfactual_contract_upgrade(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            selected = ["data_0344", "data_0371", "data_0397", "data_0411", "data_0432"]
+            args = SimpleNamespace(stage="smoke", case_ids=selected, out_dir=root, include_oct=False,
+                                   deployment="gpt-5.1", max_attempts=1, upgrade_output_contract=True)
+            first = case(root)
+            patients = [{**first, "case_id": case_id} for case_id in ["data_0301", *selected]]
+            answers = {t: [{"image_id": c["case_id"], "y_true": "0", "split": "test"}
+                           for c in patients] for t in ENDPOINTS}
+            self.legacy_configuration(args, patients, counterfactual=True)
+            fake = FakeClient()
+            fake.fail_counterfactual = True
+            caller = workflow.CachedCaller(root, args.deployment, lambda: fake, max_attempts=1)
+            current_format = workflow.response_format
+            with patch.object(workflow, "response_format", side_effect=lambda stage:
+                              {"type": "json_object"} if stage == "counterfactual" else current_format(stage)):
+                with self.assertRaisesRegex(RuntimeError, "counterfactual failed"):
+                    workflow.run_case(patients[1], caller)
+            before = len(fake.requests)
+            fake.fail_counterfactual = False
+            with patch.object(evidence, "prepare", return_value=(patients, answers, {})), \
+                 patch.object(runner, "make_client", return_value=fake), \
+                 patch.object(reporting, "collect") as collect, redirect_stdout(StringIO()):
+                runner.execute(args)
+                # First patient's three specialist calls are reused; four patients run fully.
+                self.assertEqual(len(fake.requests) - before, 22)
+                runner.execute(args)
+                self.assertEqual(len(fake.requests) - before, 22)
+                collect.assert_not_called()
+            summary = json.loads((root / "summary.json").read_text())
+            self.assertEqual(summary["completed_requested_cases"], 5)
+            self.assertEqual(summary["missing_cases"], ["data_0301"])
+            self.assertFalse(summary["complete_live_cohort"])
+            for target in ENDPOINTS:
+                rows = evidence.native.read_csv(root / f"predictions_{target}.csv")
+                self.assertEqual({r["image_id"] for r in rows}, set(selected))
 
     def test_failed_final_stage_not_cached_or_replaced_by_helper(self):
         with tempfile.TemporaryDirectory() as tmp:

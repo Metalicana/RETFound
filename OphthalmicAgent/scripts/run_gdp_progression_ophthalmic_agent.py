@@ -21,10 +21,14 @@ from Progression.prompts import DEFAULT_RUN_NAME, ENDPOINTS, SYSTEM_PROMPTS, VER
 from Progression.workflow import CachedCaller, digest, response_format, run_case, write_json
 
 
-# Only this reviewed JSON-mode implementation can upgrade a failed, zero-case run.
+# Only these reviewed implementations can upgrade a failed, zero-case run.
 LEGACY_OUTPUT_IMPLEMENTATION = {
     "OphthalmicAgent/Progression/workflow.py": "34d9398adeff06d80b98f9a81d92b6397f9d20b25f888e79d8df1d5b3b07f3f2",
     "OphthalmicAgent/scripts/run_gdp_progression_ophthalmic_agent.py": "e8d723dd9e2525c21e6ba0258de0d2ab0ed1d1146af34a6265cda687e6f45d56",
+}
+LEGACY_COUNTERFACTUAL_IMPLEMENTATION = {
+    "OphthalmicAgent/Progression/workflow.py": "62bea33f9510b91d11c33e3e6e91aa30a44ceec719481455990b45e9b3847cd2",
+    "OphthalmicAgent/scripts/run_gdp_progression_ophthalmic_agent.py": "755d5f9a017990621b909be458bde45e600554dc403a2a025e305c3093dc25a1",
 }
 
 
@@ -43,7 +47,7 @@ def parse_args():
     parser.add_argument("--path-prefix-to", default="")
     parser.add_argument("--max-attempts", type=int, default=3)
     parser.add_argument("--upgrade-output-contract", action="store_true",
-                        help="Upgrade a failed legacy run with zero completed cases to strict final-response JSON only when prompts and evidence are identical. Does not migrate older clinical prompts; those require a new output directory.")
+                        help="Upgrade a failed run with zero completed cases to strict counterfactual/final JSON only when prompts and evidence are identical. Retains unchanged specialist caches and archives changed-format caches. Older clinical prompts require a new output directory.")
     args = parser.parse_args()
     for key, value in vars(args).items():
         if isinstance(value, Path):
@@ -74,8 +78,11 @@ def upgrade_failed_output_contract(args, saved, config, fingerprint):
         raise ValueError("Invalid saved configuration fingerprint; cannot upgrade")
     expected_previous = {k: v for k, v in config.items() if k != "response_formats"}
     expected_previous["implementation"] = {**config["implementation"], **LEGACY_OUTPUT_IMPLEMENTATION}
-    if previous != expected_previous:
-        raise ValueError("Output-contract upgrade requires the original v1 code and identical prompts, evidence and settings")
+    expected_counterfactual = {**config,
+        "implementation": {**config["implementation"], **LEGACY_COUNTERFACTUAL_IMPLEMENTATION},
+        "response_formats": {**config["response_formats"], "counterfactual": {"type": "json_object"}}}
+    if previous not in (expected_previous, expected_counterfactual):
+        raise ValueError("Output-contract upgrade requires a reviewed legacy implementation and identical prompts, evidence and settings")
     if (any((args.out_dir / "cases").glob("*.json"))
             or any(args.out_dir.glob("predictions_*.csv"))
             or any((args.out_dir / "stage_cache").glob("*/orchestrator.json"))
@@ -89,15 +96,32 @@ def upgrade_failed_output_contract(args, saved, config, fingerprint):
     backup = args.out_dir / "resolved_config.before_output_contract.json"
     if backup.exists() and json.loads(backup.read_text()) != saved:
         raise ValueError("An incompatible output-contract backup already exists")
+    old_formats = previous.get("response_formats", {s: {"type": "json_object"} for s in SYSTEM_PROMPTS})
+    changes = {s: {"before": old_formats[s], "after": fmt}
+               for s, fmt in config["response_formats"].items() if old_formats[s] != fmt}
+    archived = []
+    retained = []
+    for path in sorted((args.out_dir / "stage_cache").glob("*/*.json")):
+        if path.stem in changes:
+            destination = args.out_dir / "stage_cache.before_output_contract" / path.relative_to(args.out_dir / "stage_cache")
+            if destination.exists() and destination.read_bytes() != path.read_bytes():
+                raise ValueError(f"An incompatible cache backup already exists: {destination}")
+            archived.append((path, destination))
+        else:
+            retained.append(str(path.relative_to(args.out_dir)))
     write_json(backup, saved)
+    for path, destination in archived:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        path.replace(destination)
     write_json(args.out_dir / "output_contract_upgrade.json", {
         "previous_fingerprint": saved["fingerprint"], "new_fingerprint": fingerprint,
-        "change": "orchestrator response_format: json_object -> strict json_schema",
+        "response_format_changes": changes,
         "clinical_prompts_changed": False, "previous_config": str(backup),
-        "retained_upstream_cache_files": sorted(str(p.relative_to(args.out_dir))
-                    for p in (args.out_dir / "stage_cache").glob("*/*.json")),
+        "retained_upstream_cache_files": retained,
+        "archived_cache_files": [str(dst.relative_to(args.out_dir)) for _, dst in archived],
     })
-    print("Upgraded final output contract; retained upstream stage caches and archived original configuration", flush=True)
+    print("Upgraded output contract for " + ", ".join(changes)
+          + f"; retained {len(retained)} unchanged stage caches and archived original configuration", flush=True)
 
 
 def freeze_run(args, cases, answers, sources):

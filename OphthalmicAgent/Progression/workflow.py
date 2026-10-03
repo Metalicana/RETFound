@@ -36,21 +36,31 @@ def text(value):
 
 
 def response_format(stage):
-    if stage != "orchestrator":
+    if stage not in {"orchestrator", "counterfactual"}:
         return {"type": "json_object"}
 
     def object_schema(properties):
         return {"type": "object", "properties": properties,
                 "required": list(properties), "additionalProperties": False}
 
-    endpoint = object_schema({
-        "prediction": {"type": "integer", "enum": [0, 1]},
-        "reasoning": {"type": "string"},
-        "review_required": {"type": "boolean"},
-    })
-    schema = object_schema({"predictions": object_schema({t: endpoint for t in ENDPOINTS})})
+    if stage == "counterfactual":
+        scenario = object_schema({
+            "predictions": object_schema({t: {"type": "integer", "enum": [0, 1]} for t in ENDPOINTS}),
+            "reasoning": {"type": "string"},
+        })
+        schema = object_schema({
+            "scenarios": object_schema({name: scenario for name in SCENARIOS}),
+            "interpretation": {"type": "string"},
+        })
+    else:
+        endpoint = object_schema({
+            "prediction": {"type": "integer", "enum": [0, 1]},
+            "reasoning": {"type": "string"},
+            "review_required": {"type": "boolean"},
+        })
+        schema = object_schema({"predictions": object_schema({t: endpoint for t in ENDPOINTS})})
     return {"type": "json_schema", "json_schema": {
-        "name": "gdp_progression_orchestrator", "strict": True, "schema": schema,
+        "name": f"gdp_progression_{stage}", "strict": True, "schema": schema,
     }}
 
 
@@ -66,7 +76,9 @@ def validate(stage, value):
     if stage == "counterfactual":
         scenarios = value.get("scenarios", {})
         if not isinstance(scenarios, dict) or set(scenarios) != set(SCENARIOS):
-            raise ValueError("Counterfactual response must contain all five scenarios")
+            found = sorted(scenarios) if isinstance(scenarios, dict) else type(scenarios).__name__
+            raise ValueError("Counterfactual response must contain all five scenarios under 'scenarios'; "
+                             f"expected={list(SCENARIOS)} found={found} top_level_keys={sorted(value)}")
         for name in SCENARIOS:
             scenario = scenarios[name]
             if not isinstance(scenario, dict) or not isinstance(scenario.get("predictions"), dict):
