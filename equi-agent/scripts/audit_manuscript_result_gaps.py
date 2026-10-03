@@ -51,7 +51,28 @@ def dataset_task(row, path):
     if dataset and "fairvision" not in dataset:
         return None
     task = TASKS.get(raw_task)
+    # The standalone AMD evaluator omits Task_Folder from its saved CSVs.
+    if not raw_task and "Pred_AMD" in row and not {"Pred_GL", "Pred_DR"}.intersection(row):
+        task = "amd"
     return ("fairvision", task) if task else None
+
+
+def result_csv_paths(root, out):
+    out = out.resolve()
+    # OUTPUT_CSV defaults are relative to the launching shell's directory.
+    for path in sorted(root.glob("*.csv")):
+        if path.is_file() and not path.is_symlink() and not path.resolve().is_relative_to(out):
+            yield path
+    for base in (root / "OphthalmicAgent", root / "equi-agent/outputs"):
+        if base.is_symlink() or base.resolve().is_relative_to(out):
+            continue
+        for folder, dirs, files in os.walk(base, followlinks=False):
+            dirs[:] = sorted(d for d in dirs if d not in SKIP and not (Path(folder) / d).is_symlink()
+                             and not (Path(folder) / d).resolve().is_relative_to(out))
+            for name in sorted(files):
+                path = Path(folder) / name
+                if path.suffix.lower() == ".csv" and not path.is_symlink():
+                    yield path
 
 
 def metrics(rows):
@@ -223,20 +244,13 @@ def main():
             expected.update(load_manifest(path))
             manifests.append(dict(path=rel, sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
     reports, subgroups, errors = [], [], []
-    for base in (root / "OphthalmicAgent", root / "equi-agent/outputs"):
-        for folder, dirs, files in os.walk(base, followlinks=False):
-            dirs[:] = sorted(d for d in dirs if d not in SKIP and not (Path(folder) / d).is_symlink()
-                             and not (Path(folder) / d).resolve().is_relative_to(out))
-            for name in sorted(files):
-                path = Path(folder) / name
-                if path.suffix.lower() != ".csv" or path.is_symlink():
-                    continue
-                try:
-                    rows, subs = audit_file(path, expected)
-                    reports.extend(rows)
-                    subgroups.extend(subs)
-                except (OSError, ValueError, csv.Error, KeyError, TypeError) as error:
-                    errors.append(dict(path=str(path), error=str(error)))
+    for path in result_csv_paths(root, out):
+        try:
+            rows, subs = audit_file(path, expected)
+            reports.extend(rows)
+            subgroups.extend(subs)
+        except (OSError, ValueError, csv.Error, KeyError, TypeError) as error:
+            errors.append(dict(path=str(path), error=str(error)))
     out.mkdir(parents=True, exist_ok=True)
     write_csv(out / "candidates.csv", reports)
     write_csv(out / "subgroups.csv", subgroups)

@@ -1,4 +1,5 @@
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -36,6 +37,47 @@ class ManuscriptAuditTests(unittest.TestCase):
     def test_progression_is_not_detection(self):
         self.assertIsNone(audit.dataset_task({"task": "progression_forecasting"}, Path("gdp.csv")))
         self.assertEqual(audit.dataset_task({"Task_Folder": "AMD"}, Path("predictions.csv")), ("fairvision", "amd"))
+
+    def test_standalone_amd_format_without_task_column(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "fairvision_amd_gpt51_predictions.csv"
+            path.write_text("Filename,Model,Ground_Truth,Pred_AMD\na.npz,gpt-5.1,1,1\n")
+            rows, _ = audit.audit_file(path, {("fairvision", "amd"): {"a": {"truth": 1}}})
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["task"], "amd")
+            self.assertTrue(rows[0]["complete_locked_cohort"])
+
+    def test_missing_task_not_inferred_from_ambiguous_columns(self):
+        self.assertIsNone(audit.dataset_task({"Pred_AMD": "1", "Pred_GL": "0"}, Path("predictions.csv")))
+        self.assertIsNone(audit.dataset_task({"task": "other", "Pred_AMD": "1"}, Path("predictions.csv")))
+        self.assertIsNone(audit.dataset_task({"dataset": "external", "Pred_AMD": "1"}, Path("predictions.csv")))
+        self.assertIsNone(audit.dataset_task({"Pred_AMD": "1"}, Path("gdp_progression.csv")))
+
+    def test_root_level_evaluator_outputs_are_discovered(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            out = root / "audit_export"
+            expected = [root / "gdp_test_agentic_predictions.csv",
+                        root / "OphthalmicAgent/fairvision_amd_gpt51_predictions.csv",
+                        root / "equi-agent/outputs/predictions/model.csv"]
+            skipped = [root / "OphthalmicAgent/weights/ignored.csv",
+                       root / "equi-agent/outputs/audits/ignored.csv"]
+            for path in expected + skipped:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.touch()
+            (root / "linked.csv").symlink_to(expected[0])
+            self.assertEqual(set(audit.result_csv_paths(root, out)), set(expected))
+            self.assertNotIn(expected[1], set(audit.result_csv_paths(root, root / "OphthalmicAgent")))
+
+    def test_root_gdp_output_matches_locked_detection_cases(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "gdp_test_agentic_predictions.csv"
+            path.write_text("Patient_ID,Ground_Truth,Pred_GL\n301,1,1\n302,0,-1\n")
+            expected = {("gdp", "glaucoma"): {"data_0301": {"truth": 1}, "data_0302": {"truth": 0}}}
+            rows, _ = audit.audit_file(path, expected)
+            self.assertEqual(rows[0]["missing_cases"], 0)
+            self.assertEqual(rows[0]["invalid_prediction"], 1)
+            self.assertFalse(rows[0]["complete_locked_cohort"])
 
 
 if __name__ == "__main__":

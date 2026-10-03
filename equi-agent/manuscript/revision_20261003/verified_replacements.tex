@@ -1,9 +1,12 @@
 % Targeted replacements for the manuscript supplied on 2026-10-03.
 % This is an insertion file, not a replacement for the entire source document.
 % Preserve the original manuscript and its commented historical sections.
-% GDP progression values below are transcribed from the user's complete v2
-% CECSL report, not independently verified from the latest local prediction CSVs.
-% Run audit_manuscript_result_gaps.py on CECSL before final submission.
+% Native-helper and agent progression values verified against the CECSL audit
+% received 2026-10-03, which checked all 200 saved cases and frozen evidence.
+% Artifact: equi-agent/outputs/audits/manuscript_received_20261003/.
+% ZIP SHA256: 786045e67ce9d5a22b03f0ece073f1c81edebf16438602b64866d785e3cb94dc
+% Standalone progression LLM rows remain from the supplied CECSL report;
+% this archive did not re-audit their prediction files.
 
 % ABSTRACT: replace the old GDP detection/progression superiority sentence.
 % Do not substitute progression numbers into the separate detection result.
@@ -29,7 +32,9 @@ positive-class F1 of 0.6441 and a macro-F1 of 0.7476, compared with 0.5905 and
 0.7224 for the native helper (Table~\ref{tab:gdp_progression_prediction}).
 It detected 38 of 60 progressing cases, compared with 31 for the helper, while
 false positives increased from 14 to 20 among 140 non-progressing cases.
-Worst-group positive-class F1 increased from 0.5818 to 0.6102. RetinAgent had
+Worst-group positive-class F1 increased from 0.5818 to 0.6102 among eligible
+sex and age subgroups. No race comparison met the minimum support rule.
+RetinAgent had
 higher macro-F1 than the standalone language models in this comparison, but
 GPT-5.1 and Claude Haiku 4.5 had slightly higher positive-class F1 and higher
 balanced accuracy. Results varied substantially by endpoint: positive-class
@@ -46,7 +51,8 @@ to establish generalization of the revised workflow.
 progressing cases. Positive-class and macro-F1 are distinguished explicitly.
 Worst-group F1 is positive-class F1 over race, sex and age groups with at least
 20 positive and 20 negative cases and at least two eligible groups per
-attribute. RetinAgent's forced labels include cases flagged for review.
+attribute. Only sex and age contributed eligible groups in this cohort;
+race did not. RetinAgent's forced labels include cases flagged for review.
 Reliability estimates use development-only out-of-fold predictions, but
 prompt revision followed inspection of earlier test-cohort errors.}
 \label{tab:gdp_progression_prediction}
