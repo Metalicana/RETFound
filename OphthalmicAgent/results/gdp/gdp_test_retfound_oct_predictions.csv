@@ -1,0 +1,401 @@
+Patient_ID,Age,Gender,Race,Filename,Ground_Truth,Probability_GL,Pred_GL,Is_Correct
+data_0601,61.77,male,white,data_gdp/BScan/data_0601.npz,0,0.730543554,1,0
+data_0602,57.69,male,asian,data_gdp/BScan/data_0602.npz,0,0.796988785,1,0
+data_0603,59.21,female,black or african american,data_gdp/BScan/data_0603.npz,1,0.714954615,1,1
+data_0604,55.12,female,white,data_gdp/BScan/data_0604.npz,0,0.254332304,0,1
+data_0605,61.2,male,white,data_gdp/BScan/data_0605.npz,1,0.377875328,1,1
+data_0606,70.75,male,white,data_gdp/BScan/data_0606.npz,1,0.84073633,1,1
+data_0607,55.77,male,white,data_gdp/BScan/data_0607.npz,0,0.542898655,1,0
+data_0608,66.32,female,white,data_gdp/BScan/data_0608.npz,0,0.466244727,1,0
+data_0609,61.9,female,white,data_gdp/BScan/data_0609.npz,0,0.4956294,1,0
+data_0610,70.38,male,white,data_gdp/BScan/data_0610.npz,1,0.118491545,0,0
+data_0611,52.16,male,white,data_gdp/BScan/data_0611.npz,0,0.5929088,1,0
+data_0612,68.28,male,white,data_gdp/BScan/data_0612.npz,0,0.499000758,1,0
+data_0613,65.7,female,black or african american,data_gdp/BScan/data_0613.npz,1,0.402138919,1,1
+data_0614,25.68,female,white,data_gdp/BScan/data_0614.npz,0,0.374893725,0,1
+data_0615,91.33,female,white,data_gdp/BScan/data_0615.npz,1,0.687955678,1,1
+data_0616,67.58,male,white,data_gdp/BScan/data_0616.npz,1,0.8067981,1,1
+data_0617,53.71,female,white,data_gdp/BScan/data_0617.npz,0,0.274206072,0,1
+data_0618,25.07,female,white,data_gdp/BScan/data_0618.npz,0,0.767715931,1,0
+data_0619,68.77,female,white,data_gdp/BScan/data_0619.npz,1,0.442549258,1,1
+data_0620,59.34,female,white,data_gdp/BScan/data_0620.npz,0,0.725196898,1,0
+data_0621,55.69,female,white,data_gdp/BScan/data_0621.npz,0,0.537993371,1,0
+data_0622,75.65,female,white,data_gdp/BScan/data_0622.npz,1,0.53963685,1,1
+data_0623,52.93,male,white,data_gdp/BScan/data_0623.npz,0,0.453676939,1,0
+data_0624,79.24,male,white,data_gdp/BScan/data_0624.npz,1,0.558773696,1,1
+data_0625,46,male,black or african american,data_gdp/BScan/data_0625.npz,1,0.493661255,1,1
+data_0626,73.71,male,white,data_gdp/BScan/data_0626.npz,0,0.423248947,1,0
+data_0627,67.98,male,white,data_gdp/BScan/data_0627.npz,1,0.834303677,1,1
+data_0628,62.1,male,black or african american,data_gdp/BScan/data_0628.npz,1,0.712702155,1,1
+data_0629,71.08,female,asian,data_gdp/BScan/data_0629.npz,1,0.338276684,0,0
+data_0630,90.9,female,white,data_gdp/BScan/data_0630.npz,1,0.60023576,1,1
+data_0631,62.32,female,white,data_gdp/BScan/data_0631.npz,1,0.475024074,1,1
+data_0632,68.7,female,white,data_gdp/BScan/data_0632.npz,1,0.712452352,1,1
+data_0633,64.51,female,white,data_gdp/BScan/data_0633.npz,0,0.283502638,0,1
+data_0634,68.18,male,white,data_gdp/BScan/data_0634.npz,1,0.640222788,1,1
+data_0635,81.33,male,asian,data_gdp/BScan/data_0635.npz,1,0.45948267,1,1
+data_0636,30.99,female,white,data_gdp/BScan/data_0636.npz,0,0.444323927,1,0
+data_0637,82.62,female,white,data_gdp/BScan/data_0637.npz,1,0.689910531,1,1
+data_0638,80.86,female,white,data_gdp/BScan/data_0638.npz,0,0.596629262,1,0
+data_0639,64.49,female,white,data_gdp/BScan/data_0639.npz,0,0.562773466,1,0
+data_0640,53.3,female,white,data_gdp/BScan/data_0640.npz,0,0.351942122,0,1
+data_0641,65.38,female,white,data_gdp/BScan/data_0641.npz,0,0.348347813,0,1
+data_0642,81.35,female,white,data_gdp/BScan/data_0642.npz,1,0.590892673,1,1
+data_0643,86.19,male,white,data_gdp/BScan/data_0643.npz,1,0.654830992,1,1
+data_0644,58.96,male,asian,data_gdp/BScan/data_0644.npz,1,0.756076872,1,1
+data_0645,50.94,female,white,data_gdp/BScan/data_0645.npz,0,0.667812526,1,0
+data_0646,66.68,female,white,data_gdp/BScan/data_0646.npz,1,0.851271987,1,1
+data_0647,64.08,male,white,data_gdp/BScan/data_0647.npz,1,0.358664215,0,0
+data_0648,73.04,male,white,data_gdp/BScan/data_0648.npz,0,0.479590476,1,0
+data_0649,64.83,female,white,data_gdp/BScan/data_0649.npz,0,0.644459069,1,0
+data_0650,64.82,female,white,data_gdp/BScan/data_0650.npz,0,0.607530773,1,0
+data_0651,79.82,male,black or african american,data_gdp/BScan/data_0651.npz,0,0.590188682,1,0
+data_0652,74.21,male,white,data_gdp/BScan/data_0652.npz,0,0.597387969,1,0
+data_0653,76.07,male,white,data_gdp/BScan/data_0653.npz,1,0.803152919,1,1
+data_0654,79.73,female,white,data_gdp/BScan/data_0654.npz,1,0.592984498,1,1
+data_0655,75.83,male,black or african american,data_gdp/BScan/data_0655.npz,1,0.837222219,1,1
+data_0656,33.02,male,asian,data_gdp/BScan/data_0656.npz,0,0.527474999,1,0
+data_0657,59.35,male,white,data_gdp/BScan/data_0657.npz,0,0.38205719,1,0
+data_0658,76.89,male,white,data_gdp/BScan/data_0658.npz,1,0.795810461,1,1
+data_0659,75.1,female,white,data_gdp/BScan/data_0659.npz,1,0.775433004,1,1
+data_0660,55.74,male,asian,data_gdp/BScan/data_0660.npz,0,0.302188486,0,1
+data_0661,65.84,female,white,data_gdp/BScan/data_0661.npz,0,0.603181243,1,0
+data_0662,46.31,female,asian,data_gdp/BScan/data_0662.npz,0,0.736555576,1,0
+data_0663,60.08,female,white,data_gdp/BScan/data_0663.npz,1,0.732815742,1,1
+data_0664,80.92,female,white,data_gdp/BScan/data_0664.npz,1,0.617260754,1,1
+data_0665,49.08,female,white,data_gdp/BScan/data_0665.npz,0,0.354459971,0,1
+data_0666,72.24,female,white,data_gdp/BScan/data_0666.npz,1,0.649454653,1,1
+data_0667,43.99,female,black or african american,data_gdp/BScan/data_0667.npz,0,0.579122722,1,0
+data_0668,77.45,female,white,data_gdp/BScan/data_0668.npz,0,0.359784335,0,1
+data_0669,81.57,female,black or african american,data_gdp/BScan/data_0669.npz,1,0.760098636,1,1
+data_0670,77.83,female,black or african american,data_gdp/BScan/data_0670.npz,1,0.822560906,1,1
+data_0671,72.63,female,white,data_gdp/BScan/data_0671.npz,0,0.581657469,1,0
+data_0672,45.75,male,white,data_gdp/BScan/data_0672.npz,0,0.466947287,1,0
+data_0673,52.67,female,white,data_gdp/BScan/data_0673.npz,1,0.801571548,1,1
+data_0674,61.84,female,white,data_gdp/BScan/data_0674.npz,0,0.333028942,0,1
+data_0675,48.15,female,black or african american,data_gdp/BScan/data_0675.npz,1,0.346218556,0,0
+data_0676,80.37,male,black or african american,data_gdp/BScan/data_0676.npz,1,0.264483541,0,0
+data_0677,63.84,male,white,data_gdp/BScan/data_0677.npz,1,0.610628128,1,1
+data_0678,43.25,male,black or african american,data_gdp/BScan/data_0678.npz,0,0.32968688,0,1
+data_0679,60.67,female,white,data_gdp/BScan/data_0679.npz,0,0.474989116,1,0
+data_0680,55.11,male,black or african american,data_gdp/BScan/data_0680.npz,0,0.387477249,1,0
+data_0681,61.25,male,white,data_gdp/BScan/data_0681.npz,1,0.528130889,1,1
+data_0682,77.41,female,white,data_gdp/BScan/data_0682.npz,1,0.546559095,1,1
+data_0683,52.67,male,black or african american,data_gdp/BScan/data_0683.npz,0,0.277297616,0,1
+data_0684,53.65,female,white,data_gdp/BScan/data_0684.npz,1,0.483927041,1,1
+data_0685,75.54,female,asian,data_gdp/BScan/data_0685.npz,0,0.362727642,0,1
+data_0686,66.93,female,white,data_gdp/BScan/data_0686.npz,0,0.66207999,1,0
+data_0687,75.52,female,white,data_gdp/BScan/data_0687.npz,0,0.840970695,1,0
+data_0688,68.58,female,white,data_gdp/BScan/data_0688.npz,0,0.398108661,1,0
+data_0689,46.33,female,asian,data_gdp/BScan/data_0689.npz,0,0.270934999,0,1
+data_0690,75.88,male,white,data_gdp/BScan/data_0690.npz,1,0.743604064,1,1
+data_0691,58.47,male,black or african american,data_gdp/BScan/data_0691.npz,0,0.583973825,1,0
+data_0692,66.53,female,white,data_gdp/BScan/data_0692.npz,1,0.650926769,1,1
+data_0693,72.15,male,white,data_gdp/BScan/data_0693.npz,1,0.862195849,1,1
+data_0694,64.76,male,white,data_gdp/BScan/data_0694.npz,1,0.287317395,0,0
+data_0695,32.5,female,white,data_gdp/BScan/data_0695.npz,0,0.273387253,0,1
+data_0696,63.69,female,black or african american,data_gdp/BScan/data_0696.npz,0,0.521891534,1,0
+data_0697,68.73,female,white,data_gdp/BScan/data_0697.npz,0,0.819619834,1,0
+data_0698,72.35,female,white,data_gdp/BScan/data_0698.npz,0,0.664116561,1,0
+data_0699,66.04,female,white,data_gdp/BScan/data_0699.npz,0,0.311332107,0,1
+data_0700,59.15,female,black or african american,data_gdp/BScan/data_0700.npz,0,0.235831037,0,1
+data_0701,70,male,white,data_gdp/BScan/data_0701.npz,1,0.792336226,1,1
+data_0702,61.64,male,black or african american,data_gdp/BScan/data_0702.npz,1,0.326880783,0,0
+data_0703,34.02,female,white,data_gdp/BScan/data_0703.npz,1,0.889275789,1,1
+data_0704,70.86,female,white,data_gdp/BScan/data_0704.npz,1,0.604321837,1,1
+data_0705,58.04,female,white,data_gdp/BScan/data_0705.npz,0,0.78961581,1,0
+data_0706,79.42,female,white,data_gdp/BScan/data_0706.npz,1,0.894769967,1,1
+data_0707,67.63,male,white,data_gdp/BScan/data_0707.npz,0,0.608421981,1,0
+data_0708,44.59,male,white,data_gdp/BScan/data_0708.npz,0,0.514587939,1,0
+data_0709,46.08,female,black or african american,data_gdp/BScan/data_0709.npz,1,0.741826832,1,1
+data_0710,52.89,female,black or african american,data_gdp/BScan/data_0710.npz,0,0.77955091,1,0
+data_0711,73.77,female,white,data_gdp/BScan/data_0711.npz,0,0.544169843,1,0
+data_0712,53.32,female,white,data_gdp/BScan/data_0712.npz,0,0.317748129,0,1
+data_0713,87.01,male,black or african american,data_gdp/BScan/data_0713.npz,1,0.505908966,1,1
+data_0714,72.64,female,white,data_gdp/BScan/data_0714.npz,0,0.505939782,1,0
+data_0715,78.8,male,white,data_gdp/BScan/data_0715.npz,0,0.841408253,1,0
+data_0716,33.24,male,white,data_gdp/BScan/data_0716.npz,0,0.725477993,1,0
+data_0717,60,female,black or african american,data_gdp/BScan/data_0717.npz,1,0.656491756,1,1
+data_0718,37.41,male,white,data_gdp/BScan/data_0718.npz,0,0.25064519,0,1
+data_0719,82.93,male,asian,data_gdp/BScan/data_0719.npz,0,0.546506166,1,0
+data_0720,49.87,female,black or african american,data_gdp/BScan/data_0720.npz,1,0.76788193,1,1
+data_0721,53.58,female,white,data_gdp/BScan/data_0721.npz,0,0.616314292,1,0
+data_0722,91.06,male,white,data_gdp/BScan/data_0722.npz,1,0.741465986,1,1
+data_0723,56.29,female,white,data_gdp/BScan/data_0723.npz,0,0.474323899,1,0
+data_0724,58.38,female,black or african american,data_gdp/BScan/data_0724.npz,1,0.515995264,1,1
+data_0725,59.23,male,white,data_gdp/BScan/data_0725.npz,1,0.618490875,1,1
+data_0726,66.63,female,white,data_gdp/BScan/data_0726.npz,0,0.779489219,1,0
+data_0727,70.24,female,white,data_gdp/BScan/data_0727.npz,0,0.580155313,1,0
+data_0728,66.85,female,white,data_gdp/BScan/data_0728.npz,0,0.611680925,1,0
+data_0729,56.04,female,white,data_gdp/BScan/data_0729.npz,0,0.402229875,1,0
+data_0730,39.87,female,asian,data_gdp/BScan/data_0730.npz,0,0.415697902,1,0
+data_0731,83.39,female,white,data_gdp/BScan/data_0731.npz,1,0.835568428,1,1
+data_0732,84.09,female,white,data_gdp/BScan/data_0732.npz,1,0.493467033,1,1
+data_0733,71.2,male,white,data_gdp/BScan/data_0733.npz,0,0.764223158,1,0
+data_0734,74.93,female,white,data_gdp/BScan/data_0734.npz,1,0.9209916,1,1
+data_0735,34.43,male,black or african american,data_gdp/BScan/data_0735.npz,1,0.577452123,1,1
+data_0736,54.52,male,white,data_gdp/BScan/data_0736.npz,0,0.551435351,1,0
+data_0737,77.07,female,white,data_gdp/BScan/data_0737.npz,0,0.424353838,1,0
+data_0738,82.39,female,white,data_gdp/BScan/data_0738.npz,0,0.236437291,0,1
+data_0739,43.6,female,white,data_gdp/BScan/data_0739.npz,0,0.348852843,0,1
+data_0740,84.92,male,white,data_gdp/BScan/data_0740.npz,0,0.203098536,0,1
+data_0741,28.25,male,white,data_gdp/BScan/data_0741.npz,0,0.715691745,1,0
+data_0742,46.92,male,white,data_gdp/BScan/data_0742.npz,0,0.457604706,1,0
+data_0743,43.49,female,black or african american,data_gdp/BScan/data_0743.npz,0,0.692195296,1,0
+data_0744,48.8,male,asian,data_gdp/BScan/data_0744.npz,0,0.352913588,0,1
+data_0745,34.68,female,asian,data_gdp/BScan/data_0745.npz,0,0.547508895,1,0
+data_0746,51.37,male,white,data_gdp/BScan/data_0746.npz,0,0.718547285,1,0
+data_0747,70.81,male,white,data_gdp/BScan/data_0747.npz,1,0.696189463,1,1
+data_0748,73.48,female,white,data_gdp/BScan/data_0748.npz,0,0.409538925,1,0
+data_0749,67.78,female,white,data_gdp/BScan/data_0749.npz,1,0.371387959,0,0
+data_0750,77.53,male,black or african american,data_gdp/BScan/data_0750.npz,1,0.806859434,1,1
+data_0751,61.23,female,white,data_gdp/BScan/data_0751.npz,0,0.414983928,1,0
+data_0752,59.52,male,white,data_gdp/BScan/data_0752.npz,0,0.624303877,1,0
+data_0753,75.53,male,white,data_gdp/BScan/data_0753.npz,1,0.652736783,1,1
+data_0754,80.92,female,white,data_gdp/BScan/data_0754.npz,1,0.572479248,1,1
+data_0755,62.08,male,white,data_gdp/BScan/data_0755.npz,1,0.277346015,0,0
+data_0756,78.98,female,white,data_gdp/BScan/data_0756.npz,0,0.397923738,1,0
+data_0757,60.91,female,white,data_gdp/BScan/data_0757.npz,0,0.390152633,1,0
+data_0758,67.34,female,white,data_gdp/BScan/data_0758.npz,1,0.731975079,1,1
+data_0759,54.38,male,black or african american,data_gdp/BScan/data_0759.npz,1,0.697435617,1,1
+data_0760,60.22,female,white,data_gdp/BScan/data_0760.npz,0,0.55579102,1,0
+data_0761,78,male,white,data_gdp/BScan/data_0761.npz,0,0.557378769,1,0
+data_0762,54.61,female,white,data_gdp/BScan/data_0762.npz,1,0.502230346,1,1
+data_0763,38.66,female,asian,data_gdp/BScan/data_0763.npz,1,0.733684123,1,1
+data_0764,43.31,male,asian,data_gdp/BScan/data_0764.npz,0,0.422395349,1,0
+data_0765,71.22,female,white,data_gdp/BScan/data_0765.npz,1,0.775339007,1,1
+data_0766,81.73,female,white,data_gdp/BScan/data_0766.npz,1,0.574069142,1,1
+data_0767,27.85,female,white,data_gdp/BScan/data_0767.npz,1,0.803048968,1,1
+data_0768,52.72,female,white,data_gdp/BScan/data_0768.npz,0,0.548167109,1,0
+data_0769,69.24,male,white,data_gdp/BScan/data_0769.npz,0,0.599482358,1,0
+data_0770,37.93,female,white,data_gdp/BScan/data_0770.npz,0,0.242466122,0,1
+data_0771,67.01,female,white,data_gdp/BScan/data_0771.npz,1,0.721990764,1,1
+data_0772,65,male,white,data_gdp/BScan/data_0772.npz,0,0.494592369,1,0
+data_0773,56.21,female,white,data_gdp/BScan/data_0773.npz,0,0.324923962,0,1
+data_0774,65.42,male,white,data_gdp/BScan/data_0774.npz,1,0.638440609,1,1
+data_0775,72.13,male,white,data_gdp/BScan/data_0775.npz,1,0.629869342,1,1
+data_0776,61.41,male,white,data_gdp/BScan/data_0776.npz,1,0.622800171,1,1
+data_0777,78.1,male,white,data_gdp/BScan/data_0777.npz,1,0.375130028,1,1
+data_0778,76.27,male,white,data_gdp/BScan/data_0778.npz,1,0.796914637,1,1
+data_0779,57.1,female,white,data_gdp/BScan/data_0779.npz,0,0.333449811,0,1
+data_0780,80.88,male,white,data_gdp/BScan/data_0780.npz,0,0.626697719,1,0
+data_0781,76.15,male,white,data_gdp/BScan/data_0781.npz,1,0.84772563,1,1
+data_0782,76.4,female,white,data_gdp/BScan/data_0782.npz,0,0.378952444,1,0
+data_0783,68.17,female,white,data_gdp/BScan/data_0783.npz,1,0.350410134,0,0
+data_0784,50.21,female,black or african american,data_gdp/BScan/data_0784.npz,0,0.394435018,1,0
+data_0785,54.39,male,white,data_gdp/BScan/data_0785.npz,1,0.559415221,1,1
+data_0786,71.98,female,asian,data_gdp/BScan/data_0786.npz,0,0.378815413,1,0
+data_0787,52.15,female,black or african american,data_gdp/BScan/data_0787.npz,1,0.399848223,1,1
+data_0788,58.1,female,white,data_gdp/BScan/data_0788.npz,0,0.580128908,1,0
+data_0789,83.21,female,white,data_gdp/BScan/data_0789.npz,1,0.403780192,1,1
+data_0790,74.21,female,white,data_gdp/BScan/data_0790.npz,0,0.730107605,1,0
+data_0791,58.59,female,white,data_gdp/BScan/data_0791.npz,0,0.43879348,1,0
+data_0792,43.71,female,white,data_gdp/BScan/data_0792.npz,0,0.386998773,1,0
+data_0793,72.88,male,white,data_gdp/BScan/data_0793.npz,0,0.582127452,1,0
+data_0794,74.08,male,asian,data_gdp/BScan/data_0794.npz,0,0.606205642,1,0
+data_0795,26.48,female,black or african american,data_gdp/BScan/data_0795.npz,0,0.321682394,0,1
+data_0796,76.9,male,white,data_gdp/BScan/data_0796.npz,0,0.52790457,1,0
+data_0797,58.61,female,white,data_gdp/BScan/data_0797.npz,0,0.845148087,1,0
+data_0798,55.59,female,white,data_gdp/BScan/data_0798.npz,1,0.649449706,1,1
+data_0799,37.97,female,white,data_gdp/BScan/data_0799.npz,0,0.279216826,0,1
+data_0800,67.39,female,white,data_gdp/BScan/data_0800.npz,0,0.740028501,1,0
+data_0801,68.53,male,black or african american,data_gdp/BScan/data_0801.npz,1,0.734130621,1,1
+data_0802,78.23,male,white,data_gdp/BScan/data_0802.npz,1,0.728907108,1,1
+data_0803,78.19,female,white,data_gdp/BScan/data_0803.npz,1,0.757125139,1,1
+data_0804,85.08,male,white,data_gdp/BScan/data_0804.npz,1,0.365565866,0,0
+data_0805,72.23,male,white,data_gdp/BScan/data_0805.npz,0,0.412306815,1,0
+data_0806,65.11,male,white,data_gdp/BScan/data_0806.npz,0,0.211338326,0,1
+data_0807,68.59,female,white,data_gdp/BScan/data_0807.npz,1,0.440575927,1,1
+data_0808,55.95,male,white,data_gdp/BScan/data_0808.npz,0,0.240679428,0,1
+data_0809,44.36,male,white,data_gdp/BScan/data_0809.npz,0,0.648792922,1,0
+data_0810,82.09,female,black or african american,data_gdp/BScan/data_0810.npz,1,0.841923773,1,1
+data_0811,80.58,female,asian,data_gdp/BScan/data_0811.npz,0,0.522913933,1,0
+data_0812,37.48,male,white,data_gdp/BScan/data_0812.npz,0,0.281546354,0,1
+data_0813,68.84,female,white,data_gdp/BScan/data_0813.npz,1,0.821679652,1,1
+data_0814,55.83,female,white,data_gdp/BScan/data_0814.npz,0,0.365175784,0,1
+data_0815,80.89,male,asian,data_gdp/BScan/data_0815.npz,1,0.621020019,1,1
+data_0816,40.52,male,white,data_gdp/BScan/data_0816.npz,0,0.507437825,1,0
+data_0817,65.5,female,white,data_gdp/BScan/data_0817.npz,0,0.393840909,1,0
+data_0818,55.04,female,white,data_gdp/BScan/data_0818.npz,1,0.329416215,0,0
+data_0819,59.19,male,black or african american,data_gdp/BScan/data_0819.npz,1,0.904964566,1,1
+data_0820,53.62,female,black or african american,data_gdp/BScan/data_0820.npz,1,0.553912342,1,1
+data_0821,61.88,female,white,data_gdp/BScan/data_0821.npz,1,0.210065722,0,0
+data_0822,29.42,female,black or african american,data_gdp/BScan/data_0822.npz,1,0.459893584,1,1
+data_0823,68.07,female,white,data_gdp/BScan/data_0823.npz,1,0.456182182,1,1
+data_0824,27.86,female,white,data_gdp/BScan/data_0824.npz,0,0.258440405,0,1
+data_0825,71.98,female,white,data_gdp/BScan/data_0825.npz,1,0.703205764,1,1
+data_0826,95.61,female,white,data_gdp/BScan/data_0826.npz,1,0.48649928,1,1
+data_0827,50.8,male,white,data_gdp/BScan/data_0827.npz,0,0.410494,1,0
+data_0828,65.42,female,white,data_gdp/BScan/data_0828.npz,0,0.473664612,1,0
+data_0829,63.65,female,white,data_gdp/BScan/data_0829.npz,0,0.332630157,0,1
+data_0830,59.79,male,white,data_gdp/BScan/data_0830.npz,1,0.652704895,1,1
+data_0831,37.5,female,asian,data_gdp/BScan/data_0831.npz,0,0.464687109,1,0
+data_0832,62.73,male,white,data_gdp/BScan/data_0832.npz,0,0.375068903,1,0
+data_0833,67.77,female,black or african american,data_gdp/BScan/data_0833.npz,0,0.61311537,1,0
+data_0834,68.72,female,white,data_gdp/BScan/data_0834.npz,0,0.545368433,1,0
+data_0835,87.93,female,black or african american,data_gdp/BScan/data_0835.npz,1,0.599486709,1,1
+data_0836,51.31,female,white,data_gdp/BScan/data_0836.npz,0,0.505484283,1,0
+data_0837,65.08,male,white,data_gdp/BScan/data_0837.npz,0,0.717144728,1,0
+data_0838,54.87,female,white,data_gdp/BScan/data_0838.npz,0,0.615446925,1,0
+data_0839,85.15,female,white,data_gdp/BScan/data_0839.npz,1,0.725246727,1,1
+data_0840,77.52,male,white,data_gdp/BScan/data_0840.npz,1,0.759520292,1,1
+data_0841,73.45,female,white,data_gdp/BScan/data_0841.npz,1,0.614382446,1,1
+data_0842,84.25,female,white,data_gdp/BScan/data_0842.npz,1,0.738226354,1,1
+data_0843,58.09,male,white,data_gdp/BScan/data_0843.npz,0,0.777785242,1,0
+data_0844,73.16,female,white,data_gdp/BScan/data_0844.npz,1,0.818030417,1,1
+data_0845,64.77,female,white,data_gdp/BScan/data_0845.npz,0,0.657801747,1,0
+data_0846,63.87,female,white,data_gdp/BScan/data_0846.npz,0,0.457123637,1,0
+data_0847,24.82,male,white,data_gdp/BScan/data_0847.npz,1,0.557186246,1,1
+data_0848,62.12,female,white,data_gdp/BScan/data_0848.npz,0,0.681470335,1,0
+data_0849,81.91,male,white,data_gdp/BScan/data_0849.npz,1,0.842589915,1,1
+data_0850,80.27,male,white,data_gdp/BScan/data_0850.npz,1,0.822900653,1,1
+data_0851,61.64,male,white,data_gdp/BScan/data_0851.npz,1,0.687202394,1,1
+data_0852,44.76,female,black or african american,data_gdp/BScan/data_0852.npz,0,0.695466101,1,0
+data_0853,70.17,male,white,data_gdp/BScan/data_0853.npz,0,0.685453236,1,0
+data_0854,75.9,female,asian,data_gdp/BScan/data_0854.npz,1,0.249306515,0,0
+data_0855,58.2,male,black or african american,data_gdp/BScan/data_0855.npz,0,0.624916852,1,0
+data_0856,53.63,female,white,data_gdp/BScan/data_0856.npz,0,0.773074329,1,0
+data_0857,82.17,male,white,data_gdp/BScan/data_0857.npz,1,0.519533455,1,1
+data_0858,61.55,female,white,data_gdp/BScan/data_0858.npz,0,0.817773044,1,0
+data_0859,64.95,female,asian,data_gdp/BScan/data_0859.npz,1,0.825739741,1,1
+data_0860,67.3,female,asian,data_gdp/BScan/data_0860.npz,1,0.593676865,1,1
+data_0861,78.93,female,white,data_gdp/BScan/data_0861.npz,0,0.669700086,1,0
+data_0862,70.81,female,white,data_gdp/BScan/data_0862.npz,1,0.52873528,1,1
+data_0863,35.3,male,asian,data_gdp/BScan/data_0863.npz,0,0.243198186,0,1
+data_0864,31.31,male,asian,data_gdp/BScan/data_0864.npz,0,0.823143184,1,0
+data_0865,68.82,female,black or african american,data_gdp/BScan/data_0865.npz,1,0.276124805,0,0
+data_0866,68.95,female,black or african american,data_gdp/BScan/data_0866.npz,1,0.376568526,1,1
+data_0867,49.57,female,white,data_gdp/BScan/data_0867.npz,0,0.650151074,1,0
+data_0868,57.5,female,white,data_gdp/BScan/data_0868.npz,1,0.584717631,1,1
+data_0869,89.08,female,black or african american,data_gdp/BScan/data_0869.npz,1,0.32416293,0,0
+data_0870,63.14,male,black or african american,data_gdp/BScan/data_0870.npz,0,0.488314152,1,0
+data_0871,71.56,male,white,data_gdp/BScan/data_0871.npz,1,0.777172863,1,1
+data_0872,59.59,female,white,data_gdp/BScan/data_0872.npz,0,0.433710814,1,0
+data_0873,45.57,male,white,data_gdp/BScan/data_0873.npz,0,0.533759654,1,0
+data_0874,50.08,female,white,data_gdp/BScan/data_0874.npz,0,0.568442702,1,0
+data_0875,68.52,male,black or african american,data_gdp/BScan/data_0875.npz,0,0.776020169,1,0
+data_0876,45.15,female,white,data_gdp/BScan/data_0876.npz,0,0.255846709,0,1
+data_0877,52.35,female,black or african american,data_gdp/BScan/data_0877.npz,0,0.531695306,1,0
+data_0878,74.33,male,white,data_gdp/BScan/data_0878.npz,0,0.582937956,1,0
+data_0879,61.08,male,white,data_gdp/BScan/data_0879.npz,0,0.702043891,1,0
+data_0880,70.65,male,white,data_gdp/BScan/data_0880.npz,0,0.28091678,0,1
+data_0881,54.81,female,white,data_gdp/BScan/data_0881.npz,0,0.464241356,1,0
+data_0882,56.57,male,white,data_gdp/BScan/data_0882.npz,0,0.734474123,1,0
+data_0883,89.27,female,white,data_gdp/BScan/data_0883.npz,1,0.905427277,1,1
+data_0884,44.44,male,white,data_gdp/BScan/data_0884.npz,0,0.47499451,1,0
+data_0885,71.55,female,black or african american,data_gdp/BScan/data_0885.npz,1,0.217232898,0,0
+data_0886,63.91,female,white,data_gdp/BScan/data_0886.npz,0,0.502177179,1,0
+data_0887,29.45,male,white,data_gdp/BScan/data_0887.npz,1,0.651590645,1,1
+data_0888,67.5,female,black or african american,data_gdp/BScan/data_0888.npz,0,0.517123103,1,0
+data_0889,68.31,male,white,data_gdp/BScan/data_0889.npz,0,0.795385659,1,0
+data_0890,75.92,male,black or african american,data_gdp/BScan/data_0890.npz,1,0.471366078,1,1
+data_0891,52.89,female,white,data_gdp/BScan/data_0891.npz,0,0.345594138,0,1
+data_0892,26.32,male,white,data_gdp/BScan/data_0892.npz,1,0.495969266,1,1
+data_0893,89.8,female,black or african american,data_gdp/BScan/data_0893.npz,1,0.529267073,1,1
+data_0894,65.32,female,white,data_gdp/BScan/data_0894.npz,0,0.190559998,0,1
+data_0895,78.82,female,white,data_gdp/BScan/data_0895.npz,1,0.735989332,1,1
+data_0896,72.68,male,white,data_gdp/BScan/data_0896.npz,1,0.820858896,1,1
+data_0897,74.29,female,white,data_gdp/BScan/data_0897.npz,0,0.382354826,1,0
+data_0898,87.87,male,white,data_gdp/BScan/data_0898.npz,1,0.750075281,1,1
+data_0899,56.92,female,white,data_gdp/BScan/data_0899.npz,0,0.212663785,0,1
+data_0900,74.49,male,white,data_gdp/BScan/data_0900.npz,0,0.574290991,1,0
+data_0901,25.48,female,black or african american,data_gdp/BScan/data_0901.npz,0,0.468430281,1,0
+data_0902,48.3,male,white,data_gdp/BScan/data_0902.npz,0,0.384585112,1,0
+data_0903,58.27,male,white,data_gdp/BScan/data_0903.npz,0,0.353379577,0,1
+data_0904,66.13,female,white,data_gdp/BScan/data_0904.npz,0,0.369237274,0,1
+data_0905,72.41,female,white,data_gdp/BScan/data_0905.npz,1,0.17062445,0,0
+data_0906,39.96,female,asian,data_gdp/BScan/data_0906.npz,0,0.84359771,1,0
+data_0907,47.87,female,white,data_gdp/BScan/data_0907.npz,1,0.355289727,0,0
+data_0908,63.33,female,white,data_gdp/BScan/data_0908.npz,0,0.764465928,1,0
+data_0909,74.04,male,white,data_gdp/BScan/data_0909.npz,1,0.59774518,1,1
+data_0910,43.63,male,asian,data_gdp/BScan/data_0910.npz,0,0.515844643,1,0
+data_0911,72.27,male,white,data_gdp/BScan/data_0911.npz,1,0.454891026,1,1
+data_0912,58.27,female,asian,data_gdp/BScan/data_0912.npz,1,0.542995036,1,1
+data_0913,86.33,female,white,data_gdp/BScan/data_0913.npz,1,0.806174219,1,1
+data_0914,44.79,male,asian,data_gdp/BScan/data_0914.npz,1,0.535298347,1,1
+data_0915,50.24,female,white,data_gdp/BScan/data_0915.npz,0,0.317384869,0,1
+data_0916,76.71,female,asian,data_gdp/BScan/data_0916.npz,1,0.7274701,1,1
+data_0917,83.19,female,white,data_gdp/BScan/data_0917.npz,1,0.760672569,1,1
+data_0918,62.54,female,black or african american,data_gdp/BScan/data_0918.npz,0,0.506467879,1,0
+data_0919,51.81,female,asian,data_gdp/BScan/data_0919.npz,1,0.373608053,0,0
+data_0920,57.16,female,white,data_gdp/BScan/data_0920.npz,0,0.529422522,1,0
+data_0921,68.48,male,white,data_gdp/BScan/data_0921.npz,0,0.399540424,1,0
+data_0922,48.14,male,asian,data_gdp/BScan/data_0922.npz,0,0.192147851,0,1
+data_0923,79.22,female,white,data_gdp/BScan/data_0923.npz,1,0.63398844,1,1
+data_0924,61.64,female,white,data_gdp/BScan/data_0924.npz,0,0.634479046,1,0
+data_0925,64.26,female,white,data_gdp/BScan/data_0925.npz,1,0.600306451,1,1
+data_0926,76.61,female,white,data_gdp/BScan/data_0926.npz,1,0.794375062,1,1
+data_0927,72.79,male,white,data_gdp/BScan/data_0927.npz,0,0.555795908,1,0
+data_0928,64.41,female,white,data_gdp/BScan/data_0928.npz,0,0.598115683,1,0
+data_0929,82.37,female,white,data_gdp/BScan/data_0929.npz,1,0.533023834,1,1
+data_0930,60.45,female,black or african american,data_gdp/BScan/data_0930.npz,1,0.622954249,1,1
+data_0931,46.43,female,white,data_gdp/BScan/data_0931.npz,0,0.304496974,0,1
+data_0932,38.31,male,white,data_gdp/BScan/data_0932.npz,1,0.664698601,1,1
+data_0933,59.19,male,black or african american,data_gdp/BScan/data_0933.npz,1,0.867440641,1,1
+data_0934,70.75,female,white,data_gdp/BScan/data_0934.npz,0,0.386077195,1,0
+data_0935,35.59,female,white,data_gdp/BScan/data_0935.npz,1,0.372923553,0,0
+data_0936,61.67,male,white,data_gdp/BScan/data_0936.npz,0,0.613132775,1,0
+data_0937,67.86,male,white,data_gdp/BScan/data_0937.npz,0,0.602660894,1,0
+data_0938,46.77,male,asian,data_gdp/BScan/data_0938.npz,0,0.705692172,1,0
+data_0939,65.1,male,white,data_gdp/BScan/data_0939.npz,0,0.797742188,1,0
+data_0940,38.87,female,white,data_gdp/BScan/data_0940.npz,0,0.734701753,1,0
+data_0941,72.74,male,white,data_gdp/BScan/data_0941.npz,1,0.850042701,1,1
+data_0942,81.8,female,white,data_gdp/BScan/data_0942.npz,1,0.601449132,1,1
+data_0943,52.7,male,black or african american,data_gdp/BScan/data_0943.npz,0,0.404904693,1,0
+data_0944,69.16,female,white,data_gdp/BScan/data_0944.npz,0,0.537322342,1,0
+data_0945,73.59,female,black or african american,data_gdp/BScan/data_0945.npz,0,0.600487709,1,0
+data_0946,75.31,female,white,data_gdp/BScan/data_0946.npz,1,0.408272803,1,1
+data_0947,36.75,male,white,data_gdp/BScan/data_0947.npz,1,0.65006882,1,1
+data_0948,58.54,male,white,data_gdp/BScan/data_0948.npz,0,0.43290022,1,0
+data_0949,83.08,female,white,data_gdp/BScan/data_0949.npz,0,0.305652618,0,1
+data_0950,73.62,male,asian,data_gdp/BScan/data_0950.npz,0,0.76461041,1,0
+data_0951,39.64,male,asian,data_gdp/BScan/data_0951.npz,0,0.317882776,0,1
+data_0952,63.96,male,white,data_gdp/BScan/data_0952.npz,1,0.655383408,1,1
+data_0953,66.51,male,white,data_gdp/BScan/data_0953.npz,0,0.602421045,1,0
+data_0954,74.3,male,white,data_gdp/BScan/data_0954.npz,1,0.812359989,1,1
+data_0955,71.55,male,white,data_gdp/BScan/data_0955.npz,0,0.858962953,1,0
+data_0956,56.82,female,white,data_gdp/BScan/data_0956.npz,1,0.667913854,1,1
+data_0957,70.53,male,white,data_gdp/BScan/data_0957.npz,0,0.849411249,1,0
+data_0958,78.88,male,black or african american,data_gdp/BScan/data_0958.npz,1,0.774496138,1,1
+data_0959,65.8,male,white,data_gdp/BScan/data_0959.npz,1,0.523407757,1,1
+data_0960,68.61,female,white,data_gdp/BScan/data_0960.npz,0,0.3483015,0,1
+data_0961,79.96,male,white,data_gdp/BScan/data_0961.npz,1,0.445167363,1,1
+data_0962,76.19,female,white,data_gdp/BScan/data_0962.npz,1,0.615007997,1,1
+data_0963,53.68,male,black or african american,data_gdp/BScan/data_0963.npz,0,0.561626315,1,0
+data_0964,34.5,male,asian,data_gdp/BScan/data_0964.npz,0,0.608199298,1,0
+data_0965,72.82,male,black or african american,data_gdp/BScan/data_0965.npz,1,0.536238492,1,1
+data_0966,68.38,female,white,data_gdp/BScan/data_0966.npz,1,0.372442663,0,0
+data_0967,63.68,male,white,data_gdp/BScan/data_0967.npz,0,0.600464344,1,0
+data_0968,63.08,female,white,data_gdp/BScan/data_0968.npz,1,0.695088863,1,1
+data_0969,76.18,male,white,data_gdp/BScan/data_0969.npz,1,0.561386764,1,1
+data_0970,50.69,female,white,data_gdp/BScan/data_0970.npz,1,0.623030543,1,1
+data_0971,61.24,male,white,data_gdp/BScan/data_0971.npz,0,0.8549757,1,0
+data_0972,63.02,female,white,data_gdp/BScan/data_0972.npz,1,0.567011714,1,1
+data_0973,68.64,female,white,data_gdp/BScan/data_0973.npz,1,0.728177786,1,1
+data_0974,61.13,female,black or african american,data_gdp/BScan/data_0974.npz,1,0.572322071,1,1
+data_0975,41.72,female,asian,data_gdp/BScan/data_0975.npz,0,0.29049027,0,1
+data_0976,39.8,male,black or african american,data_gdp/BScan/data_0976.npz,0,0.291492701,0,1
+data_0977,65.16,female,white,data_gdp/BScan/data_0977.npz,0,0.504874825,1,0
+data_0978,29.64,female,white,data_gdp/BScan/data_0978.npz,1,0.581593394,1,1
+data_0979,60.45,female,white,data_gdp/BScan/data_0979.npz,0,0.381592304,1,0
+data_0980,72.66,male,white,data_gdp/BScan/data_0980.npz,1,0.453184873,1,1
+data_0981,69.8,male,white,data_gdp/BScan/data_0981.npz,1,0.815868497,1,1
+data_0982,76.46,female,white,data_gdp/BScan/data_0982.npz,0,0.713551283,1,0
+data_0983,77.52,male,white,data_gdp/BScan/data_0983.npz,1,0.424475461,1,1
+data_0984,75.54,female,white,data_gdp/BScan/data_0984.npz,0,0.486451209,1,0
+data_0985,32.33,female,asian,data_gdp/BScan/data_0985.npz,1,0.89431268,1,1
+data_0986,82.74,female,white,data_gdp/BScan/data_0986.npz,0,0.247485414,0,1
+data_0987,66.8,female,white,data_gdp/BScan/data_0987.npz,0,0.346923113,0,1
+data_0988,60.69,female,white,data_gdp/BScan/data_0988.npz,0,0.731867135,1,0
+data_0989,55.39,male,asian,data_gdp/BScan/data_0989.npz,0,0.415993035,1,0
+data_0990,64.71,female,black or african american,data_gdp/BScan/data_0990.npz,1,0.482817024,1,1
+data_0991,66.38,female,white,data_gdp/BScan/data_0991.npz,0,0.771254897,1,0
+data_0992,71.72,female,white,data_gdp/BScan/data_0992.npz,0,0.381284565,1,0
+data_0993,71.55,male,white,data_gdp/BScan/data_0993.npz,1,0.740672648,1,1
+data_0994,35.01,male,black or african american,data_gdp/BScan/data_0994.npz,0,0.485589325,1,0
+data_0995,76.41,male,white,data_gdp/BScan/data_0995.npz,0,0.313022614,0,1
+data_0996,30.53,male,white,data_gdp/BScan/data_0996.npz,0,0.224177718,0,1
+data_0997,67.72,female,white,data_gdp/BScan/data_0997.npz,0,0.403224885,1,0
+data_0998,61.29,female,white,data_gdp/BScan/data_0998.npz,0,0.46034655,1,0
+data_0999,64.47,female,white,data_gdp/BScan/data_0999.npz,1,0.899527669,1,1
+data_1000,69.52,female,white,data_gdp/BScan/data_1000.npz,1,0.474206477,1,1

@@ -34,7 +34,7 @@ def parse_args():
         "--truth-column", default="Ground_Truth", help="Ground-truth column name"
     )
     parser.add_argument(
-        "--prediction-column", default="Pred_DR", help="Binary prediction column name"
+        "--prediction-column", default="Pred_GL", help="Binary prediction column name"
     )
     parser.add_argument(
         "--probability-column",

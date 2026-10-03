@@ -2,10 +2,10 @@
 #
 # SLURM DIRECTIVES: Configure the resources needed for your final job.
 #
-#SBATCH --job-name=dr_claude6  # Name of job for the queue
-#SBATCH --output=slurm_logs/slurm-%j.out  # Standard output log file (where prints go)
-#SBATCH --error=slurm_logs/slurm-%j.err   # Standard error log file
-#SBATCH --time=6:00:00                # Maximum job run time 
+#SBATCH --job-name=dr_manifest  # Name of job for the queue
+#SBATCH --output=slurm_logs/dr_manifest.out  # Standard output log file (where prints go)
+#SBATCH --error=slurm_logs/dr_manifest.err   # Standard error log file
+#SBATCH --time=8:00:00                # Maximum job run time 
 #SBATCH --nodes=1                      # Request 1 node
 #SBATCH --ntasks-per-node=1            # Run one main task
 #SBATCH --cpus-per-task=16              # Request 16 CPU cores (Matches your NUM_WORKERS=16 setting)
@@ -30,6 +30,6 @@ cd /lustre/fs1/home/yu395012/RETFound/OphthalmicAgent
 # --- EXECUTE PYTHON SCRIPT ---
 echo "Running script"
 
-python -u -m evaluate_fairvision_dr_baseline
+python -u -m evaluate_fairvision_dr_agentic
 
 echo "--- Job finished successfully ---"
