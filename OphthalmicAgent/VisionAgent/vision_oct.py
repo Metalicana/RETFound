@@ -571,7 +571,7 @@ class VisionSpecialistOct:
         oct_tensor = torch.stack(images)
     
         return oct_tensor.unsqueeze(0).to(self.device)
-    #    
+  
 #        return img_tensor
         
     def get_features_oct(self, oct_img):
@@ -682,7 +682,7 @@ class VisionSpecialistOct:
       )
   
       # ---------- choose only 4 context slices ----------
-      context_ids = [2, 3, 4, 5]
+      context_ids = [2,3,4,5]
   
       context = []
   
@@ -752,11 +752,11 @@ class VisionSpecialistOct:
       except:
           font = ImageFont.load_default()
       
-      draw.text((20, 8), "Representative OCT Slice", fill=0, font=font)
+      draw.text((20, 8), "Representative OCT Slice (Slice 64)", fill=0, font=font)
       
       draw.text(
           (20, TITLE_H + middle_large.shape[0] + sep.shape[0] + 8),
-          "Adjacent OCT Slices",
+          "Slice 1, 32, 96, 128",
           fill=0,
           font=font,
       )
@@ -789,10 +789,7 @@ class VisionSpecialistOct:
         base64_oct = self._prepare_image(montage)
 #        self._save_clahe_montage(oct_img)
 
-         
-        
-#        You are given one representative central OCT B-scan (displayed as the large image) along with four adjacent B-scans from the same OCT volume (displayed below).
-#You are given one representative central OCT B-scan.        
+              
         messages_oct = [
         {
         "role":"system",
@@ -879,8 +876,6 @@ Provide a brief summary of your structural observations.
         oct_data = state['oct_diagnosis']
         retfound_scores = (
             f"SOURCE: RETFound (OCT Imaging Specialist)\n"
-#            f"AMD Probability: {oct_data['AMD']['Prob_Pct']}% -> Status: {oct_data['AMD']['Status']}\n" #CHANGE
-#            f"DR Status: {oct_data['DR']['Status']} (Confidence: {oct_data['DR']['Prob_Pct']}%)\n"
             f"Glaucoma Status: {oct_data['Glaucoma']['Status']} (Confidence: {oct_data['Glaucoma']['Prob_Pct']}%)\n"
         )
         

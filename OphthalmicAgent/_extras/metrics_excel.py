@@ -4,7 +4,8 @@ from sklearn.metrics import classification_report, precision_recall_fscore_suppo
 
 ## --- CONFIGURATION ---
 #CSV_PATH = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/ophthalmic_performance_results_jun29_amd.csv"
-CSV_PATH = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/fairvision_dr_agentic.csv"
+CSV_PATH = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/_extras/CSVs/raw_model_predictions/retfound_glaucoma_predictions.csv"
+#CSV_PATH = "/lustre/fs1/home/yu395012/RETFound/OphthalmicAgent/results/fairvision/fairvision_glaucoma_agentic.csv"
 
 def print_subset_report(df_subset, title):
 

@@ -1,0 +1,358 @@
+Filename,Ground_Truth,Pred_GL,Confidence,Reasoning,Raw_Response,Is_Correct
+data_drishti/Normal/drishtiGS_057.png,0,0,moderate,"The optic disc appears relatively normal with a well-defined neuroretinal rim and no obvious cupping. The disc margins are clear, and there is no evidence of significant rim thinning, notching, or bayoneting of vessels. The optic cup does not appear enlarged. No disc hemorrhages or peripapillary atrophy are visible. The retinal vasculature shows normal branching patterns without displacement. While image quality is adequate for assessment, the absence of glaucomatous structural changes on this single photograph does not support a glaucoma diagnosis. However, moderate confidence reflects the limitation of a single static image without additional clinical data.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc appears relatively normal with a well-defined neuroretinal rim and no obvious cupping. The disc margins are clear, and there is no evidence of significant rim thinning, notching, or bayoneting of vessels. The optic cup does not appear enlarged. No disc hemorrhages or peripapillary atrophy are visible. The retinal vasculature shows normal branching patterns without displacement. While image quality is adequate for assessment, the absence of glaucomatous structural changes on this single photograph does not support a glaucoma diagnosis. However, moderate confidence reflects the limitation of a single static image without additional clinical data.""
+}
+```",1
+data_drishti/Normal/drishtiGS_072.png,0,0,moderate,"The optic disc appears relatively well-preserved with a normal neuroretinal rim that is present circumferentially. The cup-to-disc ratio appears moderate and not severely enlarged. There is no obvious notching, bayoneting, or significant vessel displacement. No disc hemorrhages are visible. The peripapillary region shows normal retinal appearance without obvious atrophy. While image quality is somewhat limited and the disc margins could be better defined, there are no clear structural features diagnostic of glaucomatous optic neuropathy on this single photograph. The appearance is most consistent with a normal optic disc.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc appears relatively well-preserved with a normal neuroretinal rim that is present circumferentially. The cup-to-disc ratio appears moderate and not severely enlarged. There is no obvious notching, bayoneting, or significant vessel displacement. No disc hemorrhages are visible. The peripapillary region shows normal retinal appearance without obvious atrophy. While image quality is somewhat limited and the disc margins could be better defined, there are no clear structural features diagnostic of glaucomatous optic neuropathy on this single photograph. The appearance is most consistent with a normal optic disc.""
+}
+```",1
+data_drishti/Normal/drishtiGS_078.png,0,0,high,"The optic disc appears normal with a healthy neuroretinal rim that is well-preserved circumferentially. The cup-to-disc ratio appears physiologic and symmetrical. There is no evidence of optic disc cupping, rim thinning, notching, or focal rim loss. Blood vessels show normal branching pattern without bayoneting or displacement. No disc hemorrhages are visible. The peripapillary region appears normal without signs of glaucomatous atrophy. The overall disc architecture is consistent with a healthy optic nerve head. No structural glaucoma-related changes are evident on this photograph.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears normal with a healthy neuroretinal rim that is well-preserved circumferentially. The cup-to-disc ratio appears physiologic and symmetrical. There is no evidence of optic disc cupping, rim thinning, notching, or focal rim loss. Blood vessels show normal branching pattern without bayoneting or displacement. No disc hemorrhages are visible. The peripapillary region appears normal without signs of glaucomatous atrophy. The overall disc architecture is consistent with a healthy optic nerve head. No structural glaucoma-related changes are evident on this photograph.""
+}
+```",1
+data_drishti/Normal/drishtiGS_085.png,0,0,high,"The optic disc appears normal with a healthy neuroretinal rim that is well-preserved circumferentially. The disc has a normal yellowish-pink color with appropriate vascularization. There is no evidence of cupping, rim thinning, notching, or bayoneting of vessels. The optic disc margins are well-defined. Peripapillary regions show normal retinal appearance without hemorrhages or other glaucomatous structural changes. The overall disc-to-cup ratio appears normal. No glaucoma-related structural abnormalities are identified on this fundus photograph.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears normal with a healthy neuroretinal rim that is well-preserved circumferentially. The disc has a normal yellowish-pink color with appropriate vascularization. There is no evidence of cupping, rim thinning, notching, or bayoneting of vessels. The optic disc margins are well-defined. Peripapillary regions show normal retinal appearance without hemorrhages or other glaucomatous structural changes. The overall disc-to-cup ratio appears normal. No glaucoma-related structural abnormalities are identified on this fundus photograph.""
+}
+```",1
+data_drishti/Normal/drishtiGS_089.png,0,0,high,"The optic disc appears normal with a healthy neuroretinal rim that is well-preserved circumferentially. The cup-to-disc ratio appears physiologic and symmetric. There is no evidence of optic disc cupping, rim thinning, notching, or focal rim loss. Vessels show normal branching pattern without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The overall disc appearance is consistent with a healthy optic nerve head without glaucomatous damage.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears normal with a healthy neuroretinal rim that is well-preserved circumferentially. The cup-to-disc ratio appears physiologic and symmetric. There is no evidence of optic disc cupping, rim thinning, notching, or focal rim loss. Vessels show normal branching pattern without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The overall disc appearance is consistent with a healthy optic nerve head without glaucomatous damage.""
+}
+```",1
+data_drishti/Normal/drishtiGS_090.png,0,0,moderate,"The optic disc appears relatively normal with a pale, well-defined neuroretinal rim and a central cup that does not appear excessively enlarged. The disc margins are clear, and there is no obvious notching, thinning, or bayoneting of vessels. The peripapillary region shows no hemorrhages or significant atrophy. Retinal vessels appear to have normal caliber and course without obvious displacement. While image quality is adequate for assessment, the moderate confidence reflects the inherent limitations of fundus photography alone in detecting early glaucomatous changes and the absence of comparative data or other clinical parameters.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc appears relatively normal with a pale, well-defined neuroretinal rim and a central cup that does not appear excessively enlarged. The disc margins are clear, and there is no obvious notching, thinning, or bayoneting of vessels. The peripapillary region shows no hemorrhages or significant atrophy. Retinal vessels appear to have normal caliber and course without obvious displacement. While image quality is adequate for assessment, the moderate confidence reflects the inherent limitations of fundus photography alone in detecting early glaucomatous changes and the absence of comparative data or other clinical parameters.""
+}
+```",1
+data_drishti/Normal/drishtiGS_091.png,0,0,high,"The optic disc appears normal with a healthy neuroretinal rim that is well-preserved across all quadrants. The cup-to-disc ratio appears physiologic and symmetric. There is no evidence of optic disc cupping, rim thinning, notching, or focal rim loss. Blood vessels show normal branching pattern without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The retinal background is clear with normal vascular caliber. Image quality is adequate for evaluation. No glaucoma-related structural abnormalities are detected.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears normal with a healthy neuroretinal rim that is well-preserved across all quadrants. The cup-to-disc ratio appears physiologic and symmetric. There is no evidence of optic disc cupping, rim thinning, notching, or focal rim loss. Blood vessels show normal branching pattern without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The retinal background is clear with normal vascular caliber. Image quality is adequate for evaluation. No glaucoma-related structural abnormalities are detected.""
+}
+```",1
+data_drishti/Normal/drishtiGS_092.png,0,0,moderate,"The optic disc appears relatively healthy with good neuroretinal rim preservation and no obvious cupping. The disc margins are well-defined, and there is no evidence of significant rim thinning, notching, or bayoneting of vessels. The optic disc color is normal, and no disc hemorrhages are visible. The peripapillary region shows no obvious atrophic changes. While the image quality is adequate for assessment, the lack of structural glaucomatous features on this single photograph does not support a glaucoma diagnosis. However, moderate confidence is assigned rather than high due to the limitations of a single color photograph in definitively excluding glaucoma, particularly early-stage disease.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc appears relatively healthy with good neuroretinal rim preservation and no obvious cupping. The disc margins are well-defined, and there is no evidence of significant rim thinning, notching, or bayoneting of vessels. The optic disc color is normal, and no disc hemorrhages are visible. The peripapillary region shows no obvious atrophic changes. While the image quality is adequate for assessment, the lack of structural glaucomatous features on this single photograph does not support a glaucoma diagnosis. However, moderate confidence is assigned rather than high due to the limitations of a single color photograph in definitively excluding glaucoma, particularly early-stage disease.""
+}
+```",1
+data_drishti/Normal/drishtiGS_093.png,0,0,moderate,"The optic disc appears relatively normal with a healthy neuroretinal rim that is well-preserved circumferentially. The disc margins are distinct, and there is no obvious cupping, rim thinning, notching, or bayoneting of vessels. The optic disc color is appropriate, and no disc hemorrhages are visible. The peripapillary region shows normal retinal appearance without significant atrophy. Vessel branching pattern is normal without displacement. While image quality is adequate for assessment, the absence of structural glaucomatous changes on this single photograph does not support a glaucoma diagnosis.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc appears relatively normal with a healthy neuroretinal rim that is well-preserved circumferentially. The disc margins are distinct, and there is no obvious cupping, rim thinning, notching, or bayoneting of vessels. The optic disc color is appropriate, and no disc hemorrhages are visible. The peripapillary region shows normal retinal appearance without significant atrophy. Vessel branching pattern is normal without displacement. While image quality is adequate for assessment, the absence of structural glaucomatous changes on this single photograph does not support a glaucoma diagnosis.""
+}
+```",1
+data_drishti/Normal/drishtiGS_094.png,0,0,high,"The optic disc appears normal with a healthy neuroretinal rim that is well-preserved circumferentially. The cup-to-disc ratio appears physiologic and symmetrical. There is no evidence of optic disc cupping, rim thinning, notching, or focal rim loss. Vessels show normal branching pattern without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The overall disc appearance is consistent with a healthy optic nerve head without glaucomatous damage.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears normal with a healthy neuroretinal rim that is well-preserved circumferentially. The cup-to-disc ratio appears physiologic and symmetrical. There is no evidence of optic disc cupping, rim thinning, notching, or focal rim loss. Vessels show normal branching pattern without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The overall disc appearance is consistent with a healthy optic nerve head without glaucomatous damage.""
+}
+```",1
+data_drishti/Normal/drishtiGS_095.png,0,0,high,"The optic disc appears normal with a healthy neuroretinal rim that is relatively symmetric and well-preserved across all quadrants. The optic cup is not enlarged, and there is no evidence of significant cupping, rim thinning, notching, or bayoneting of vessels. The disc margins are well-defined, and no disc hemorrhages are visible. The peripapillary region shows normal retinal appearance without characteristic glaucomatous changes. Blood vessels appear normally distributed without displacement. The overall disc-to-cup ratio appears physiologic. No structural glaucoma-related findings are evident on this photograph.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears normal with a healthy neuroretinal rim that is relatively symmetric and well-preserved across all quadrants. The optic cup is not enlarged, and there is no evidence of significant cupping, rim thinning, notching, or bayoneting of vessels. The disc margins are well-defined, and no disc hemorrhages are visible. The peripapillary region shows normal retinal appearance without characteristic glaucomatous changes. Blood vessels appear normally distributed without displacement. The overall disc-to-cup ratio appears physiologic. No structural glaucoma-related findings are evident on this photograph.""
+}
+```",1
+data_drishti/Normal/drishtiGS_096.png,0,0,moderate,"The optic disc appears relatively normal with a well-defined neuroretinal rim and no obvious cupping. The disc margins are clear, and there is no evidence of significant rim thinning, notching, or bayoneting of vessels. The optic disc color is healthy orange-pink without pallor. No disc hemorrhages or peripapillary atrophy are visible. The retinal vasculature appears normal without displacement. While image quality is adequate for assessment, no structural glaucomatous changes are evident on this single photograph. The absence of key glaucoma indicators supports a negative assessment, though clinical correlation with IOP, visual fields, and OCT would be needed for definitive diagnosis.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc appears relatively normal with a well-defined neuroretinal rim and no obvious cupping. The disc margins are clear, and there is no evidence of significant rim thinning, notching, or bayoneting of vessels. The optic disc color is healthy orange-pink without pallor. No disc hemorrhages or peripapillary atrophy are visible. The retinal vasculature appears normal without displacement. While image quality is adequate for assessment, no structural glaucomatous changes are evident on this single photograph. The absence of key glaucoma indicators supports a negative assessment, though clinical correlation with IOP, visual fields, and OCT would be needed for definitive diagnosis.""
+}
+```",1
+data_drishti/Normal/drishtiGS_097.png,0,0,high,"The optic disc appears normal with a healthy neuroretinal rim that is well-preserved across all quadrants. The cup-to-disc ratio appears physiologic and symmetrical. There is no evidence of optic disc cupping, rim thinning, notching, or focal rim loss. Retinal vessels show normal caliber and course without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The image quality is adequate for evaluation. Overall appearance is consistent with a healthy optic nerve head.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears normal with a healthy neuroretinal rim that is well-preserved across all quadrants. The cup-to-disc ratio appears physiologic and symmetrical. There is no evidence of optic disc cupping, rim thinning, notching, or focal rim loss. Retinal vessels show normal caliber and course without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The image quality is adequate for evaluation. Overall appearance is consistent with a healthy optic nerve head.""
+}
+```",1
+data_drishti/Normal/drishtiGS_098.png,0,0,high,"The optic disc appears normal without significant glaucomatous features. The neuroretinal rim is intact and well-preserved circumferentially. There is no evidence of optic disc cupping, rim thinning, notching, or bayoneting of vessels. The disc margins are clear, and the vascular pattern is normal without displacement. No peripapillary atrophy, disc hemorrhages, or other structural changes suggestive of glaucoma are visible. The overall disc appearance is consistent with a healthy optic nerve head.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears normal without significant glaucomatous features. The neuroretinal rim is intact and well-preserved circumferentially. There is no evidence of optic disc cupping, rim thinning, notching, or bayoneting of vessels. The disc margins are clear, and the vascular pattern is normal without displacement. No peripapillary atrophy, disc hemorrhages, or other structural changes suggestive of glaucoma are visible. The overall disc appearance is consistent with a healthy optic nerve head.""
+}
+```",1
+data_drishti/Normal/drishtiGS_099.png,0,1,moderate,"The optic disc demonstrates several glaucoma-suspicious features: (1) apparent increased optic cup with a prominent central pale area suggesting cupping, (2) visible neuroretinal rim thinning, particularly at the superior and inferior poles, (3) vascular changes including vessel displacement and possible bayoneting pattern around the disc margin, and (4) the overall disc appearance suggests structural changes consistent with glaucomatous optic neuropathy. However, image quality limitations and lack of comparative data reduce diagnostic certainty. Clinical correlation with visual fields, IOP measurement, and OCT imaging is recommended for definitive diagnosis.","```json
+{
+  ""glaucoma_detected"": 1,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc demonstrates several glaucoma-suspicious features: (1) apparent increased optic cup with a prominent central pale area suggesting cupping, (2) visible neuroretinal rim thinning, particularly at the superior and inferior poles, (3) vascular changes including vessel displacement and possible bayoneting pattern around the disc margin, and (4) the overall disc appearance suggests structural changes consistent with glaucomatous optic neuropathy. However, image quality limitations and lack of comparative data reduce diagnostic certainty. Clinical correlation with visual fields, IOP measurement, and OCT imaging is recommended for definitive diagnosis.""
+}
+```",0
+data_drishti/Normal/drishtiGS_100.png,0,0,high,"The optic disc appears normal with a healthy neuroretinal rim that is well-preserved across all quadrants. The cup-to-disc ratio appears physiologic and moderate. There is no evidence of significant cupping, rim thinning, notching, or focal rim loss. Blood vessels show normal branching patterns without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The overall disc appearance is consistent with a healthy optic nerve head without glaucomatous damage.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears normal with a healthy neuroretinal rim that is well-preserved across all quadrants. The cup-to-disc ratio appears physiologic and moderate. There is no evidence of significant cupping, rim thinning, notching, or focal rim loss. Blood vessels show normal branching patterns without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The overall disc appearance is consistent with a healthy optic nerve head without glaucomatous damage.""
+}
+```",1
+data_drishti/Normal/drishtiGS_101.png,0,0,high,"The optic disc appears normal with a healthy neuroretinal rim that is well-preserved across all quadrants. The cup-to-disc ratio appears physiologic and symmetric. There is no evidence of optic disc cupping, rim thinning, notching, or focal rim loss. Blood vessels show normal branching pattern without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The image quality is adequate for evaluation. Overall appearance is consistent with a healthy optic nerve head without glaucomatous damage.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears normal with a healthy neuroretinal rim that is well-preserved across all quadrants. The cup-to-disc ratio appears physiologic and symmetric. There is no evidence of optic disc cupping, rim thinning, notching, or focal rim loss. Blood vessels show normal branching pattern without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The image quality is adequate for evaluation. Overall appearance is consistent with a healthy optic nerve head without glaucomatous damage.""
+}
+```",1
+data_drishti/Glaucoma/drishtiGS_051.png,1,0,moderate,"The optic disc appears relatively normal with a healthy neuroretinal rim that is well-preserved circumferentially. The disc margins are distinct, and there is no obvious cupping, rim thinning, notching, or bayoneting of vessels. The optic nerve head demonstrates appropriate color and vascularity without disc hemorrhages or peripapillary atrophy. Retinal vessels show normal caliber and branching patterns. While image quality is adequate for assessment, no structural glaucomatous changes are evident on this single photograph. The disc-to-cup ratio appears physiologic.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc appears relatively normal with a healthy neuroretinal rim that is well-preserved circumferentially. The disc margins are distinct, and there is no obvious cupping, rim thinning, notching, or bayoneting of vessels. The optic nerve head demonstrates appropriate color and vascularity without disc hemorrhages or peripapillary atrophy. Retinal vessels show normal caliber and branching patterns. While image quality is adequate for assessment, no structural glaucomatous changes are evident on this single photograph. The disc-to-cup ratio appears physiologic.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_052.png,1,0,moderate,"The optic disc appears relatively healthy with a normal-sized cup and preserved neuroretinal rim tissue. The disc shows normal color (orange-yellow) and the vasculature appears normal without obvious bayoneting or displacement. The peripapillary region shows no obvious atrophy or hemorrhages. While image quality is somewhat limited due to peripheral darkening, no clear structural glaucomatous changes are evident. The disc-to-cup ratio appears normal, and rim thinning or notching is not apparent.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc appears relatively healthy with a normal-sized cup and preserved neuroretinal rim tissue. The disc shows normal color (orange-yellow) and the vasculature appears normal without obvious bayoneting or displacement. The peripapillary region shows no obvious atrophy or hemorrhages. While image quality is somewhat limited due to peripheral darkening, no clear structural glaucomatous changes are evident. The disc-to-cup ratio appears normal, and rim thinning or notching is not apparent.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_053.png,1,0,high,"The optic disc appears healthy with normal morphology. The neuroretinal rim is well-preserved and symmetrical across all quadrants. The cup-to-disc ratio appears normal without evidence of pathological cupping. Blood vessels show normal caliber and course without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or notching of the rim is evident. The disc margins are well-defined. Overall appearance is consistent with a normal, healthy optic nerve head without structural features suggestive of glaucomatous damage.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears healthy with normal morphology. The neuroretinal rim is well-preserved and symmetrical across all quadrants. The cup-to-disc ratio appears normal without evidence of pathological cupping. Blood vessels show normal caliber and course without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or notching of the rim is evident. The disc margins are well-defined. Overall appearance is consistent with a normal, healthy optic nerve head without structural features suggestive of glaucomatous damage.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_054.png,1,0,moderate,"The optic disc appears relatively normal with a healthy neuroretinal rim and no obvious cupping. The disc margins are well-defined, and there is no evidence of significant rim thinning, notching, or bayoneting of vessels. The optic cup appears physiologic without pathologic enlargement. No disc hemorrhages or peripapillary atrophy are evident. The retinal vasculature shows normal branching patterns without displacement. While image quality is adequate for assessment, no structural glaucomatous changes are identified on this single photograph.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc appears relatively normal with a healthy neuroretinal rim and no obvious cupping. The disc margins are well-defined, and there is no evidence of significant rim thinning, notching, or bayoneting of vessels. The optic cup appears physiologic without pathologic enlargement. No disc hemorrhages or peripapillary atrophy are evident. The retinal vasculature shows normal branching patterns without displacement. While image quality is adequate for assessment, no structural glaucomatous changes are identified on this single photograph.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_055.png,1,0,moderate,"The optic disc appears relatively small and well-perfused with a pale/whitish center consistent with normal optic nerve head anatomy. The neuroretinal rim appears intact circumferentially without obvious thinning, notching, or focal loss. Blood vessels show normal branching pattern without bayoneting or significant displacement. No disc hemorrhages are visible. The peripapillary region shows normal retinal appearance without obvious atrophy. While image quality is somewhat limited by media opacity/haze, the visible structural features do not demonstrate clear glaucomatous changes. The disc does not show the characteristic cupping, rim thinning, or vascular changes typical of glaucoma.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc appears relatively small and well-perfused with a pale/whitish center consistent with normal optic nerve head anatomy. The neuroretinal rim appears intact circumferentially without obvious thinning, notching, or focal loss. Blood vessels show normal branching pattern without bayoneting or significant displacement. No disc hemorrhages are visible. The peripapillary region shows normal retinal appearance without obvious atrophy. While image quality is somewhat limited by media opacity/haze, the visible structural features do not demonstrate clear glaucomatous changes. The disc does not show the characteristic cupping, rim thinning, or vascular changes typical of glaucoma.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_056.png,1,0,moderate,"The optic disc appears relatively small and well-perfused with a bright orange-red coloration typical of a healthy disc. The neuroretinal rim appears intact circumferentially without obvious thinning, notching, or focal loss. The cup-to-disc ratio appears normal (approximately 0.3-0.4), with a central cup that is not excessively enlarged. Blood vessels show normal branching pattern without significant bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are evident. The image quality is adequate for assessment. While glaucoma cannot be definitively excluded without additional clinical data (IOP, visual fields, OCT), the visible structural features do not demonstrate clear glaucomatous optic neuropathy.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc appears relatively small and well-perfused with a bright orange-red coloration typical of a healthy disc. The neuroretinal rim appears intact circumferentially without obvious thinning, notching, or focal loss. The cup-to-disc ratio appears normal (approximately 0.3-0.4), with a central cup that is not excessively enlarged. Blood vessels show normal branching pattern without significant bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are evident. The image quality is adequate for assessment. While glaucoma cannot be definitively excluded without additional clinical data (IOP, visual fields, OCT), the visible structural features do not demonstrate clear glaucomatous optic neuropathy.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_058.png,1,1,moderate,"The optic disc demonstrates several glaucoma-suspicious features: (1) apparent vertical elongation and cupping of the disc with a pale central cup area, (2) neuroretinal rim thinning, particularly evident at the superior and inferior poles, (3) vessel displacement and bayoneting pattern consistent with rim loss, and (4) possible peripapillary changes. The disc-to-cup ratio appears enlarged. However, image quality limitations (some haze, off-axis positioning) and lack of comparative imaging prevent high-confidence assessment. Clinical correlation with visual fields, IOP measurement, and OCT imaging is essential for definitive diagnosis.","```json
+{
+  ""glaucoma_detected"": 1,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc demonstrates several glaucoma-suspicious features: (1) apparent vertical elongation and cupping of the disc with a pale central cup area, (2) neuroretinal rim thinning, particularly evident at the superior and inferior poles, (3) vessel displacement and bayoneting pattern consistent with rim loss, and (4) possible peripapillary changes. The disc-to-cup ratio appears enlarged. However, image quality limitations (some haze, off-axis positioning) and lack of comparative imaging prevent high-confidence assessment. Clinical correlation with visual fields, IOP measurement, and OCT imaging is essential for definitive diagnosis.""
+}
+```",1
+data_drishti/Glaucoma/drishtiGS_059.png,1,1,moderate,"The optic disc shows several features suggestive of glaucomatous change: (1) apparent vertical elongation and cupping of the disc with a pale central cup area, (2) neuroretinal rim thinning, particularly evident at the superior and inferior poles, (3) possible notching of the rim, and (4) vascular changes including vessel displacement and bayoneting patterns consistent with rim loss. The disc appears to have an enlarged cup-to-disc ratio. However, image quality is suboptimal with some haze and peripheral darkening, which limits definitive assessment of fine structural details. The findings are consistent with glaucomatous optic neuropathy, though confirmation with additional imaging and clinical correlation would be warranted.","```json
+{
+  ""glaucoma_detected"": 1,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc shows several features suggestive of glaucomatous change: (1) apparent vertical elongation and cupping of the disc with a pale central cup area, (2) neuroretinal rim thinning, particularly evident at the superior and inferior poles, (3) possible notching of the rim, and (4) vascular changes including vessel displacement and bayoneting patterns consistent with rim loss. The disc appears to have an enlarged cup-to-disc ratio. However, image quality is suboptimal with some haze and peripheral darkening, which limits definitive assessment of fine structural details. The findings are consistent with glaucomatous optic neuropathy, though confirmation with additional imaging and clinical correlation would be warranted.""
+}
+```",1
+data_drishti/Glaucoma/drishtiGS_060.png,1,1,moderate,"The optic disc shows several features suggestive of glaucomatous change: (1) apparent vertical elongation and cupping of the disc with a pale central cup; (2) thinning of the neuroretinal rim, particularly evident superiorly and inferiorly; (3) vessel displacement and bayoneting as vessels cross the cup margin; (4) possible peripapillary changes. The disc appears to have an increased cup-to-disc ratio. However, image quality and angle of view limit precise morphometric assessment. No definitive disc hemorrhage or notching is clearly visible. The findings are consistent with glaucomatous optic neuropathy, though other causes of cupping cannot be excluded from this single image alone.","```json
+{
+  ""glaucoma_detected"": 1,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc shows several features suggestive of glaucomatous change: (1) apparent vertical elongation and cupping of the disc with a pale central cup; (2) thinning of the neuroretinal rim, particularly evident superiorly and inferiorly; (3) vessel displacement and bayoneting as vessels cross the cup margin; (4) possible peripapillary changes. The disc appears to have an increased cup-to-disc ratio. However, image quality and angle of view limit precise morphometric assessment. No definitive disc hemorrhage or notching is clearly visible. The findings are consistent with glaucomatous optic neuropathy, though other causes of cupping cannot be excluded from this single image alone.""
+}
+```",1
+data_drishti/Glaucoma/drishtiGS_061.png,1,0,high,"The optic disc appears normal with a healthy neuroretinal rim that is well-preserved circumferentially. The optic cup is not enlarged, and there is no evidence of significant cupping, rim thinning, notching, or bayoneting of vessels. The disc margins are well-defined, and the peripapillary region shows no atrophic changes. Retinal vessels appear normal without displacement. No disc hemorrhages are visible. The overall disc architecture is consistent with a healthy optic nerve without glaucomatous structural changes.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears normal with a healthy neuroretinal rim that is well-preserved circumferentially. The optic cup is not enlarged, and there is no evidence of significant cupping, rim thinning, notching, or bayoneting of vessels. The disc margins are well-defined, and the peripapillary region shows no atrophic changes. Retinal vessels appear normal without displacement. No disc hemorrhages are visible. The overall disc architecture is consistent with a healthy optic nerve without glaucomatous structural changes.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_062.png,1,1,moderate,"The optic disc demonstrates several glaucoma-suspicious features: (1) increased vertical cup-to-disc ratio with apparent deepening of the central cup; (2) thinning of the neuroretinal rim, particularly notable at the superior and inferior poles; (3) possible vertical elongation of the optic cup; (4) vessel displacement/bayoneting pattern visible where vessels appear to bend sharply at the disc margin. The disc appears pale centrally with a relatively small rim of neural tissue. Peripapillary changes are present. However, image quality is suboptimal with some peripheral darkening, which limits definitive assessment of subtle structural details. The findings are consistent with glaucomatous optic neuropathy, though other optic neuropathies cannot be excluded without additional clinical data.","```json
+{
+  ""glaucoma_detected"": 1,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc demonstrates several glaucoma-suspicious features: (1) increased vertical cup-to-disc ratio with apparent deepening of the central cup; (2) thinning of the neuroretinal rim, particularly notable at the superior and inferior poles; (3) possible vertical elongation of the optic cup; (4) vessel displacement/bayoneting pattern visible where vessels appear to bend sharply at the disc margin. The disc appears pale centrally with a relatively small rim of neural tissue. Peripapillary changes are present. However, image quality is suboptimal with some peripheral darkening, which limits definitive assessment of subtle structural details. The findings are consistent with glaucomatous optic neuropathy, though other optic neuropathies cannot be excluded without additional clinical data.""
+}
+```",1
+data_drishti/Glaucoma/drishtiGS_063.png,1,1,moderate,"The optic disc demonstrates several glaucoma-suspicious features: (1) marked vertical elongation and enlargement of the optic cup with a pale, excavated appearance occupying a substantial portion of the disc; (2) apparent thinning of the neuroretinal rim, particularly at the superior and inferior poles; (3) vessel displacement and bayoneting pattern consistent with cupping; (4) the overall disc-to-cup ratio appears significantly elevated. The peripapillary region shows appropriate vascular patterns. Image quality is adequate for assessment. While these findings are consistent with glaucomatous optic neuropathy, definitive diagnosis requires correlation with visual field testing, IOP measurement, and OCT imaging. The moderate confidence reflects the structural evidence present but acknowledges that other optic neuropathies could produce similar disc appearances.","```json
+{
+  ""glaucoma_detected"": 1,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc demonstrates several glaucoma-suspicious features: (1) marked vertical elongation and enlargement of the optic cup with a pale, excavated appearance occupying a substantial portion of the disc; (2) apparent thinning of the neuroretinal rim, particularly at the superior and inferior poles; (3) vessel displacement and bayoneting pattern consistent with cupping; (4) the overall disc-to-cup ratio appears significantly elevated. The peripapillary region shows appropriate vascular patterns. Image quality is adequate for assessment. While these findings are consistent with glaucomatous optic neuropathy, definitive diagnosis requires correlation with visual field testing, IOP measurement, and OCT imaging. The moderate confidence reflects the structural evidence present but acknowledges that other optic neuropathies could produce similar disc appearances.""
+}
+```",1
+data_drishti/Glaucoma/drishtiGS_064.png,1,0,high,"The optic disc appears normal without glaucomatous features. The neuroretinal rim is well-preserved and symmetrical around the disc. There is no evidence of significant cupping, rim thinning, notching, or bayoneting of vessels. The disc margins are intact, and no disc hemorrhages are visible. The optic cup appears physiologically normal with appropriate rim-to-cup ratio. Peripapillary retina shows no atrophic changes suggestive of glaucoma. The overall disc appearance is consistent with a healthy optic nerve head.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears normal without glaucomatous features. The neuroretinal rim is well-preserved and symmetrical around the disc. There is no evidence of significant cupping, rim thinning, notching, or bayoneting of vessels. The disc margins are intact, and no disc hemorrhages are visible. The optic cup appears physiologically normal with appropriate rim-to-cup ratio. Peripapillary retina shows no atrophic changes suggestive of glaucoma. The overall disc appearance is consistent with a healthy optic nerve head.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_065.png,1,1,moderate,"The optic disc demonstrates several glaucoma-suspicious features: (1) apparent vertical elongation and cupping of the disc with a pale central cup area, (2) neuroretinal rim thinning, particularly evident at the superior and inferior poles, (3) vessel displacement/bayoneting with vessels appearing to bend sharply at the disc margin as they cross the cup, and (4) possible peripapillary changes. The overall disc appearance is consistent with glaucomatous optic neuropathy. However, image quality limitations (peripheral darkening, lack of stereoscopic view) and the absence of comparative imaging prevent higher confidence assessment. Clinical correlation with intraocular pressure, visual fields, and OCT imaging is recommended.","```json
+{
+  ""glaucoma_detected"": 1,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc demonstrates several glaucoma-suspicious features: (1) apparent vertical elongation and cupping of the disc with a pale central cup area, (2) neuroretinal rim thinning, particularly evident at the superior and inferior poles, (3) vessel displacement/bayoneting with vessels appearing to bend sharply at the disc margin as they cross the cup, and (4) possible peripapillary changes. The overall disc appearance is consistent with glaucomatous optic neuropathy. However, image quality limitations (peripheral darkening, lack of stereoscopic view) and the absence of comparative imaging prevent higher confidence assessment. Clinical correlation with intraocular pressure, visual fields, and OCT imaging is recommended.""
+}
+```",1
+data_drishti/Glaucoma/drishtiGS_066.png,1,1,moderate,"The optic disc demonstrates several glaucoma-suspicious features: (1) apparent increased cup-to-disc ratio with a prominent central excavation, (2) visible neuroretinal rim thinning, particularly at the inferior and superior poles, (3) vessel displacement and bayoneting pattern consistent with cupping, and (4) the disc appears pale with a relatively small neuroretinal rim relative to the overall disc size. The vascular pattern shows characteristic bending at the disc margin. However, image quality is suboptimal with peripheral vignetting and uneven illumination, which limits definitive assessment. No disc hemorrhages or obvious peripapillary atrophy are clearly visible. These findings are consistent with glaucomatous optic neuropathy, though clinical correlation with IOP, visual fields, and OCT would be necessary for confirmation.","```json
+{
+  ""glaucoma_detected"": 1,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc demonstrates several glaucoma-suspicious features: (1) apparent increased cup-to-disc ratio with a prominent central excavation, (2) visible neuroretinal rim thinning, particularly at the inferior and superior poles, (3) vessel displacement and bayoneting pattern consistent with cupping, and (4) the disc appears pale with a relatively small neuroretinal rim relative to the overall disc size. The vascular pattern shows characteristic bending at the disc margin. However, image quality is suboptimal with peripheral vignetting and uneven illumination, which limits definitive assessment. No disc hemorrhages or obvious peripapillary atrophy are clearly visible. These findings are consistent with glaucomatous optic neuropathy, though clinical correlation with IOP, visual fields, and OCT would be necessary for confirmation.""
+}
+```",1
+data_drishti/Glaucoma/drishtiGS_067.png,1,0,moderate,"The optic disc appears relatively healthy with a normal-sized cup and intact neuroretinal rim. The disc margins are well-defined, and there is no evidence of significant cupping, rim thinning, notching, or bayoneting of vessels. The optic disc color is normal orange-yellow without pallor. Retinal vessels show normal branching patterns without displacement. No disc hemorrhages or peripapillary atrophy are visible. The overall disc-to-cup ratio appears normal. While image quality is adequate for assessment, the absence of glaucomatous structural changes suggests no glaucoma is present in this eye.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc appears relatively healthy with a normal-sized cup and intact neuroretinal rim. The disc margins are well-defined, and there is no evidence of significant cupping, rim thinning, notching, or bayoneting of vessels. The optic disc color is normal orange-yellow without pallor. Retinal vessels show normal branching patterns without displacement. No disc hemorrhages or peripapillary atrophy are visible. The overall disc-to-cup ratio appears normal. While image quality is adequate for assessment, the absence of glaucomatous structural changes suggests no glaucoma is present in this eye.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_068.png,1,1,moderate,"The optic disc demonstrates several glaucoma-suggestive features: (1) apparent vertical elongation and cupping of the disc with a pale central cup area, (2) neuroretinal rim thinning, particularly at the superior and inferior poles, (3) vessel displacement and bayoneting pattern consistent with rim loss, and (4) the overall disc-to-cup ratio appears enlarged. The peripapillary region shows subtle changes. However, image quality is suboptimal with peripheral darkening and limited detail, which reduces diagnostic certainty. These structural findings are consistent with glaucomatous optic neuropathy, though clinical correlation with IOP, visual fields, and OCT would be necessary for definitive diagnosis.","```json
+{
+  ""glaucoma_detected"": 1,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc demonstrates several glaucoma-suggestive features: (1) apparent vertical elongation and cupping of the disc with a pale central cup area, (2) neuroretinal rim thinning, particularly at the superior and inferior poles, (3) vessel displacement and bayoneting pattern consistent with rim loss, and (4) the overall disc-to-cup ratio appears enlarged. The peripapillary region shows subtle changes. However, image quality is suboptimal with peripheral darkening and limited detail, which reduces diagnostic certainty. These structural findings are consistent with glaucomatous optic neuropathy, though clinical correlation with IOP, visual fields, and OCT would be necessary for definitive diagnosis.""
+}
+```",1
+data_drishti/Glaucoma/drishtiGS_069.png,1,0,high,"The optic disc appears normal with a healthy neuroretinal rim that is well-preserved across all quadrants. The disc shows appropriate color (orange-yellow) and clear margins. There is no evidence of cupping, rim thinning, notching, or focal rim loss. Blood vessels show normal branching pattern without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The overall disc architecture is consistent with a healthy optic nerve head.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears normal with a healthy neuroretinal rim that is well-preserved across all quadrants. The disc shows appropriate color (orange-yellow) and clear margins. There is no evidence of cupping, rim thinning, notching, or focal rim loss. Blood vessels show normal branching pattern without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The overall disc architecture is consistent with a healthy optic nerve head.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_070.png,1,0,high,"The optic disc appears normal with a healthy neuroretinal rim that is well-preserved circumferentially. The disc shows a small central cup with appropriate rim-to-disc ratio. There is no evidence of optic disc cupping, rim thinning, notching, or bayoneting of vessels. The retinal vasculature appears normal without displacement. No disc hemorrhages or peripapillary atrophy are visible. The overall disc appearance is consistent with a healthy, non-glaucomatous optic nerve head.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears normal with a healthy neuroretinal rim that is well-preserved circumferentially. The disc shows a small central cup with appropriate rim-to-disc ratio. There is no evidence of optic disc cupping, rim thinning, notching, or bayoneting of vessels. The retinal vasculature appears normal without displacement. No disc hemorrhages or peripapillary atrophy are visible. The overall disc appearance is consistent with a healthy, non-glaucomatous optic nerve head.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_071.png,1,1,moderate,"The optic disc demonstrates several glaucoma-suggestive features: (1) marked vertical elongation and enlargement of the central cup with a bright yellow-orange appearance, indicating significant cupping; (2) apparent thinning of the neuroretinal rim, particularly evident at the superior and inferior poles; (3) vessel displacement and bayoneting pattern as vessels cross the cup margin; (4) the cup-to-disc ratio appears substantially enlarged. The disc shows structural changes consistent with glaucomatous optic neuropathy. Image quality is adequate for assessment. While these findings are suggestive of glaucoma, confirmation would require additional clinical data including intraocular pressure, visual field testing, and OCT imaging.","```json
+{
+  ""glaucoma_detected"": 1,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc demonstrates several glaucoma-suggestive features: (1) marked vertical elongation and enlargement of the central cup with a bright yellow-orange appearance, indicating significant cupping; (2) apparent thinning of the neuroretinal rim, particularly evident at the superior and inferior poles; (3) vessel displacement and bayoneting pattern as vessels cross the cup margin; (4) the cup-to-disc ratio appears substantially enlarged. The disc shows structural changes consistent with glaucomatous optic neuropathy. Image quality is adequate for assessment. While these findings are suggestive of glaucoma, confirmation would require additional clinical data including intraocular pressure, visual field testing, and OCT imaging.""
+}
+```",1
+data_drishti/Glaucoma/drishtiGS_073.png,1,0,moderate,"The optic disc appears relatively normal with a healthy neuroretinal rim that is present circumferentially. The disc-to-cup ratio appears moderate and not significantly enlarged. There is no obvious vertical cup elongation, rim notching, or bayoneting of vessels. The peripapillary region shows no obvious atrophy or other glaucomatous changes. While image quality is adequate for assessment, no structural features characteristic of glaucomatous optic neuropathy are evident on this single photograph.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc appears relatively normal with a healthy neuroretinal rim that is present circumferentially. The disc-to-cup ratio appears moderate and not significantly enlarged. There is no obvious vertical cup elongation, rim notching, or bayoneting of vessels. The peripapillary region shows no obvious atrophy or other glaucomatous changes. While image quality is adequate for assessment, no structural features characteristic of glaucomatous optic neuropathy are evident on this single photograph.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_074.png,1,1,moderate,"The optic disc demonstrates several glaucoma-suggestive features: (1) marked optic cup enlargement with a large central depression occupying a substantial portion of the disc; (2) apparent thinning of the neuroretinal rim, particularly visible at the disc margins; (3) vertical elongation of the cup consistent with glaucomatous remodeling; (4) vessel displacement and bayoneting pattern as vessels cross the cup margin. The disc appears pale with reduced rim tissue. However, image quality is suboptimal with hazy media and uneven illumination, which limits definitive assessment of fine structural details and peripapillary changes. The findings are consistent with glaucomatous optic neuropathy, though other causes of cupping cannot be entirely excluded without additional clinical data.","```json
+{
+  ""glaucoma_detected"": 1,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc demonstrates several glaucoma-suggestive features: (1) marked optic cup enlargement with a large central depression occupying a substantial portion of the disc; (2) apparent thinning of the neuroretinal rim, particularly visible at the disc margins; (3) vertical elongation of the cup consistent with glaucomatous remodeling; (4) vessel displacement and bayoneting pattern as vessels cross the cup margin. The disc appears pale with reduced rim tissue. However, image quality is suboptimal with hazy media and uneven illumination, which limits definitive assessment of fine structural details and peripapillary changes. The findings are consistent with glaucomatous optic neuropathy, though other causes of cupping cannot be entirely excluded without additional clinical data.""
+}
+```",1
+data_drishti/Glaucoma/drishtiGS_075.png,1,0,moderate,"The optic disc appears relatively normal with a pale, well-defined center and preserved neuroretinal rim tissue circumferentially. The disc-to-cup ratio appears moderate and symmetric. No obvious focal rim thinning, notching, or bayoneting of vessels is evident. The peripapillary region shows no obvious atrophy or hemorrhage. Retinal vessels appear normal without significant displacement. While image quality is adequate for assessment, the lack of clear glaucomatous structural changes (cupping, rim loss, vessel changes) does not support a glaucoma diagnosis on this single photograph.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc appears relatively normal with a pale, well-defined center and preserved neuroretinal rim tissue circumferentially. The disc-to-cup ratio appears moderate and symmetric. No obvious focal rim thinning, notching, or bayoneting of vessels is evident. The peripapillary region shows no obvious atrophy or hemorrhage. Retinal vessels appear normal without significant displacement. While image quality is adequate for assessment, the lack of clear glaucomatous structural changes (cupping, rim loss, vessel changes) does not support a glaucoma diagnosis on this single photograph.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_076.png,1,1,moderate,"The optic disc demonstrates several glaucoma-suggestive features: (1) apparent vertical elongation and enlargement of the central cup with a bright yellow-orange appearance, (2) visible neuroretinal rim thinning, particularly at the superior and inferior poles, (3) central vessel displacement with apparent bayoneting of vessels as they cross the disc margin, and (4) an overall cup-to-disc ratio that appears enlarged. The disc margins show some blunting. While image quality is adequate for assessment, the lack of stereoscopic view and demographic context limits definitive diagnosis. These structural findings are consistent with glaucomatous optic neuropathy, though other optic neuropathies cannot be excluded on fundoscopy alone.","```json
+{
+  ""glaucoma_detected"": 1,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc demonstrates several glaucoma-suggestive features: (1) apparent vertical elongation and enlargement of the central cup with a bright yellow-orange appearance, (2) visible neuroretinal rim thinning, particularly at the superior and inferior poles, (3) central vessel displacement with apparent bayoneting of vessels as they cross the disc margin, and (4) an overall cup-to-disc ratio that appears enlarged. The disc margins show some blunting. While image quality is adequate for assessment, the lack of stereoscopic view and demographic context limits definitive diagnosis. These structural findings are consistent with glaucomatous optic neuropathy, though other optic neuropathies cannot be excluded on fundoscopy alone.""
+}
+```",1
+data_drishti/Glaucoma/drishtiGS_077.png,1,0,high,"The optic disc appears healthy with a normal neuroretinal rim that is well-preserved circumferentially. The disc shows a normal yellowish-orange color with appropriate vascularization and no evidence of cupping, rim thinning, notching, or bayoneting of vessels. The optic cup appears physiologically normal without enlargement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The retinal vasculature is normal. Image quality is adequate for evaluation. No glaucoma-related findings are present.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears healthy with a normal neuroretinal rim that is well-preserved circumferentially. The disc shows a normal yellowish-orange color with appropriate vascularization and no evidence of cupping, rim thinning, notching, or bayoneting of vessels. The optic cup appears physiologically normal without enlargement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The retinal vasculature is normal. Image quality is adequate for evaluation. No glaucoma-related findings are present.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_079.png,1,0,moderate,"The optic disc appears relatively healthy with a normal-sized cup and intact neuroretinal rim. The disc margins are well-defined, and there is no evidence of significant cupping, rim thinning, notching, or bayoneting of vessels. The optic disc color is normal, and no disc hemorrhages are visible. The peripapillary region shows normal appearance without atrophic changes. While image quality is adequate for assessment, the absence of structural glaucomatous features suggests no acute glaucomatous changes are present on this single photograph. However, moderate confidence is assigned due to the inherent limitations of static color fundus photography in detecting early glaucomatous changes.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc appears relatively healthy with a normal-sized cup and intact neuroretinal rim. The disc margins are well-defined, and there is no evidence of significant cupping, rim thinning, notching, or bayoneting of vessels. The optic disc color is normal, and no disc hemorrhages are visible. The peripapillary region shows normal appearance without atrophic changes. While image quality is adequate for assessment, the absence of structural glaucomatous features suggests no acute glaucomatous changes are present on this single photograph. However, moderate confidence is assigned due to the inherent limitations of static color fundus photography in detecting early glaucomatous changes.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_080.png,1,0,high,"The optic disc appears healthy with a normal neuroretinal rim that is well-preserved circumferentially. The disc shows appropriate color and vasculature without evidence of cupping, rim thinning, notching, or bayoneting. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The optic cup appears physiologically normal with a central-to-slightly-temporal location. Blood vessels show normal branching patterns without displacement. Image quality is adequate for evaluation. No glaucoma-related findings are present.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears healthy with a normal neuroretinal rim that is well-preserved circumferentially. The disc shows appropriate color and vasculature without evidence of cupping, rim thinning, notching, or bayoneting. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The optic cup appears physiologically normal with a central-to-slightly-temporal location. Blood vessels show normal branching patterns without displacement. Image quality is adequate for evaluation. No glaucoma-related findings are present.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_081.png,1,1,moderate,"The optic disc demonstrates several glaucoma-suspicious features: (1) apparent vertical elongation and cupping of the disc with a central depression, (2) thinning of the neuroretinal rim, particularly evident superiorly and inferiorly, (3) vessel displacement and bayoneting pattern consistent with rim loss, and (4) the overall disc appearance suggests increased cup-to-disc ratio. The retinal vessels show characteristic bending at the disc margin. While image quality is adequate for assessment, definitive glaucoma diagnosis requires correlation with visual field testing, IOP measurement, and OCT imaging. The structural findings are consistent with glaucomatous optic neuropathy.","```json
+{
+  ""glaucoma_detected"": 1,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc demonstrates several glaucoma-suspicious features: (1) apparent vertical elongation and cupping of the disc with a central depression, (2) thinning of the neuroretinal rim, particularly evident superiorly and inferiorly, (3) vessel displacement and bayoneting pattern consistent with rim loss, and (4) the overall disc appearance suggests increased cup-to-disc ratio. The retinal vessels show characteristic bending at the disc margin. While image quality is adequate for assessment, definitive glaucoma diagnosis requires correlation with visual field testing, IOP measurement, and OCT imaging. The structural findings are consistent with glaucomatous optic neuropathy.""
+}
+```",1
+data_drishti/Glaucoma/drishtiGS_082.png,1,0,moderate,"The optic disc appears relatively small and well-centered with a bright orange-yellow coloration typical of healthy optic nerve tissue. The neuroretinal rim appears intact and well-preserved circumferentially without obvious thinning, notching, or focal loss. The cup-to-disc ratio appears normal and symmetric. Retinal vessels show normal branching patterns without significant displacement or bayoneting. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are evident. Image quality is adequate for assessment. While the image is somewhat underexposed in peripheral areas, the optic disc region shows no definitive glaucoma-related findings.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc appears relatively small and well-centered with a bright orange-yellow coloration typical of healthy optic nerve tissue. The neuroretinal rim appears intact and well-preserved circumferentially without obvious thinning, notching, or focal loss. The cup-to-disc ratio appears normal and symmetric. Retinal vessels show normal branching patterns without significant displacement or bayoneting. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are evident. Image quality is adequate for assessment. While the image is somewhat underexposed in peripheral areas, the optic disc region shows no definitive glaucoma-related findings.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_083.png,1,0,high,"The optic disc appears normal with a healthy neuroretinal rim that is well-preserved circumferentially. The cup-to-disc ratio appears physiologic and symmetric. There is no evidence of optic disc cupping, rim thinning, notching, or focal rim loss. Vessels show normal branching pattern without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The image quality is adequate for evaluation. No glaucoma-related findings are present.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears normal with a healthy neuroretinal rim that is well-preserved circumferentially. The cup-to-disc ratio appears physiologic and symmetric. There is no evidence of optic disc cupping, rim thinning, notching, or focal rim loss. Vessels show normal branching pattern without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The image quality is adequate for evaluation. No glaucoma-related findings are present.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_084.png,1,0,high,"The optic disc appears normal with a healthy neuroretinal rim that is well-preserved across all quadrants. The cup-to-disc ratio appears physiologic and symmetrical. There is no evidence of optic disc cupping, rim thinning, notching, or focal rim loss. Vessels show normal branching pattern without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The overall disc appearance is consistent with a healthy optic nerve head without glaucomatous damage.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears normal with a healthy neuroretinal rim that is well-preserved across all quadrants. The cup-to-disc ratio appears physiologic and symmetrical. There is no evidence of optic disc cupping, rim thinning, notching, or focal rim loss. Vessels show normal branching pattern without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The overall disc appearance is consistent with a healthy optic nerve head without glaucomatous damage.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_086.png,1,0,high,"The optic disc appears normal with a healthy neuroretinal rim that is well-preserved circumferentially. The disc has a pale yellowish center consistent with normal optic nerve head appearance. There is no evidence of cupping, rim thinning, notching, or bayoneting of vessels. The peripapillary region shows normal retinal appearance without hemorrhages or atrophic changes. Vessel caliber and branching pattern are normal. The overall disc-to-cup ratio appears small and symmetric. No structural glaucomatous changes are identified on this fundoscopic examination.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears normal with a healthy neuroretinal rim that is well-preserved circumferentially. The disc has a pale yellowish center consistent with normal optic nerve head appearance. There is no evidence of cupping, rim thinning, notching, or bayoneting of vessels. The peripapillary region shows normal retinal appearance without hemorrhages or atrophic changes. Vessel caliber and branching pattern are normal. The overall disc-to-cup ratio appears small and symmetric. No structural glaucomatous changes are identified on this fundoscopic examination.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_087.png,1,0,high,"The optic disc appears normal with a healthy neuroretinal rim that is relatively uniform in color and thickness around the disc margin. The cup-to-disc ratio appears physiologic and moderate. There is no evidence of significant cupping, rim thinning, notching, or focal rim loss. Blood vessels show normal branching pattern without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The overall disc appearance is consistent with a healthy optic nerve head without glaucomatous damage.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""high"",
+  ""reasoning"": ""The optic disc appears normal with a healthy neuroretinal rim that is relatively uniform in color and thickness around the disc margin. The cup-to-disc ratio appears physiologic and moderate. There is no evidence of significant cupping, rim thinning, notching, or focal rim loss. Blood vessels show normal branching pattern without bayoneting or displacement. No disc hemorrhages, peripapillary atrophy, or other glaucomatous structural changes are visible. The overall disc appearance is consistent with a healthy optic nerve head without glaucomatous damage.""
+}
+```",0
+data_drishti/Glaucoma/drishtiGS_088.png,1,0,moderate,"The optic disc appears relatively small and well-perfused with a bright orange-red color typical of healthy tissue. The neuroretinal rim appears intact circumferentially without obvious thinning, notching, or focal loss. There is no evidence of significant optic disc cupping, vessel bayoneting, or disc hemorrhage. The peripapillary region shows normal retinal coloration without pallor or atrophy. While image quality is somewhat limited by peripheral darkening, the visible disc morphology does not demonstrate the structural hallmarks of glaucomatous optic neuropathy. No glaucoma-related changes are apparent.","```json
+{
+  ""glaucoma_detected"": 0,
+  ""confidence"": ""moderate"",
+  ""reasoning"": ""The optic disc appears relatively small and well-perfused with a bright orange-red color typical of healthy tissue. The neuroretinal rim appears intact circumferentially without obvious thinning, notching, or focal loss. There is no evidence of significant optic disc cupping, vessel bayoneting, or disc hemorrhage. The peripapillary region shows normal retinal coloration without pallor or atrophy. While image quality is somewhat limited by peripheral darkening, the visible disc morphology does not demonstrate the structural hallmarks of glaucomatous optic neuropathy. No glaucoma-related changes are apparent.""
+}
+```",0

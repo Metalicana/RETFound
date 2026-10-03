@@ -1,9 +1,7 @@
 import os
 from openai import AzureOpenAI
-#from data.loader import GenericEyeLoader
 from pprint import pprint
 from dotenv import load_dotenv
-
 
 load_dotenv() 
 api_key = os.getenv("AZURE_OPENAI_API_KEY")
@@ -63,8 +61,6 @@ class BioProfiler:
 #
 #        return response.choices[0].message.content
 
-
-    ## FOR GLAUCOMA SCREENING
     ## FOR GLAUCOMA SCREENING
     def generate_narrative(self, metadata_dict):
         """
@@ -111,28 +107,3 @@ class BioProfiler:
         )
 
         return response.choices[0].message.content
-# --- Test ---
-
-
-## --- Integration Test Logic ---
-#if __name__ == "__main__":
-#    # 1. Setup paths
-#    BASE_PATH = "/lustre/fs1/home/yu395012/OphthalmicAgent/"
-#    
-#    disease = 'DR'
-#    loader = GenericEyeLoader(BASE_PATH)
-#    df = loader.get_metadata(disease)
-#    
-#    # Grab the first test patient
-#    test_rows = df[df['use'] == 'test']
-#    if not test_rows.empty:
-#        patient_record = loader.load_patient(disease, test_rows.iloc[0])
-#        metadata = patient_record['metadata']
-#    else:
-#        print("No test data found to process.")
-#        
-#        
-#        
-#pprint(metadata)
-#profiler = BioProfiler()
-#print(profiler.generate_narrative(metadata))

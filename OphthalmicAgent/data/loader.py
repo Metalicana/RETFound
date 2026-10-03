@@ -172,7 +172,7 @@ class ExcelEyeLoader:
                 stage = 1.0
             else:
                 stage = 0.0
-            print(f"\nDisease: AMD | Excel Original GT: {raw_gt} -> Converted to Binary: {stage} (0: Negative, 1: Positive)")
+            print(f"\nDisease: AMD | Excel Ground Truth: {stage} (0: Negative, 1: Positive)")
             
         elif current_disease.lower() == "dr":
             stage = float(raw_gt)

@@ -19,8 +19,8 @@ load_dotenv()
 api_key = os.getenv("AZURE_OPENAI_API_KEY")
 endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
 
-slo_healthy = Image.open("slo.png")
-slo_healthy_array = np.array(slo_healthy)
+#slo_healthy = Image.open("slo.png")
+#slo_healthy_array = np.array(slo_healthy)
 
 class VisionSpecialistSlo:
     def __init__(self, path_slo, device=None):

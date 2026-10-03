@@ -359,7 +359,7 @@ def support_counts(rows: list[dict[str, str]], task: str, age_group: str, race: 
     }
 
 
-def main(args=None) -> None:
+def equity_main(args=None) -> None:
     if args is None:
       args = parse_args()
     task = norm_task(args.task)
@@ -537,4 +537,4 @@ def main(args=None) -> None:
         print("note=R_final uses normalized local lambdas by default.")
 
 if __name__ == "__main__":
-    main()
+    equity_main()
