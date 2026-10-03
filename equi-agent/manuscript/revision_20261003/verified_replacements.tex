@@ -1,0 +1,230 @@
+% Targeted replacements for the manuscript supplied on 2026-10-03.
+% This is an insertion file, not a replacement for the entire source document.
+% Preserve the original manuscript and its commented historical sections.
+% GDP progression values below are transcribed from the user's complete v2
+% CECSL report, not independently verified from the latest local prediction CSVs.
+% Run audit_manuscript_result_gaps.py on CECSL before final submission.
+
+% ABSTRACT: replace the old GDP detection/progression superiority sentence.
+% Do not substitute progression numbers into the separate detection result.
+In an exploratory Harvard GDP progression analysis using baseline RNFLT maps
+and visual-field measurements, RetinAgent increased positive-class F1 from
+0.591 to 0.644 on the pointwise TD endpoint without a significance cutoff;
+the gain did not extend consistently to the other progression endpoints.
+
+% INTRODUCTION: replace the sentence containing 0.789/0.695 and 0.684/0.600.
+On the Harvard GDP pointwise TD progression endpoint without a significance
+cutoff, RetinAgent increased positive-class F1 from 0.591 for the native helper
+to 0.644, and macro-F1 from 0.722 to 0.748. These results are exploratory:
+the revised prompt was evaluated on the same cohort used to inspect earlier
+agent errors, and performance gains did not generalize across all six endpoints.
+
+% RESULTS 2.4: replace the progression paragraph and progression table only.
+% The separate GDP detection paragraph still needs its canonical result audit.
+Progression forecasting was evaluated from baseline RNFLT maps and 52-point
+visual-field measurements, not from follow-up observations supplied at inference.
+All methods were evaluated on the same 200 cases for each of six released GDP
+endpoints. For \texttt{td\_pointwise\_no\_p\_cut}, RetinAgent achieved a
+positive-class F1 of 0.6441 and a macro-F1 of 0.7476, compared with 0.5905 and
+0.7224 for the native helper (Table~\ref{tab:gdp_progression_prediction}).
+It detected 38 of 60 progressing cases, compared with 31 for the helper, while
+false positives increased from 14 to 20 among 140 non-progressing cases.
+Worst-group positive-class F1 increased from 0.5818 to 0.6102. RetinAgent had
+higher macro-F1 than the standalone language models in this comparison, but
+GPT-5.1 and Claude Haiku 4.5 had slightly higher positive-class F1 and higher
+balanced accuracy. Results varied substantially by endpoint: positive-class
+F1 improved on the two pointwise TD endpoints, while no true positives were
+identified by RetinAgent for MD, VFI or either rapid-MD endpoint
+(Table~\ref{tab:gdp_progression_endpoint_summary}). Prompt revision followed
+inspection of earlier errors on this cohort; independent evaluation is required
+to establish generalization of the revised workflow.
+
+\begin{table}[t]
+\centering
+\caption{Exploratory GDP progression forecasting for
+\texttt{td\_pointwise\_no\_p\_cut}. All rows use 200 cases, including 60
+progressing cases. Positive-class and macro-F1 are distinguished explicitly.
+Worst-group F1 is positive-class F1 over race, sex and age groups with at least
+20 positive and 20 negative cases and at least two eligible groups per
+attribute. RetinAgent's forced labels include cases flagged for review.
+Reliability estimates use development-only out-of-fold predictions, but
+prompt revision followed inspection of earlier test-cohort errors.}
+\label{tab:gdp_progression_prediction}
+\footnotesize
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+Method & Positive F1 & Macro-F1 & Worst-group F1 & Sensitivity & Specificity & Balanced acc. \\
+\midrule
+GDP-native helper & 0.5905 & 0.7224 & 0.5818 & 0.5167 & 0.9000 & 0.7083 \\
+GPT-5.1 & 0.6490 & 0.7181 & 0.5479 & 0.8167 & 0.7000 & 0.7583 \\
+GPT-5.4 & 0.6420 & 0.6991 & 0.5679 & \textbf{0.8667} & 0.6429 & 0.7548 \\
+GPT-5.6-luna & 0.2571 & 0.5498 & 0.1212 & 0.1500 & \textbf{0.9929} & 0.5714 \\
+Claude Haiku 4.5 & \textbf{0.6494} & 0.7149 & 0.5479 & 0.8333 & 0.6857 & \textbf{0.7595} \\
+RetinAgent & 0.6441 & \textbf{0.7476} & \textbf{0.6102} & 0.6333 & 0.8571 & 0.7452 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Endpoint-specific performance of the GDP-native helper and revised
+staged RetinAgent on the same 200 cases. This summary includes all six endpoints;
+it is not an independently held-out evaluation of prompt revision.}
+\label{tab:gdp_progression_endpoint_summary}
+\footnotesize
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+Endpoint & Positives & \multicolumn{2}{c}{Positive F1} & \multicolumn{2}{c}{Balanced acc.} \\
+ & & Helper & Agent & Helper & Agent \\
+\midrule
+MD & 18 & 0.0000 & 0.0000 & 0.4835 & 0.4368 \\
+VFI & 19 & 0.0000 & 0.0000 & 0.4890 & 0.4448 \\
+Pointwise TD & 18 & 0.1481 & 0.2174 & 0.5363 & 0.5757 \\
+Rapid MD & 4 & 0.0000 & 0.0000 & 0.4923 & 0.4541 \\
+Rapid MD, no p-cut & 6 & 0.0000 & 0.0000 & 0.4948 & 0.4510 \\
+Pointwise TD, no p-cut & 60 & 0.5905 & 0.6441 & 0.7083 & 0.7452 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% DISCUSSION paragraph 1: replace the broad GDP progression superiority claim.
+In the revised GDP analysis, progression gains were endpoint-specific rather
+than general: RetinAgent improved positive-class F1 over the native helper for
+pointwise TD progression, with and without a significance cutoff, but did not
+detect positive cases for the four remaining endpoints. On the no-cutoff TD
+endpoint, improved sensitivity came with additional false positives. Because
+prompt development included inspection of previous errors on the same cohort,
+these results should be regarded as exploratory rather than confirmatory.
+
+% METHODS, datasets: replace the FairVision split-size placeholder.
+For each FairVision task, the full training, validation and test partitions
+contained 6,000, 1,000 and 3,000 samples, respectively. The reduced agent
+evaluation cohorts were drawn from the test partitions and were not used to
+fit the foundation-model probes. The recovered glaucoma cohort contained
+124 positive and 126 negative cases; AMD and DR locked manifests each
+contained 125 positive and 125 negative cases.
+% The sampling seed and canonical AMD agent coverage remain to be verified.
+
+% METHODS, GDP: replace the claim that longitudinal visits were model inputs.
+For progression forecasting, the released GDP data provide baseline RNFLT
+maps, baseline visual-field values and six supplied progression labels for
+500 patients. We used 300 development cases and 200 evaluation cases.
+Five-fold development cross-validation generated out-of-fold reliability
+estimates, with 240 fitting cases and 60 held-out development cases per fold.
+Each final native helper was fitted on all 300 development cases for the fixed
+training schedule, with a decision threshold of 0.5. No test cases contributed
+to these reliability estimates. The helper was a supervised adaptation using
+the released GDP model and dataset components, not a reproduction of the
+paper's complete semi-supervised pseudo-supervisor experiment.
+
+The primary endpoint was the released \texttt{progression[5]} label, named
+\texttt{td\_pointwise\_no\_p\_cut}. The original paper describes pointwise TD
+progression using deterioration at at least three visual-field locations;
+the released index names this variant as omitting a p-value cutoff
+\cite{luo2023harvard}. We used the supplied binary labels without recomputing
+slopes or significance tests. Follow-up visits were not provided to the models
+at inference. The other released indices correspond to MD, VFI, pointwise TD,
+rapid MD, and rapid MD without a p-value cutoff.
+% Source: https://arxiv.org/html/2308.13411v1, section 3.2;
+% ../Harvard-GDP/README.md, released progression index mapping.
+% Exact temporal horizon and label-generation details not supplied in the
+% release must not be invented from the endpoint names.
+
+% METHODS, reliability: replaces the fixed-before-test assertion and the
+% one-subgroup shrinkage equation. This describes the historical FairVision
+% score table. GDP uses the separate development-only construction below.
+The reliability score was a manually specified composite, informed by
+validation-prior ranking comparisons rather than fitted as a calibrated
+probability of correctness. The largest coefficient was assigned to the
+false-negative rate to emphasize missed disease; the false-positive term
+penalized excessive referrals, while calibration error, discrimination and
+F1 supplied complementary performance summaries. ECE used ten equal-width
+probability bins on $[0,1]$, weighted by bin frequency. We do not claim that
+the coefficients were selected before any test-result inspection. The
+coefficient-sensitivity analysis therefore evaluates a heuristic score, not
+a prespecified or optimized clinical utility function.
+
+For a patient's age, race and sex strata, marginal risks were combined as
+\begin{equation}
+R_{\mathrm{local}} =
+\frac{n_{\mathrm{age}}R_{\mathrm{age}}+
+      n_{\mathrm{race}}R_{\mathrm{race}}+
+      n_{\mathrm{sex}}R_{\mathrm{sex}}}
+     {n_{\mathrm{age}}+n_{\mathrm{race}}+n_{\mathrm{sex}}},
+\qquad
+\widetilde R = \frac{n_{\cap}}{n_{\cap}+50}R_{\mathrm{local}}
+ +\frac{50}{n_{\cap}+50}R_{\mathrm{global}}.
+\end{equation}
+The supplied trust score was $1-\widetilde R$. This is neither the worst
+marginal risk nor a directly estimated intersectional performance metric.
+Intersectional support $n_{\cap}$ controls shrinkage only. Undefined marginal
+metrics fall back to their global counterparts. In the historical FairVision
+table, performance priors came from validation predictions, whereas support
+counts came from test-cohort demographic covariates. These two data sources
+must not be described as a single validation-only estimate.
+
+For the staged GDP experiment, both reliability metrics and support counts
+came exclusively from the 300 development out-of-fold predictions. Marginal
+groups required at least 20 positives and 20 negatives to contribute to the
+local score; otherwise the global estimate was used. Reliability age groups
+were younger than 40, 40--59 and 60 years or older. Evaluation age groups were
+retained from the locked manifests and were not substituted by reliability
+age groups.
+% FairVision's lookup code maps age at 40/60 but the stored prior builder
+% labels groups at 50/70. Resolve historical run provenance before inserting
+% any uniform FairVision reliability age-bin claim.
+
+% METHODS, staged GDP generation and errors: does not describe FairVision.
+The staged GDP agent used the GPT-5.1 deployment with requested temperature
+0.2 and a maximum completion budget of 8,000 tokens per stage. Five stages
+were run per case: a Bio-Profiler, structural and functional specialists, an
+evidence-ablation audit, and a final orchestrator. All six endpoint labels
+were produced in the final response. The final and counterfactual stages
+used explicit JSON schemas. Malformed or incomplete responses were retried
+up to three total attempts with five seconds between attempts. Persistent
+failures remained incomplete rather than being imputed as negative; the
+main-table collector required 200 complete cases. Refusals and non-retryable
+API errors stopped the call. Valid predictions flagged for clinician review
+were retained in forced-classification metrics. Review flags were agent
+judgements, not decisions made by an additional numeric escalation threshold.
+
+For staged GDP, the five audit scenarios were full evidence, removal of
+helper predictions, removal of structural interpretation, removal of
+functional interpretation, and removal of demographic reliability context.
+These scenarios were generated within one counterfactual-stage call. They
+were not five randomly reassigned demographic profiles, independent votes,
+or five complete executions of the pipeline.
+
+% SUPPLEMENTARY METHODS AND RESULTS: offline sensitivity, not live ablation.
+\subsection*{Offline coefficient sensitivity}
+We reconstructed 486 saved FairVision foundation-model risk scores, covering
+nine model--modality configurations, three tasks and 18 demographic
+combinations per task. The reconstructed canonical scores matched the stored
+scores to numerical precision. The analysis compared 21 settings: the
+canonical weights, equal weights, the historical FNR/FPR-only score, removal
+of each component, separate 20\% increases and decreases of each coefficient,
+shrinkage constants of 25 and 100, and global-only scoring. Perturbed
+coefficient vectors were renormalized to sum to one. We reported changes in
+the minimum-risk model and absolute trust-score shifts; ties were retained.
+Test labels were not used to choose or evaluate coefficient settings.
+
+Across the ten single-coefficient 20\% perturbations, the minimum-risk model
+was unchanged in all 18 glaucoma combinations. AMD changed in up to two
+combinations, whereas DR changed in up to 12. Equal weighting changed the
+minimum-risk model in zero glaucoma, three AMD and 15 DR combinations. These
+findings show task-dependent ranking sensitivity. They do not establish
+that live agent predictions or diagnostic performance are insensitive to the
+weights; that requires a separate matched agent ablation.
+
+% OPTIONAL SUPPLEMENTARY ANALYSIS: this may replace, but cannot be used to
+% substantiate, the manuscript's live-agent counterfactual/escalation claim.
+\subsection*{Separate deterministic metadata analysis}
+A separate deterministic reliability-weighted fusion experiment used the
+full 3,000-case test split for each FairVision task. It generated 54,000
+single-attribute substitutions across 9,000 case--task records by replacing
+race, ethnicity, sex or age-group values with alternative observed categories.
+Diagnostic labels changed in 0.374\% of substitutions and escalation flags
+in 5.811\%. This analysis used a different reliability weighting scheme
+and a deterministic escalation policy; it was not a live RetinAgent
+counterfactual experiment and cannot establish demographic invariance of
+the live pipeline.
