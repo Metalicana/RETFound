@@ -1,7 +1,7 @@
 """Run the staged OphthalmicAgent GDP adaptation without retraining any model.
 
 prepare: validate all six clean native runs and baseline inputs, no API calls.
-smoke: execute one complete patient through the real pipeline, resumable by run.
+smoke: execute selected patients (default: first patient), resumable by run.
 run: complete all 200 patients; collect refuses partial or invalid cohorts.
 prompts: export the exact original/adapted system prompts side by side.
 """
@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "OphthalmicAgent"))
 
 from Progression import evidence, reporting
-from Progression.prompts import ENDPOINTS, SYSTEM_PROMPTS, VERSION
+from Progression.prompts import DEFAULT_RUN_NAME, ENDPOINTS, SYSTEM_PROMPTS, VERSION
 from Progression.workflow import CachedCaller, digest, response_format, run_case, write_json
 
 
@@ -31,24 +31,27 @@ LEGACY_OUTPUT_IMPLEMENTATION = {
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--stage", choices=("prepare", "smoke", "run", "collect", "status", "prompts"), default="prepare")
+    parser.add_argument("--case-ids", nargs="+", help="Exact patient IDs for --stage smoke, e.g. data_0344 data_0371. All six endpoints are predicted for each patient.")
     parser.add_argument("--clean-root", type=Path, default=ROOT / "equi-agent/outputs/gdp_progression_clean_v1")
     parser.add_argument("--primary-run", type=Path, default=ROOT / "equi-agent/outputs/gdp_native_oof_v1")
     parser.add_argument("--manifests-root", type=Path, default=ROOT / "equi-agent/outputs/manifests")
     parser.add_argument("--llm-root", type=Path, default=ROOT / "equi-agent/outputs/baselines/gdp_progression_llm_v1")
-    parser.add_argument("--out-dir", type=Path, default=ROOT / "OphthalmicAgent/outputs/gdp_progression_staged_v1")
+    parser.add_argument("--out-dir", type=Path, default=ROOT / "OphthalmicAgent/outputs" / DEFAULT_RUN_NAME)
     parser.add_argument("--include-oct", action="store_true", help="Additional-input experiment; requires GDP Bscan files. Not input-matched to native helper.")
     parser.add_argument("--deployment", default="gpt-5.1")
     parser.add_argument("--path-prefix-from", default="")
     parser.add_argument("--path-prefix-to", default="")
     parser.add_argument("--max-attempts", type=int, default=3)
     parser.add_argument("--upgrade-output-contract", action="store_true",
-                        help="Upgrade a failed v1 run with zero completed cases to strict final-response JSON. Keeps unchanged upstream stage caches and archives original provenance.")
+                        help="Upgrade a failed legacy run with zero completed cases to strict final-response JSON only when prompts and evidence are identical. Does not migrate older clinical prompts; those require a new output directory.")
     args = parser.parse_args()
     for key, value in vars(args).items():
         if isinstance(value, Path):
             setattr(args, key, value.expanduser().resolve())
     if args.max_attempts < 1:
         parser.error("--max-attempts must be at least 1")
+    if args.case_ids is not None and args.stage != "smoke":
+        parser.error("--case-ids is only supported with --stage smoke")
     return args
 
 
@@ -124,7 +127,8 @@ def freeze_run(args, cases, answers, sources):
                 upgrade_failed_output_contract(args, saved, config, fingerprint)
             else:
                 raise ValueError("Run inputs, prompts, settings or implementation changed; use a new --out-dir. "
-                                 "For the failed v1 smoke with zero completed cases, use --upgrade-output-contract.")
+                                 "--upgrade-output-contract only handles output-format changes with identical prompts and evidence; "
+                                 "it cannot migrate a v1 prompt run to v2.")
     elif any((args.out_dir / name).exists() for name in ("stage_cache", "cases", "summary.json")):
         raise ValueError("Refusing unprovenanced existing outputs; use an empty --out-dir")
     write_json(path, {**config, "fingerprint": fingerprint})
@@ -132,6 +136,21 @@ def freeze_run(args, cases, answers, sources):
     write_json(args.out_dir / "evaluation_labels.json", answers)
     write_json(args.out_dir / "prompt_snapshot.json", SYSTEM_PROMPTS)
     return fingerprint
+
+
+def requested_cases(args, cases):
+    selected = getattr(args, "case_ids", None)
+    if selected is not None:
+        if args.stage != "smoke":
+            raise ValueError("--case-ids is only supported with --stage smoke")
+        if not selected or len(selected) != len(set(selected)):
+            raise ValueError("--case-ids must contain distinct patient IDs")
+        by_id = {case["case_id"]: case for case in cases}
+        unknown = sorted(set(selected) - set(by_id))
+        if unknown:
+            raise ValueError(f"Unknown --case-ids: {', '.join(unknown)}; use IDs from prepared_cases.json")
+        return [by_id[case_id] for case_id in selected]
+    return cases[:1] if args.stage == "smoke" else cases
 
 
 def execute(args):
@@ -149,6 +168,7 @@ def execute(args):
     else:
         print("Validating six native runs and all 200 baseline cases; no API calls yet", flush=True)
     cases, answers, sources = evidence.prepare(args)
+    requested = requested_cases(args, cases)
     fingerprint = freeze_run(args, cases, answers, sources)
     case_ids = [c["case_id"] for c in cases]
     completed = reporting.completed_cases(args, case_ids, fingerprint)
@@ -157,11 +177,12 @@ def execute(args):
                    "api_calls": 0, "calls_per_case": 6 if args.include_oct else 5, "fingerprint": fingerprint})
         print(f"Preflight passed: {len(cases)} cases, six endpoints, no API calls. Prompts: {args.out_dir / 'prompt_snapshot.json'}")
         return
+    if args.stage == "smoke":
+        print(f"Smoke selection ({len(requested)} patients): " + ", ".join(c["case_id"] for c in requested), flush=True)
     errors = []
     caller = CachedCaller(args.out_dir, args.deployment, lambda: make_client(args), max_attempts=args.max_attempts)
     try:
         if args.stage in {"smoke", "run"}:
-            requested = cases[:1] if args.stage == "smoke" else cases
             for index, case in enumerate(requested, 1):
                 case_id = case["case_id"]
                 if case_id in completed:
@@ -183,13 +204,16 @@ def execute(args):
             "pipeline": "OphthalmicAgent staged progression", "prompt_version": VERSION,
             "run_fingerprint": fingerprint, "deployment": args.deployment, "dry_run": False,
             "stage": args.stage, "expected_cases": len(cases), "completed_cases": len(completed),
+            "requested_case_ids": [c["case_id"] for c in requested],
+            "completed_requested_cases": sum(c["case_id"] in completed for c in requested),
             "missing_cases": sorted(set(case_ids) - set(completed)), "new_errors": errors,
             "complete_live_cohort": set(completed) == set(case_ids),
             "targets": list(ENDPOINTS), "include_oct": args.include_oct})
     if args.stage in {"run", "collect"}:
         reporting.collect(args, answers, completed)
     else:
-        print("One-case staged smoke completed. No performance table on this partial cohort. --stage run resumes cached stages.", flush=True)
+        print(f"{len(requested)}-case staged smoke completed. No performance table on this selected cohort. "
+              "--stage run resumes cached stages.", flush=True)
 
 
 def main():

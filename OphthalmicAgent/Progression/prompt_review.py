@@ -6,7 +6,7 @@ import hashlib
 from html import escape
 from pathlib import Path
 
-from .prompts import SOURCE_PROMPTS, SYSTEM_PROMPTS, VERSION
+from .prompts import DEFAULT_RUN_NAME, SOURCE_PROMPTS, SYSTEM_PROMPTS, VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 NOTES = {
@@ -73,7 +73,7 @@ def export(destination):
 </div><details><summary>Original source SHA-256</summary><code>{sha}</code></details></section>''')
     commands = '''cd ~/RETFound
 conda activate retfound
-RUN="$HOME/RETFound/OphthalmicAgent/outputs/gdp_progression_staged_v1"
+RUN="$HOME/RETFound/OphthalmicAgent/outputs/__RUN_NAME__"
 SCRIPT=OphthalmicAgent/scripts/run_gdp_progression_ophthalmic_agent.py
 mkdir -p "$RUN"
 
@@ -88,7 +88,7 @@ nohup env PYTHONUNBUFFERED=1 python "$SCRIPT" --stage run --out-dir "$RUN" \\
   > "$RUN/run.log" 2>&1 < /dev/null &
 echo $! > "$RUN/run.pid"
 tail -n 30 "$RUN/run.log"
-'''
+'''.replace("__RUN_NAME__", DEFAULT_RUN_NAME)
     document = f'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>OphthalmicAgent: GDP progression prompt review</title>
@@ -103,6 +103,8 @@ nav a{{display:inline-block;margin-right:18px;color:#07695f}}table{{border-colla
 @media print{{body{{font-size:10pt;padding:0}}pre{{font-size:9pt}}.pair{{grid-template-columns:1fr 1fr}}}}
 </style></head><body><h1>OphthalmicAgent: GDP Progression Prompt Review</h1>
 <p>Version: <code>{VERSION}</code>. Left: exact active system prompts extracted with Python AST, not imported or rewritten. Right: exact new system prompts sent by the staged progression runner. Existing diagnostic prompts are unchanged.</p>
+<p>The v2 progression prompts distinguish forecasting a future outcome from confirming observed change. Follow-up examinations are not required inputs; label 0 means a negative forecast, not an unconfirmed outcome. Review flags remain separate from binary forecasts, and helper dependence is not treated as automatic evidence of error.</p>
+<p>This revision followed inspection of v1 test-case reasoning. Preserve v1 outputs and disclose the prompt revision when reporting a rerun on the same test cohort; that cohort is no longer an untouched evaluation for prompt development. Use the new <code>{DEFAULT_RUN_NAME}</code> directory. Old prompt caches cannot be migrated with <code>--upgrade-output-contract</code>. Performance improvement has not been established.</p>
 <nav>{''.join(f'<a href="#{r}">{escape(r.replace("_", " ").title())}</a>' for r in SYSTEM_PROMPTS)}</nav>
 <h2>Execution Contract</h2>
 <p>Separate calls: Bio-Profiler &rarr; RNFLT specialist &rarr; baseline visual-field specialist &rarr; evidence-counterfactual audit &rarr; final orchestrator. Optional OCT adds a separate image specialist. All six endpoints share the reports; the audit and final stage return all six endpoints together. Default: 5 calls/patient, 1,000 calls for 200 cases before retries. With OCT: 6/patient, 1,200 total. Successful stages are cached.</p>

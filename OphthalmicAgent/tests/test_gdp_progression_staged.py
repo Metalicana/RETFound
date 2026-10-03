@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "OphthalmicAgent"))
 sys.path.insert(0, str(ROOT / "equi-agent/tests"))
 
 from Progression import evidence, prompt_review, reporting, workflow
-from Progression.prompts import ENDPOINTS, SCENARIOS, SYSTEM_PROMPTS
+from Progression.prompts import DEFAULT_RUN_NAME, ENDPOINTS, SCENARIOS, SYSTEM_PROMPTS, VERSION
 import test_gdp_progression_clean_suite as fixtures
 
 spec = importlib.util.spec_from_file_location("staged_runner", ROOT / "OphthalmicAgent/scripts/run_gdp_progression_ophthalmic_agent.py")
@@ -67,6 +67,24 @@ def case(root):
 
 
 class StagedProgressionTest(unittest.TestCase):
+    def test_concise_role_prompts_preserve_forecasting_and_output_contract(self):
+        self.assertEqual(VERSION, "ophthalmic_progression_staged_v2")
+        word_limits = {"bio_profiler": 90, "rnflt_specialist": 130, "oct_specialist": 130,
+                       "functional_specialist": 130, "counterfactual": 180, "orchestrator": 275}
+        for stage, prompt in SYSTEM_PROMPTS.items():
+            with self.subTest(stage=stage):
+                self.assertLessEqual(len(prompt.split()), word_limits[stage])
+                self.assertIn("Return JSON", prompt)
+        for stage in ("counterfactual", "orchestrator"):
+            self.assertIn("1 = progression predicted; 0 = non-progression predicted", SYSTEM_PROMPTS[stage])
+            self.assertIn("Predict from baseline data; follow-up examinations are not provided", SYSTEM_PROMPTS[stage])
+        self.assertIn("without treating uncertainty as a negative prediction", SYSTEM_PROMPTS["orchestrator"])
+        self.assertIn("dependence on that source, not necessarily an error", SYSTEM_PROMPTS["counterfactual"])
+        with patch.object(sys, "argv", [str(spec.origin)]):
+            args = runner.parse_args()
+        self.assertEqual(args.out_dir, ROOT / "OphthalmicAgent/outputs" / DEFAULT_RUN_NAME)
+        self.assertEqual(DEFAULT_RUN_NAME, "gdp_progression_staged_v2")
+
     def test_separate_stages_blinded_specialists_and_no_label_leakage(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -98,6 +116,46 @@ class StagedProgressionTest(unittest.TestCase):
             patient["demographics"]["age"] = 80
             with self.assertRaisesRegex(ValueError, "Cached evidence changed"):
                 workflow.run_case(patient, reused)
+
+    def test_previous_prompt_or_version_cache_cannot_be_reused(self):
+        for alteration in ("prompt", "version"):
+            with self.subTest(alteration=alteration), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                fake = FakeClient()
+                patient = case(root)
+                caller = workflow.CachedCaller(root, "gpt-5.1", lambda: fake)
+                previous = (patch.dict(SYSTEM_PROMPTS, {"bio_profiler": "Synthetic earlier prompt"})
+                            if alteration == "prompt" else
+                            patch.object(workflow, "VERSION", "ophthalmic_progression_staged_v1"))
+                with previous:
+                    caller.call(patient["case_id"], "bio_profiler", {})
+                path = root / "stage_cache" / patient["case_id"] / "bio_profiler.json"
+                before = path.read_bytes()
+                reused = workflow.CachedCaller(root, "gpt-5.1", lambda: self.fail("Changed prompts must fail before API access"))
+                with self.assertRaisesRegex(ValueError, "Cached evidence changed"):
+                    reused.call(patient["case_id"], "bio_profiler", {})
+                self.assertEqual(path.read_bytes(), before)
+
+    def test_v1_prompt_run_requires_new_directory_even_with_contract_upgrade(self):
+        for upgrade in (False, True):
+            with self.subTest(upgrade=upgrade), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                args = SimpleNamespace(out_dir=root, deployment="gpt-5.1", include_oct=False,
+                                       upgrade_output_contract=upgrade)
+                patient = case(root)
+                runner.freeze_run(args, [patient], {}, {})
+                path = root / "resolved_config.json"
+                saved = json.loads(path.read_text())
+                saved.pop("fingerprint")
+                saved["prompt_version"] = "ophthalmic_progression_staged_v1"
+                saved["system_prompts"]["orchestrator"] = "Synthetic earlier clinical prompt"
+                saved["fingerprint"] = workflow.digest(saved)
+                workflow.write_json(path, saved)
+                before = path.read_bytes()
+                with self.assertRaises(ValueError):
+                    runner.freeze_run(args, [patient], {}, {})
+                self.assertEqual(path.read_bytes(), before)
+                self.assertFalse((root / "resolved_config.before_output_contract.json").exists())
 
     def test_final_request_requires_exact_six_endpoint_schema(self):
         output = workflow.response_format("orchestrator")
@@ -273,6 +331,71 @@ class StagedProgressionTest(unittest.TestCase):
             self.assertFalse(summary["complete_live_cohort"])
             self.assertFalse((root / "results/results.md").exists())
 
+    def test_selected_five_case_smoke_and_full_run_resume(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            selected = ["data_0344", "data_0371", "data_0397", "data_0411", "data_0432"]
+            args = SimpleNamespace(stage="smoke", case_ids=selected, out_dir=root, include_oct=False,
+                                   deployment="gpt-5.1", max_attempts=2)
+            first = case(root)
+            patients = [first] + [{**first, "case_id": case_id} for case_id in selected]
+            answers = {t: [{"image_id": c["case_id"], "y_true": "0", "split": "test"}
+                           for c in patients] for t in ENDPOINTS}
+            fake = FakeClient()
+            with patch.object(evidence, "prepare", return_value=(patients, answers, {})), \
+                 patch.object(runner, "make_client", return_value=fake), \
+                 patch.object(reporting, "collect") as collect, redirect_stdout(StringIO()):
+                runner.execute(args)
+                fingerprint = json.loads((root / "resolved_config.json").read_text())["fingerprint"]
+                runner.execute(args)
+                self.assertEqual(len(fake.requests), 25)
+                summary = json.loads((root / "summary.json").read_text())
+                self.assertEqual(summary["requested_case_ids"], selected)
+                self.assertEqual(summary["completed_requested_cases"], 5)
+                self.assertEqual(summary["completed_cases"], 5)
+                self.assertEqual(summary["expected_cases"], 6)
+                self.assertEqual(summary["missing_cases"], ["data_0301"])
+                self.assertFalse(summary["complete_live_cohort"])
+                self.assertFalse((root / "cases/data_0301.json").exists())
+                self.assertFalse((root / "stage_cache/data_0301").exists())
+                self.assertFalse((root / "results/results.md").exists())
+                collect.assert_not_called()
+                for target in ENDPOINTS:
+                    rows = evidence.native.read_csv(root / f"predictions_{target}.csv")
+                    self.assertEqual({r["image_id"] for r in rows}, set(selected))
+                args.stage, args.case_ids = "run", None
+                runner.execute(args)
+                self.assertEqual(len(fake.requests), 30)
+                collect.assert_called_once()
+                self.assertEqual(json.loads((root / "resolved_config.json").read_text())["fingerprint"], fingerprint)
+                summary = json.loads((root / "summary.json").read_text())
+                self.assertEqual(summary["completed_requested_cases"], 6)
+                self.assertTrue(summary["complete_live_cohort"])
+
+    def test_bad_smoke_selection_fails_before_freezing_or_api(self):
+        for selected in (["data_9999"], ["data_0301", "data_0301"], []):
+            with self.subTest(selected=selected), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                args = SimpleNamespace(stage="smoke", case_ids=selected, out_dir=root)
+                with patch.object(evidence, "prepare", return_value=([case(root)], {}, {})), \
+                     patch.object(runner, "freeze_run") as freeze, \
+                     patch.object(runner, "make_client") as client, redirect_stdout(StringIO()):
+                    with self.assertRaisesRegex(ValueError, "case-ids"):
+                        runner.execute(args)
+                    freeze.assert_not_called()
+                    client.assert_not_called()
+
+    def test_case_selection_only_allowed_for_smoke(self):
+        with patch.object(sys, "argv", [str(spec.origin), "--stage", "smoke", "--case-ids", "data_0344", "data_0371"]):
+            self.assertEqual(runner.parse_args().case_ids, ["data_0344", "data_0371"])
+        for stage in ("prepare", "run", "collect", "status", "prompts"):
+            with self.subTest(stage=stage), \
+                 patch.object(sys, "argv", [str(spec.origin), "--stage", stage, "--case-ids", "data_0344"]), \
+                 patch("sys.stderr", new=StringIO()):
+                with self.assertRaises(SystemExit) as raised:
+                    runner.parse_args()
+                self.assertEqual(raised.exception.code, 2)
+
     def test_schema_rejects_missing_endpoints_nonbinary_and_missing_review(self):
         for bad in (True, "1", -1, 0.5):
             value = valid_response("orchestrator")
@@ -310,6 +433,9 @@ class StagedProgressionTest(unittest.TestCase):
                 self.assertEqual(len(sha), 64)
                 self.assertIn(f'id="{role}"', result)
             self.assertIn("1,000 calls", result)
+            self.assertIn(VERSION, result)
+            self.assertIn(f"outputs/{DEFAULT_RUN_NAME}", result)
+            self.assertNotIn("outputs/gdp_progression_staged_v1", result)
         for p, contents in before.items():
             self.assertEqual((prompt_review.ROOT / p).read_bytes(), contents)
 
