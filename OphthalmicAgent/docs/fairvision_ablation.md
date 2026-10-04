@@ -32,8 +32,10 @@ Do not choose a pool, threshold or reporting definition after seeing test gains.
   no support cutoff. Ethnicity is not included in this contract. Change the
   draft caption claiming ethnicity accordingly; do not mix with older weighted
   subgroup F1. Subgroup counts and confusion matrices are exported.
-- Mean worst-group F1 is the unweighted mean of the three task minima, not a
-  pooled-patient minimum. Both live arms must complete all 250 cases for a task
+- For multi-task reports, mean worst-group F1 is the unweighted mean of the
+  selected task minima, not a pooled-patient minimum. A single-task report gives
+  that task's worst-group macro-F1, without a cross-task mean.
+  Both live arms must complete all 250 cases for a task
   before either is scored. No missing prediction is imputed or dropped.
 - With both labels included, a subgroup containing only one class has macro-F1
   at most 0.5. This applies to the younger AMD subgroup in these offline rows.
@@ -52,8 +54,9 @@ support-weighted and normalized, then shrunk toward global risk with
 `n_intersection / (n_intersection + 50)`. Undefined subgroup metrics use the
 global metric. These are heuristic coefficients, not newly validated optima.
 
-The agent's checkpoint is evaluated on the 3,000 validation images **without
-API calls or training** before the live comparison. Its own 0.5 decision rule
+The agent's checkpoint is evaluated on 1,000 validation images per selected
+task (3,000 for all three), **without API calls or training**, before the live
+comparison. Previously computed priors are reused. Its own 0.5 decision rule
 is retained for these priors; probabilities are rounded as in the existing
 Vision Agent. Saved fusion-probe priors are not substituted for this checkpoint.
 Checkpoint and image hashes are checked on resume.
@@ -152,18 +155,19 @@ have changed, any inference artifacts exist, or another process holds the run
 lock. It is not a general bypass for stale caches. macOS tar extended-attribute
 warnings are unrelated to missing dataset images.
 
-First run one paired case per task. This needs **21 successful API calls**
+Paid inference requires an explicit `--tasks` selection. To smoke-test all
+three tasks, run one paired case per task. This needs **21 successful API calls**
 before retries; validation inference is cached for the full run:
 
 ```bash
-CUDA_VISIBLE_DEVICES=1 python -u "$SCRIPT" --stage smoke --run-root "$RUN" --device cuda:0
+CUDA_VISIBLE_DEVICES=1 python -u "$SCRIPT" --stage smoke --tasks glaucoma amd dr --run-root "$RUN" --device cuda:0
 ```
 
 Only after smoke passes, launch/resume all three tasks:
 
 ```bash
 nohup env CUDA_VISIBLE_DEVICES=1 PYTHONUNBUFFERED=1 \
-  python "$SCRIPT" --stage run --run-root "$RUN" --device cuda:0 \
+  python "$SCRIPT" --stage run --tasks glaucoma amd dr --run-root "$RUN" --device cuda:0 \
   >> "$RUN/run.log" 2>&1 < /dev/null &
 echo $! > "$RUN/run.pid"
 tail -n 40 "$RUN/run.log"
@@ -181,6 +185,47 @@ Outputs: `table4.md`, `table4.tex`, `results.csv`, `subgroups.csv`, per-case
 `agent/` decisions, shared reports, validated call caches and configuration
 hashes. Keep raw patient reports and demographic input bundles private under
 the dataset's data-use terms. Existing experiments are not overwritten.
+
+## Glaucoma-Only Budget
+
+A glaucoma-only paired ablation uses 250 cases and **1,750 successful calls
+from scratch**, before retries: three shared reports plus two calls per arm
+per case. Resuming the same run root reuses matching completed calls. It does
+not call AMD/DR agents, retrain models, or change prompts, cases, thresholds or
+reliability weights. Report its findings as glaucoma-specific; this is not an
+ablation result for the other diseases.
+
+For an existing run prepared before task selection was added, first record the
+compatible code upgrade offline (also handles the missing-CDR fix below):
+
+```bash
+python "$SCRIPT" --stage repair-cdr --run-root "$RUN"
+```
+
+This works whether the prior CDR repair has already completed or not. Any
+previous repair receipt is archived. Paid-call cache keys remain unchanged.
+
+After that command succeeds, explicitly launch only glaucoma:
+
+```bash
+nohup env CUDA_VISIBLE_DEVICES=1 PYTHONUNBUFFERED=1 \
+  python "$SCRIPT" --stage run --tasks glaucoma --run-root "$RUN" --device cuda:0 \
+  >> "$RUN/glaucoma.log" 2>&1 < /dev/null &
+echo $! > "$RUN/run.pid"
+```
+
+The original all-task image fingerprint is still checked for cache provenance;
+this disk-only check makes no API calls. `execution_tasks.json` records the
+latest invocation's scope. To collect only the selected task, without API calls:
+
+```bash
+python "$SCRIPT" --stage collect --tasks glaucoma --run-root "$RUN"
+```
+
+This writes `table4_glaucoma.md`, `table4_glaucoma.tex`, `results_glaucoma.csv`
+and `subgroups_glaucoma.csv`; the full three-task report is not overwritten.
+The glaucoma-only report does not wait for AMD/DR completion or average over
+their missing agent rows. Other saved task outputs remain available.
 
 ## Resume After an Unavailable CDR
 
@@ -207,8 +252,9 @@ only the two audits and two final decisions require fresh API calls on resume.
 The case that crashed before saving shared evidence reuses its successful
 Bio-Profiler/OCT/SLO API caches while reconstructing that evidence locally.
 
-The repair is resumable and idempotent. Use the existing `--stage run` command
-only when ready to resume paid inference; it still runs all three tasks.
+The repair is resumable and idempotent. Use `--stage run --tasks glaucoma`
+only when ready to resume paid inference on glaucoma. Running all three tasks
+now requires explicitly selecting `--tasks glaucoma amd dr`.
 
 ## Local Verification
 

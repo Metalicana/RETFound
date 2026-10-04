@@ -39,6 +39,10 @@ LEGACY_CDR_CODE = {
     "OphthalmicAgent/scripts/run_fairvision_ablation.py": "a7b66a251e9a499ffcb226d22275561e9c49fc4c7fd9aaa950233c7190f2ff74",
     "OphthalmicAgent/Ablation/fairvision_live.py": "67d537adf862888b2597cd48a6d0434ba215212df52b3e5566965217d7891f46",
 }
+LEGACY_TASK_CODE = {
+    "OphthalmicAgent/scripts/run_fairvision_ablation.py": "b396b0a1cdb71ceef77203286185f00a469904562f365eb694e9f9500680a5e4",
+    "OphthalmicAgent/Ablation/fairvision_live.py": "b2ec7bfba7fd84de9c19e948b9c7ddffa64c8b82139aa4ebfb532ee12a83a94c",
+}
 CDR_REPAIR = "cdr_missing_value_repair_v1"
 
 
@@ -95,6 +99,13 @@ def cdr_value(value):
     require(not isinstance(value, bool), "Invalid boolean CDR")
     number = float(value)
     return number if math.isfinite(number) and 0 <= number <= 1 else "Not Available"
+
+
+def selected_tasks(tasks):
+    tasks = tuple(tasks)
+    require(tasks and len(set(tasks)) == len(tasks) and set(tasks) <= set(TASKS),
+            "Select unique tasks from glaucoma, amd and dr")
+    return tuple(t for t in TASKS if t in tasks)
 
 
 def image_candidates(root, row):
@@ -349,8 +360,9 @@ def require_cdr_upgrade(config, actual):
     previous = config["source_code"]
     require(set(previous) == set(actual), "Source file set changed; not a CDR-only fix")
     changed = {p for p in previous if previous[p] != actual[p]}
-    require(changed and all(p in LEGACY_CDR_CODE and previous[p] == LEGACY_CDR_CODE[p] for p in changed),
-            "Not a recognized CDR-only fix; other code or prompts changed")
+    require(changed and all(p in LEGACY_CDR_CODE and previous[p] in (
+        LEGACY_CDR_CODE[p], LEGACY_TASK_CODE[p]) for p in changed),
+            "Not a recognized CDR-only/task-selection update; other code or prompts changed")
 
 
 def validate_run_code(root, config):
@@ -389,7 +401,20 @@ def repair_cdr(args):
                         original_source_code=config["source_code"], source_code=actual)
         if receipt_path.exists():
             receipt = json.loads(receipt_path.read_text())
-            require(all(receipt[k] == value for k, value in identity.items()), "CDR repair identity changed")
+            require(all(receipt[k] == identity[k] for k in ("run_fingerprint", "original_source_code")),
+                    "CDR repair identity changed")
+            if receipt["source_code"] != actual:
+                previous = receipt["source_code"]
+                require(set(previous) == set(actual) and all(
+                    previous[p] == actual[p] or previous[p] == LEGACY_TASK_CODE.get(p) for p in actual),
+                    "Not a recognized task-selection update; other code or prompts changed")
+                backup = archive / "receipt_before_task_selection.json"
+                if backup.exists():
+                    require(json.loads(backup.read_text()) == receipt, "Task-selection archive changed")
+                else:
+                    write_json(backup, receipt)
+                receipt["source_code"] = actual
+                write_json(receipt_path, receipt)
             if receipt["status"] == "complete":
                 validate_run_code(root, config)
                 print("Missing-CDR repair already complete; cached work preserved. No API calls.")
@@ -505,12 +530,13 @@ def score_rows(cases, predictions):
     return {**audit.metrics(rows), "worst_group_macro_f1": min(r["f1_macro"] for r in groups)}, groups
 
 
-def collect(root):
+def collect(root, tasks=TASKS):
+    tasks = selected_tasks(tasks)
     config, cases, offline = load_prepared(root)
     summary, groups, table = [], [], []
     for variant in VARIANTS:
         cells, worst = [], []
-        for task in TASKS:
+        for task in tasks:
             cohort = [c for c in cases if c["task"] == task]
             if variant in VARIANTS[:2]:
                 predictions = [r for r in offline if r["task"] == task and r["variant"] == variant]
@@ -542,30 +568,41 @@ def collect(root):
             groups.extend(dict(variant=variant, task=task, **r) for r in subs)
             cells.append(f"{metrics['f1_macro']:.4f}")
             worst.append(metrics["worst_group_macro_f1"])
-        mean = f"{sum(worst)/3:.4f}" if len(worst) == 3 else "PENDING"
+        mean = f"{sum(worst)/len(tasks):.4f}" if len(worst) == len(tasks) else "PENDING"
         labels = dict(zip(VARIANTS, ("Simple multimodal ensemble", "Reliability-weighted fusion (no agents)",
                                     "Agents without reliability priors", "RetinAgent (paired full control)")))
         table.append((labels[variant], *cells, mean))
-    audit.write_csv(root / "results.csv", summary)
-    audit.write_csv(root / "subgroups.csv", groups)
+    suffix = "" if tasks == TASKS else "_" + "_".join(tasks)
+    audit.write_csv(root / f"results{suffix}.csv", summary)
+    audit.write_csv(root / f"subgroups{suffix}.csv", groups)
+    names = dict(glaucoma="Glaucoma", amd="AMD", dr="DR")
+    worst_label = "Worst-group macro-F1" if len(tasks) == 1 else "Mean worst-group macro-F1"
+    headers = ["Variant", *(names[t] for t in tasks), worst_label]
+    metric_note = ("Worst-group macro-F1 is the minimum for this task; no cross-task average."
+                   if len(tasks) == 1 else
+                   "Mean worst-group = arithmetic mean of the selected task-specific minima.")
     text = ["# FairVision Comparisons and Reliability Ablation", "",
-            "Macro-F1 on the same 250 cases/task. Mean worst-group = arithmetic mean of the three task-specific minima.",
+            "Selected tasks: " + ", ".join(names[t] for t in tasks) + ".",
+            "Macro-F1 on the same 250 cases/task. " + metric_note,
             "Worst groups: race, sex and age (<50, 50-69, >=70); macro-F1 with both labels, no support cutoff.",
             "Fusion rows are multimodel comparison baselines, not component removals from the RETFound-anchored agent.",
             "Agent rows must be generated together; no historical paper score is inserted.", "",
-            "| Variant | Glaucoma | AMD | DR | Mean worst-group macro-F1 |", "|---|---:|---:|---:|---:|"]
+            "| " + " | ".join(headers) + " |", "|---|" + "---:|" * (len(headers) - 1)]
     text += ["| " + " | ".join(r) + " |" for r in table]
-    (root / "table4.md").write_text("\n".join(text) + "\n")
-    tex = [r"\begin{tabular}{lrrrr}", r"\toprule", r"Variant & Glaucoma & AMD & DR & Mean worst-group macro-F1 \\", r"\midrule"]
+    (root / f"table4{suffix}.md").write_text("\n".join(text) + "\n")
+    tex = [r"\begin{tabular}{l" + "r" * (len(headers) - 1) + "}", r"\toprule",
+           " & ".join(headers) + r" \\", r"\midrule"]
     tex += [" & ".join(r) + r" \\" for r in table]
     tex += [r"\bottomrule", r"\end{tabular}"]
-    (root / "table4.tex").write_text("\n".join(tex) + "\n")
+    (root / f"table4{suffix}.tex").write_text("\n".join(tex) + "\n")
     print("\n".join(text))
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--stage", choices=("prepare", "configure", "paths", "repair-cdr", "smoke", "run", "collect"), default="prepare")
+    p.add_argument("--tasks", nargs="+", choices=TASKS,
+                   help="Required for smoke/run; limits live inference and reporting without changing case caches")
     p.add_argument("--run-root", type=Path, default=ROOT / "OphthalmicAgent/outputs/fairvision_ablation_v1")
     p.add_argument("--locked-csv", type=Path, default=ROOT / "equi-agent/outputs/audits/fairvision_glaucoma_case_recovery/manifest_recovered.csv")
     p.add_argument("--predictions-root", type=Path, default=ROOT / "equi-agent/outputs/predictions")
@@ -578,6 +615,11 @@ def main():
     p.add_argument("--api-version", default="2024-12-01-preview")
     p.add_argument("--device", default="cuda:0")
     args = p.parse_args()
+    if args.stage in ("smoke", "run") and args.tasks is None:
+        p.error("Select paid inference explicitly: --tasks glaucoma (or --tasks glaucoma amd dr)")
+    if args.tasks is not None:
+        require(args.stage in ("smoke", "run", "collect"), "--tasks applies only to smoke, run and collect")
+    args.tasks = selected_tasks(args.tasks if args.tasks is not None else TASKS)
     for name in ("run_root", "locked_csv", "predictions_root", "data_root", "oct_weights"):
         setattr(args, name, getattr(args, name).resolve())
     require(len(args.models) == len(set(args.models)) and "retfound_oct" in args.models
@@ -591,13 +633,13 @@ def main():
     elif args.stage == "repair-cdr":
         repair_cdr(args)
     elif args.stage == "collect":
-        collect(args.run_root)
+        collect(args.run_root, args.tasks)
     else:
         config, cases, _ = load_prepared(args.run_root)
         validate_run_code(args.run_root, config)
         from Ablation.fairvision_live import run
         run(args, config, cases)
-        collect(args.run_root)
+        collect(args.run_root, args.tasks)
 
 
 if __name__ == "__main__":

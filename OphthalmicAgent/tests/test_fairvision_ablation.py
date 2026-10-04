@@ -4,7 +4,7 @@ import json
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -44,6 +44,128 @@ class FakeOrchestrator:
 
 
 class AblationTests(unittest.TestCase):
+    def test_task_selection_requires_explicit_paid_scope(self):
+        self.assertEqual(runner.selected_tasks(["dr", "glaucoma"]), ("glaucoma", "dr"))
+        for tasks in ([], ["glaucoma", "glaucoma"], ["unknown"]):
+            with self.assertRaises(ValueError):
+                runner.selected_tasks(tasks)
+        for stage in ("smoke", "run"):
+            with patch.object(sys, "argv", ["run", "--stage", stage]), redirect_stderr(StringIO()), \
+                    patch.object(runner, "load_prepared") as load, self.assertRaises(SystemExit) as failure:
+                runner.main()
+            self.assertEqual(failure.exception.code, 2)
+            load.assert_not_called()
+
+    def test_selected_anchor_priors_only_infer_requested_tasks_and_reuse_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cases = [dict(task=t, case_id="a") for t in runner.TASKS]
+            validation = [dict(task=t, image_id="val", split="val", y_true=1) for t in runner.TASKS]
+            oct_agent = SimpleNamespace(get_features_oct=lambda image: {
+                head: {"Probability": .8, "Detected": 1} for head in live.HEADS.values()})
+            with patch.object(live, "make_oct", return_value=oct_agent) as make, \
+                    patch.object(live, "load_images", return_value={"oct_img": None}), \
+                    patch.object(live, "fit_reliability", return_value="fitted"), \
+                    patch.object(live, "trust_for", return_value=.7):
+                config = dict(oct_weights="weights")
+                prior = live.anchor_priors(root, config, cases, validation, None, "cpu", "receipt", ("glaucoma",))
+                self.assertEqual(set(prior), {"glaucoma"})
+                make.assert_called_once_with("glaucoma", "weights", "cpu")
+                before = (root / "anchor_trust.json").read_bytes()
+                make.reset_mock()
+                again = live.anchor_priors(root, config, cases, validation, None, "cpu", "receipt", ("glaucoma",))
+                self.assertEqual(prior, again)
+                make.assert_not_called()
+                self.assertEqual((root / "anchor_trust.json").read_bytes(), before)
+                merged = live.anchor_priors(root, config, cases, validation, None, "cpu", "receipt", ("amd",))
+                self.assertEqual(set(merged), {"glaucoma", "amd"})
+                self.assertEqual(merged["glaucoma"], prior["glaucoma"])
+                make.assert_called_once_with("amd", "weights", "cpu")
+                self.assertFalse((root / "anchor_validation/dr").exists())
+
+    def test_glaucoma_only_live_run_never_loads_or_calls_other_task_agents(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            weights = root / "weights.pth"
+            weights.touch()
+            cases = [dict(task=t, case_id="a", filename=f"data/{t}/Test/a.npz", truth=1, metadata={})
+                     for t in runner.TASKS]
+            runner.write_json(root / "validation_cases.json", [])
+            config = dict(fingerprint="run", deployment="test", api_version="test", oct_weights=str(weights),
+                          data_root=str(root), validation_sha256=runner.digest([]))
+            args = SimpleNamespace(run_root=root, tasks=("glaucoma",), stage="run", deployment="test",
+                                   api_version="test", device="cpu")
+            evidence = dict(narrative="Patient", oct_report="OCT", slo_report="SLO", cdr=.5, probability_percent=78.)
+            client = FakeClient([json.dumps(trace()), "[LABELS]GLAUCOMA_DETECTED: 1[/LABELS]"] * 2)
+            slo = SimpleNamespace(cdr_model_name="test", model_cdr=SimpleNamespace(config=SimpleNamespace(_commit_hash="test")))
+            modules = {
+                "VisionAgent.vision_slo_glaucoma": SimpleNamespace(VisionSpecialistSlo=lambda *a, **kw: slo),
+                "BioProfilerAgent.bio_profiler_glaucoma": SimpleNamespace(BioProfiler=lambda: None),
+                "Orchestrator.fairvision_glaucoma": SimpleNamespace(Orchestrator=FakeOrchestrator),
+            }
+            with patch.dict(sys.modules, {
+                "openai": SimpleNamespace(AzureOpenAI=lambda **kw: client),
+                "data.loader": SimpleNamespace(ExcelEyeLoader=lambda path: None),
+            }), patch.dict(live.os.environ, {"AZURE_OPENAI_ENDPOINT": "https://test.invalid", "AZURE_OPENAI_API_KEY": "test"}), \
+                    patch.object(live, "require_images", return_value={c["filename"]: root / "image" for c in cases}), \
+                    patch.object(live, "sha", return_value="test-hash"), \
+                    patch.object(live, "make_oct", return_value=None) as make, \
+                    patch.object(live.importlib, "import_module", side_effect=modules.__getitem__) as imports, \
+                    patch.object(live, "anchor_priors", return_value={"glaucoma": {"a": .7}}) as priors, \
+                    patch.object(live, "shared_evidence", return_value=evidence), redirect_stdout(StringIO()) as output:
+                live._run_locked(args, config, cases)
+                self.assertEqual(len(client.requests), 4)
+                self.assertTrue(all(call.args[0] == "glaucoma" for call in make.call_args_list))
+                self.assertEqual(priors.call_args.args[-1], ("glaucoma",))
+                self.assertEqual({call.args[0] for call in imports.call_args_list}, set(modules))
+                self.assertFalse((root / "agent/amd").exists())
+                self.assertFalse((root / "api/dr").exists())
+                # Repeating the selected run does not spend again or expand to AMD/DR.
+                live._run_locked(args, config, cases)
+                self.assertEqual(len(client.requests), 4)
+                self.assertIn("1 paired cases complete for glaucoma", output.getvalue())
+                self.assertEqual(json.loads((root / "execution_tasks.json").read_text())["tasks"], ["glaucoma"])
+
+    def test_task_upgrade_preserves_an_existing_completed_cdr_repair(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config, cases = self.cdr_fixture(root)
+            with redirect_stdout(StringIO()):
+                runner.repair_cdr(SimpleNamespace(run_root=root))
+            path = root / runner.CDR_REPAIR / "receipt.json"
+            previous = json.loads(path.read_text())
+            previous["source_code"].update(runner.LEGACY_TASK_CODE)
+            runner.write_json(path, previous)
+            paid_files = {p: p.read_bytes() for p in (root / "api").rglob("*.json")}
+            with self.assertRaisesRegex(ValueError, "repair incomplete or code changed"):
+                runner.validate_run_code(root, config)
+            with redirect_stdout(StringIO()):
+                runner.repair_cdr(SimpleNamespace(run_root=root))
+            runner.validate_run_code(root, config)
+            self.assertEqual(json.loads((root / runner.CDR_REPAIR / "receipt_before_task_selection.json").read_text()), previous)
+            self.assertEqual(paid_files, {p: p.read_bytes() for p in (root / "api").rglob("*.json")})
+            before = {p: p.read_bytes() for p in root.rglob("*.json")}
+            with redirect_stdout(StringIO()):
+                runner.repair_cdr(SimpleNamespace(run_root=root))
+            self.assertEqual(before, {p: p.read_bytes() for p in root.rglob("*.json")})
+
+    def test_task_upgrade_accepts_prepared_cdr_fixed_code_but_rejects_other_receipts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config, _ = self.cdr_fixture(root)
+            config["source_code"].update(runner.LEGACY_TASK_CODE)
+            config["fingerprint"] = runner.digest({k: v for k, v in config.items() if k != "fingerprint"})
+            runner.write_json(root / "config.json", config)
+            with redirect_stdout(StringIO()):
+                runner.repair_cdr(SimpleNamespace(run_root=root))
+            runner.validate_run_code(root, config)
+            path = root / runner.CDR_REPAIR / "receipt.json"
+            receipt = json.loads(path.read_text())
+            receipt["source_code"]["OphthalmicAgent/Orchestrator/fairvision_glaucoma.py"] = "unknown"
+            runner.write_json(path, receipt)
+            with self.assertRaisesRegex(ValueError, "Not a recognized task-selection"):
+                runner.repair_cdr(SimpleNamespace(run_root=root))
+
     def cdr_fixture(self, root):
         cases = [dict(task="glaucoma", case_id="valid", truth=1),
                  dict(task="amd", case_id="missing", truth=0)]
@@ -383,6 +505,21 @@ class AblationTests(unittest.TestCase):
                 runner.collect(root)
             self.assertNotIn("PENDING", (root / "table4.md").read_text())
             self.assertIn("1.0000 | 1.0000 | 1.0000 | 1.0000", (root / "table4.md").read_text())
+            full_table = (root / "table4.md").read_bytes()
+            for task in ("amd", "dr"):
+                (root / "agent" / task / runner.VARIANTS[2] / "c249.json").unlink()
+            with redirect_stdout(StringIO()):
+                runner.collect(root, ("glaucoma",))
+            single = (root / "table4_glaucoma.md").read_text()
+            self.assertIn("| Variant | Glaucoma | Worst-group macro-F1 |", single)
+            self.assertNotIn("Mean worst-group", single)
+            self.assertNotIn("PENDING", single)
+            self.assertNotIn("AMD", single)
+            self.assertEqual((root / "table4.md").read_bytes(), full_table)
+            self.assertIn(r"\begin{tabular}{lrr}", (root / "table4_glaucoma.tex").read_text())
+            subset = runner.read_csv(root / "results_glaucoma.csv")
+            self.assertEqual({r["task"] for r in subset}, {"glaucoma"})
+            self.assertTrue(all(r["status"] == "complete" for r in subset))
 
     def test_configure_preserves_inputs_and_refuses_started_runs(self):
         with tempfile.TemporaryDirectory() as tmp:

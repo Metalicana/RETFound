@@ -19,7 +19,7 @@ from types import SimpleNamespace
 from CounterfactualAgent.counterfactual_agent import CounterfactualAgent, SCENARIOS
 from run_fairvision_ablation import (
     ROOT, TASKS, VARIANTS, canonical, cdr_value, digest, fit_reliability, probability,
-    require, require_images, resolve_image_path, sha, trust_for, write_json,
+    require, require_images, resolve_image_path, selected_tasks, sha, trust_for, write_json,
 )
 
 DISEASES = {"amd": "age-related macular degeneration (AMD)", "dr": "diabetic retinopathy",
@@ -216,10 +216,19 @@ def make_oct(task, weights, device):
         module.get_model_oct = original
 
 
-def anchor_priors(root, config, cases, validation, loader, device, receipt):
+def anchor_priors(root, config, cases, validation, loader, device, receipt, tasks=TASKS):
     """Run the actual agent checkpoint on validation only, with zero API calls."""
     result = {}
-    for task in TASKS:
+    path = root / "anchor_trust.json"
+    if path.exists():
+        saved = json.loads(path.read_text())
+        require(saved["receipt"] == receipt, "Prior checkpoint/input identity changed")
+        result = saved["scores"]
+    for task in selected_tasks(tasks):
+        if task in result:
+            require(set(result[task]) == {c["case_id"] for c in cases if c["task"] == task},
+                    f"Incomplete cached anchor priors for {task}")
+            continue
         oct_agent = make_oct(task, config["oct_weights"], device)
         scored = []
         for i, row in enumerate(r for r in validation if r["task"] == task):
@@ -242,7 +251,7 @@ def anchor_priors(root, config, cases, validation, loader, device, receipt):
         result[task] = {c["case_id"]: trust_for(c, task, "retfound_oct", fitted)
                         for c in cases if c["task"] == task}
         del oct_agent
-    write_json(root / "anchor_trust.json", dict(receipt=receipt, scores=result))
+        write_json(root / "anchor_trust.json", dict(receipt=receipt, scores=result))
     return result
 
 
@@ -322,6 +331,10 @@ def _run_locked(args, config, cases):
     from run_fairvision_ablation import audit
 
     root = args.run_root
+    tasks = selected_tasks(args.tasks)
+    count = len(tasks) if args.stage == "smoke" else sum(c["task"] in tasks for c in cases)
+    print(f"Selected tasks: {', '.join(tasks)}; {count} paired cases. "
+          f"Uncached scope: {count * 7} successful API calls before retries; matching calls are reused.", flush=True)
     require(args.deployment == config["deployment"] and args.api_version == config["api_version"], "API settings differ from prepare")
     endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT") or os.environ.get("AZURE_OPENAI_API_BASE")
     require(endpoint and os.environ.get("AZURE_OPENAI_API_KEY"), "Missing Azure endpoint or API key")
@@ -343,16 +356,12 @@ def _run_locked(args, config, cases):
     manifest_path = root / "locked_manifest.csv"
     audit.write_csv(manifest_path, [dict(filename=c["filename"], Task_Folder=c["task"], Ground_Truth=c["truth"], **c["metadata"]) for c in cases])
     loader = ExcelEyeLoader(str(manifest_path))
-    trust_path = root / "anchor_trust.json"
-    if trust_path.exists():
-        prior = json.loads(trust_path.read_text())
-        require(prior["receipt"] == receipt_id, "Prior checkpoint/input identity changed")
-        trust = prior["scores"]
-    else:
-        trust = anchor_priors(root, config, cases, validation, loader, args.device, receipt_id)
+    trust = anchor_priors(root, config, cases, validation, loader, args.device, receipt_id, tasks)
+    write_json(root / "execution_tasks.json", dict(run_fingerprint=config["fingerprint"],
+               stage=args.stage, tasks=list(tasks), paired_cases=count))
     client = AzureOpenAI(azure_endpoint=endpoint, api_key=os.environ["AZURE_OPENAI_API_KEY"],
                          api_version=config["api_version"], max_retries=0, timeout=180)
-    for task in TASKS:
+    for task in tasks:
         selected = sorted((c for c in cases if c["task"] == task), key=lambda r: r["case_id"])
         if args.stage == "smoke":
             selected = selected[:1]
@@ -372,5 +381,5 @@ def _run_locked(args, config, cases):
             run_pair(root, config, case, evidence, trust[task][case["case_id"]], orchestrator, client, receipt_id)
             print(f"paired {task} {i}/{len(selected)} case={case['case_id']}", flush=True)
         del oct_agent, slo_agent, bio, orchestrator
-    print("Three paired smoke cases complete; resume with --stage run." if args.stage == "smoke"
-          else "All 750 paired cases complete.", flush=True)
+    print(f"{count} paired {'smoke ' if args.stage == 'smoke' else ''}cases complete for {', '.join(tasks)}."
+          + (f" Resume with --stage run --tasks {' '.join(tasks)}." if args.stage == "smoke" else ""), flush=True)
