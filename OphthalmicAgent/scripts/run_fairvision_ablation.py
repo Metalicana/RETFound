@@ -35,6 +35,11 @@ LEGACY_PATH_CODE = {
     "OphthalmicAgent/scripts/run_fairvision_ablation.py": "70c071cb3c4d30f248348b289da79524657fb1bea54cdf3af3d3b4aa2fbfe786",
     "OphthalmicAgent/Ablation/fairvision_live.py": "a5147fa1bbdbb6dfa1a7a974a3ab7486bbff10ab9d144005ae4973cb24b7c717",
 }
+LEGACY_CDR_CODE = {
+    "OphthalmicAgent/scripts/run_fairvision_ablation.py": "a7b66a251e9a499ffcb226d22275561e9c49fc4c7fd9aaa950233c7190f2ff74",
+    "OphthalmicAgent/Ablation/fairvision_live.py": "67d537adf862888b2597cd48a6d0434ba215212df52b3e5566965217d7891f46",
+}
+CDR_REPAIR = "cdr_missing_value_repair_v1"
 
 
 def require(condition, message):
@@ -80,6 +85,16 @@ def probability(value):
     p = float(value)
     require(math.isfinite(p) and 0 <= p <= 1, f"Invalid probability {value!r}")
     return p
+
+
+def cdr_value(value):
+    """Preserve measurements; never turn a missing/invalid segmentation into zero."""
+    if value is None or (isinstance(value, str) and value.strip().lower() in (
+            "", "not available", "unavailable", "n/a", "none", "null")):
+        return "Not Available"
+    require(not isinstance(value, bool), "Invalid boolean CDR")
+    number = float(value)
+    return number if math.isfinite(number) and 0 <= number <= 1 else "Not Available"
 
 
 def image_candidates(root, row):
@@ -326,6 +341,111 @@ def load_prepared(root):
     return config, cases, predictions
 
 
+def current_code():
+    return {str(p.relative_to(ROOT)): sha(p) for p in code_paths()}
+
+
+def require_cdr_upgrade(config, actual):
+    previous = config["source_code"]
+    require(set(previous) == set(actual), "Source file set changed; not a CDR-only fix")
+    changed = {p for p in previous if previous[p] != actual[p]}
+    require(changed and all(p in LEGACY_CDR_CODE and previous[p] == LEGACY_CDR_CODE[p] for p in changed),
+            "Not a recognized CDR-only fix; other code or prompts changed")
+
+
+def validate_run_code(root, config):
+    actual = current_code()
+    if actual == config["source_code"]:
+        return
+    require_cdr_upgrade(config, actual)
+    path = root / CDR_REPAIR / "receipt.json"
+    require(path.exists(), "Missing-CDR fix needs a one-time offline repair: use --stage repair-cdr")
+    receipt = json.loads(path.read_text())
+    require(receipt["run_fingerprint"] == config["fingerprint"]
+            and receipt["original_source_code"] == config["source_code"]
+            and receipt["source_code"] == actual and receipt["status"] == "complete",
+            "CDR repair incomplete or code changed; check --stage repair-cdr before resuming")
+
+
+def repair_cdr(args):
+    """Apply only the known CDR correction without changing paid-call cache keys."""
+    import fcntl
+
+    root = args.run_root
+    with (root / "run.lock").open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise RuntimeError("Cannot repair while this run is active") from exc
+        config, cases, _ = load_prepared(root)
+        actual = current_code()
+        if actual == config["source_code"]:
+            print("Run already uses the missing-CDR fix. No API calls.")
+            return
+        require_cdr_upgrade(config, actual)
+        archive = root / CDR_REPAIR
+        receipt_path = archive / "receipt.json"
+        identity = dict(run_fingerprint=config["fingerprint"],
+                        original_source_code=config["source_code"], source_code=actual)
+        if receipt_path.exists():
+            receipt = json.loads(receipt_path.read_text())
+            require(all(receipt[k] == value for k, value in identity.items()), "CDR repair identity changed")
+            if receipt["status"] == "complete":
+                validate_run_code(root, config)
+                print("Missing-CDR repair already complete; cached work preserved. No API calls.")
+                return
+            require(receipt["status"] == "planned", "Unknown CDR repair status")
+        else:
+            updates, artifacts = {}, {}
+            for case in cases:
+                task, case_id = case["task"], case["case_id"]
+                shared = root / "shared" / task / f"{case_id}.json"
+                if not shared.exists():
+                    continue
+                saved = json.loads(shared.read_text())
+                corrected = cdr_value(saved["evidence"]["cdr"])
+                if corrected == saved["evidence"]["cdr"]:
+                    continue
+                saved["evidence"]["cdr"] = corrected
+                updates[str(shared.relative_to(root))] = saved
+                files = [shared]
+                for variant in VARIANTS[2:]:
+                    decision = root / "agent" / task / variant / f"{case_id}.json"
+                    if decision.exists():
+                        files.append(decision)
+                    files.extend((root / "api" / task / case_id / variant).rglob("*.json"))
+                artifacts.update({str(p.relative_to(root)): sha(p) for p in files})
+            receipt = dict(**identity, status="planned", updates=updates, artifacts=artifacts,
+                           reason="Represent unavailable CDR explicitly; refresh both arms only where CDR changed")
+            write_json(receipt_path, receipt)
+
+        # Persist the plan first so an interrupted repair can finish without losing
+        # original evidence. Unchanged cases and all shared API responses stay put.
+        for relative, expected in receipt["artifacts"].items():
+            source, dest = root / relative, archive / "original" / relative
+            if dest.exists():
+                require(sha(dest) == expected, f"Changed CDR archive: {relative}")
+                if source.exists():
+                    require(relative in receipt["updates"]
+                            and json.loads(source.read_text()) == receipt["updates"][relative],
+                            f"Unexpected artifact during CDR repair: {relative}")
+            else:
+                require(source.is_file() and sha(source) == expected, f"Changed CDR artifact: {relative}")
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                source.replace(dest)
+        for relative, updated in receipt["updates"].items():
+            path = root / relative
+            if path.exists():
+                require(json.loads(path.read_text()) == updated, f"Changed repaired CDR: {relative}")
+            else:
+                write_json(path, updated)
+        receipt["status"] = "complete"
+        write_json(receipt_path, receipt)
+        validate_run_code(root, config)
+        print(f"Missing-CDR fix recorded; {len(receipt['updates'])} cached cases need refreshed paired decisions. "
+              "All other decisions, shared API reports and validation inference preserved. No API calls.")
+
+
 def configure(args):
     """Relocate a prepared, unused input bundle from the Mac to CECSL."""
     import fcntl
@@ -445,7 +565,7 @@ def collect(root):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--stage", choices=("prepare", "configure", "paths", "smoke", "run", "collect"), default="prepare")
+    p.add_argument("--stage", choices=("prepare", "configure", "paths", "repair-cdr", "smoke", "run", "collect"), default="prepare")
     p.add_argument("--run-root", type=Path, default=ROOT / "OphthalmicAgent/outputs/fairvision_ablation_v1")
     p.add_argument("--locked-csv", type=Path, default=ROOT / "equi-agent/outputs/audits/fairvision_glaucoma_case_recovery/manifest_recovered.csv")
     p.add_argument("--predictions-root", type=Path, default=ROOT / "equi-agent/outputs/predictions")
@@ -468,12 +588,13 @@ def main():
         configure(args)
     elif args.stage == "paths":
         paths(args)
+    elif args.stage == "repair-cdr":
+        repair_cdr(args)
     elif args.stage == "collect":
         collect(args.run_root)
     else:
         config, cases, _ = load_prepared(args.run_root)
-        require(all(sha(ROOT / path) == value for path, value in config["source_code"].items()),
-                "Source code changed since prepare; use a fresh run root")
+        validate_run_code(args.run_root, config)
         from Ablation.fairvision_live import run
         run(args, config, cases)
         collect(args.run_root)

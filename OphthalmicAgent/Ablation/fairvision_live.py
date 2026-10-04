@@ -18,7 +18,7 @@ from types import SimpleNamespace
 
 from CounterfactualAgent.counterfactual_agent import CounterfactualAgent, SCENARIOS
 from run_fairvision_ablation import (
-    ROOT, TASKS, VARIANTS, canonical, digest, fit_reliability, probability,
+    ROOT, TASKS, VARIANTS, canonical, cdr_value, digest, fit_reliability, probability,
     require, require_images, resolve_image_path, sha, trust_for, write_json,
 )
 
@@ -266,7 +266,7 @@ def shared_evidence(root, config, case, loader, oct_agent, slo_agent, bio, clien
         state["vision_opinion_oct"] = oct_report
         slo_report, cdr = slo_agent.analyze(patient["fundus_img"], state)
     evidence = dict(narrative=state["clinical_narrative"], oct_report=oct_report, slo_report=slo_report,
-                    probability_percent=state["oct_diagnosis"][HEADS[case["task"]]]["Prob_Pct"], cdr=float(cdr))
+                    probability_percent=state["oct_diagnosis"][HEADS[case["task"]]]["Prob_Pct"], cdr=cdr_value(cdr))
     probability(evidence["probability_percent"] / 100)
     write_json(path, dict(fingerprint=identity, evidence=evidence))
     return evidence

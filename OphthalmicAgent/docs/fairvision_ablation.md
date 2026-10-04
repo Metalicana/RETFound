@@ -182,6 +182,34 @@ Outputs: `table4.md`, `table4.tex`, `results.csv`, `subgroups.csv`, per-case
 hashes. Keep raw patient reports and demographic input bundles private under
 the dataset's data-use terms. Existing experiments are not overwritten.
 
+## Resume After an Unavailable CDR
+
+The SLO tool can return `"Not Available"` or `-1` when segmentation fails. The
+ablation adapter now preserves this as `"Not Available"`, not zero, a diagnosis,
+or a reason to remove the patient. Valid CDR measurements are unchanged.
+
+For an existing run that crashed at `float(cdr)`, pull the correction and run:
+
+```bash
+python "$SCRIPT" --stage repair-cdr --run-root "$RUN"
+```
+
+This stage makes **no API calls** and does not launch inference. It accepts only
+the recognized code correction, refuses an active run or unrelated source
+changes, and records provenance under `cdr_missing_value_repair_v1/` without
+changing the original experiment fingerprint or upstream cache keys.
+
+Completed cases with valid CDR, validation predictions, reliability priors and
+all shared paid reports are retained. If a cached case has an invalid numeric
+CDR (including the AMD smoke case's `-1`), its original shared evidence and both
+arms' downstream caches/decisions are archived. Its cached evidence is corrected;
+only the two audits and two final decisions require fresh API calls on resume.
+The case that crashed before saving shared evidence reuses its successful
+Bio-Profiler/OCT/SLO API caches while reconstructing that evidence locally.
+
+The repair is resumable and idempotent. Use the existing `--stage run` command
+only when ready to resume paid inference; it still runs all three tasks.
+
 ## Local Verification
 
 ```bash

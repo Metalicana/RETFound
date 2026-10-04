@@ -38,12 +38,156 @@ class FakeClient:
 class FakeOrchestrator:
     def analyze(self, state, probability, cdr, trust, cf):
         messages = [dict(role="system", content="Test-only orchestrator"),
-                    dict(role="user", content=f"{state}\n- **Trust Score**: {trust}\n{cf}")]
+                    dict(role="user", content=f"{state}\nCDR: {cdr}\n- **Trust Score**: {trust}\n{cf}")]
         response = self.model_client.chat.completions.create(messages=messages)
         return {"decision": response.choices[0].message.content}
 
 
 class AblationTests(unittest.TestCase):
+    def cdr_fixture(self, root):
+        cases = [dict(task="glaucoma", case_id="valid", truth=1),
+                 dict(task="amd", case_id="missing", truth=0)]
+        config = dict(deployment="test", version=runner.VERSION,
+                      prepared_sha256=runner.digest(cases), offline_sha256=runner.digest([]),
+                      validation_sha256=runner.digest([]),
+                      source_code={**runner.current_code(), **runner.LEGACY_CDR_CODE})
+        config["fingerprint"] = runner.digest(config)
+        for name, value in (("config", config), ("prepared_cases", cases),
+                            ("offline_predictions", []), ("validation_cases", [])):
+            runner.write_json(root / (name + ".json"), value)
+        runner.write_json(root / "anchor_trust.json", {"unchanged": True})
+        runner.write_json(root / "live_receipt.json", {"unchanged": True})
+        for case, cdr in zip(cases, (.514, -1.)):
+            t, c = case["task"], case["case_id"]
+            evidence = dict(narrative="Patient", oct_report="OCT", slo_report="SLO",
+                            cdr=cdr, probability_percent=78.)
+            runner.write_json(root / "shared" / t / f"{c}.json", dict(fingerprint="shared", evidence=evidence))
+            runner.write_json(root / "api" / t / c / "shared/report.json", {"paid_report": "unchanged"})
+            runner.write_json(root / "anchor_validation" / t / "a.json", {"prediction": .8})
+            client = FakeClient([json.dumps(trace()), "[LABELS]" + t.upper() + "_DETECTED: 1[/LABELS]"] * 2)
+            live.run_pair(root, config, case, evidence, .7, FakeOrchestrator(), client, "receipt")
+        return config, cases
+
+    def test_missing_cdr_is_not_a_zero_or_negative_measurement(self):
+        for raw in (None, "Not Available", " not available ", "N/A", "", -1, "-1", float("nan"),
+                    float("inf"), -.4, 1.4):
+            with self.subTest(raw=raw):
+                self.assertEqual(runner.cdr_value(raw), "Not Available")
+        for raw in (0, .426, 1, "0.514"):
+            self.assertEqual(runner.cdr_value(raw), float(raw))
+        for raw in (True, False, "unexpected tool output"):
+            with self.assertRaises(ValueError):
+                runner.cdr_value(raw)
+
+    def test_failed_shared_evidence_resumes_paid_reports_with_missing_cdr(self):
+        class Bio:
+            def generate_narrative(self, metadata):
+                return self.model_client.create(messages=[dict(role="user", content="narrative")]).choices[0].message.content
+
+        class OCT:
+            def analyze(self, image, middle, state):
+                state["oct_diagnosis"] = {"Glaucoma": {"Prob_Pct": 78}}
+                r = self.model_client.create(messages=[dict(role="user", content="OCT")])
+                return None, r.choices[0].message.content
+
+        class SLO:
+            def analyze(self, image, state):
+                r = self.model_client.create(messages=[dict(role="user", content="SLO")])
+                return r.choices[0].message.content, "Not Available"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config = dict(fingerprint="run", deployment="test")
+            case = dict(task="glaucoma", case_id="failed", metadata={})
+            client = FakeClient(["narrative", "OCT report", "SLO report"])
+            components = (OCT(), SLO(), Bio())
+            with patch.object(live, "load_images", return_value=dict(oct_img=None, middle_oct=None, fundus_img=None)):
+                with patch.object(live, "cdr_value", side_effect=float), self.assertRaises(ValueError):
+                    live.shared_evidence(root, config, case, None, *components, client, "receipt")
+                self.assertEqual(len(client.requests), 3)
+                self.assertFalse((root / "shared/glaucoma/failed.json").exists())
+                evidence = live.shared_evidence(root, config, case, None, *components, client, "receipt")
+                self.assertEqual(evidence["cdr"], "Not Available")
+                self.assertEqual(len(client.requests), 3)
+                # The resumed case and both arms receive the same explicit missing value.
+                for trust in (None, .7):
+                    messages = live.counterfactual_messages("glaucoma", evidence, trust)
+                    payload = json.loads(messages[1]["content"].split("EVIDENCE_JSON:\n")[1])
+                    self.assertEqual(payload["vertical_cup_to_disc_ratio"], "Not Available")
+
+    def test_cdr_repair_preserves_valid_cases_and_shared_paid_caches(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config, cases = self.cdr_fixture(root)
+            originals = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*.json")}
+            with self.assertRaisesRegex(ValueError, "--stage repair-cdr"):
+                runner.validate_run_code(root, config)
+            with redirect_stdout(StringIO()):
+                runner.repair_cdr(SimpleNamespace(run_root=root))
+            runner.validate_run_code(root, config)
+            self.assertEqual((root / "config.json").read_bytes(), originals["config.json"])
+            fixed = json.loads((root / "shared/amd/missing.json").read_text())
+            self.assertEqual(fixed["evidence"]["cdr"], "Not Available")
+            receipt = json.loads((root / runner.CDR_REPAIR / "receipt.json").read_text())
+            self.assertEqual(len(receipt["updates"]), 1)
+            self.assertEqual(receipt["status"], "complete")
+            for relative, data in originals.items():
+                if relative in receipt["artifacts"]:
+                    self.assertEqual((root / runner.CDR_REPAIR / "original" / relative).read_bytes(), data)
+                    if relative not in receipt["updates"]:
+                        self.assertFalse((root / relative).exists())
+                else:
+                    self.assertEqual((root / relative).read_bytes(), data)
+            # Both corrected arms rerun, not their upstream reports or any valid case.
+            client = FakeClient([json.dumps(trace()), "[LABELS]AMD_DETECTED: 1[/LABELS]"] * 2)
+            live.run_pair(root, config, cases[1], fixed["evidence"], .7, FakeOrchestrator(), client, "receipt")
+            self.assertEqual(len(client.requests), 4)
+            before = {p: p.read_bytes() for p in root.rglob("*.json")}
+            with redirect_stdout(StringIO()):
+                runner.repair_cdr(SimpleNamespace(run_root=root))
+            self.assertEqual(before, {p: p.read_bytes() for p in root.rglob("*.json")})
+
+    def test_cdr_repair_recovers_interrupted_archiving(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config, _ = self.cdr_fixture(root)
+            replace = Path.replace
+            moved = []
+
+            def interrupt(path, destination):
+                result = replace(path, destination)
+                if "original" in destination.parts:
+                    moved.append(destination)
+                    if len(moved) == 2:
+                        raise RuntimeError("Simulated interruption")
+                return result
+
+            with patch.object(Path, "replace", interrupt), self.assertRaisesRegex(RuntimeError, "interruption"):
+                runner.repair_cdr(SimpleNamespace(run_root=root))
+            with self.assertRaisesRegex(ValueError, "repair incomplete"):
+                runner.validate_run_code(root, config)
+            with redirect_stdout(StringIO()):
+                runner.repair_cdr(SimpleNamespace(run_root=root))
+            runner.validate_run_code(root, config)
+            self.assertEqual(json.loads((root / "shared/amd/missing.json").read_text())["evidence"]["cdr"], "Not Available")
+
+    def test_cdr_repair_rejects_other_changes_and_active_run(self):
+        import fcntl
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config, _ = self.cdr_fixture(root)
+            config["source_code"]["OphthalmicAgent/data/loader.py"] = "unknown-code"
+            config["fingerprint"] = runner.digest({k: v for k, v in config.items() if k != "fingerprint"})
+            runner.write_json(root / "config.json", config)
+            with self.assertRaisesRegex(ValueError, "Not a recognized CDR-only"):
+                runner.repair_cdr(SimpleNamespace(run_root=root))
+            self.assertFalse((root / runner.CDR_REPAIR).exists())
+            with (root / "run.lock").open("a") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                with self.assertRaisesRegex(RuntimeError, "while this run is active"):
+                    runner.repair_cdr(SimpleNamespace(run_root=root))
+
     def test_supported_dataset_layouts_preserve_task_and_split(self):
         row = dict(task="glaucoma", filename="data/Glaucoma/Test/data_07001.npz")
         for relative in ("data/Glaucoma/Test/data_07001.npz", "Glaucoma/Test/data_07001.npz",
