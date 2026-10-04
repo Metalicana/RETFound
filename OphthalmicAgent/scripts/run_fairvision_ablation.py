@@ -29,6 +29,12 @@ VARIANTS = ("simple_multimodal_ensemble", "reliability_weighted_fusion",
 VERSION = "fairvision_paired_ablation_v1"
 COEFFICIENTS = dict(fnr_weight=.35, fpr_weight=.25, ece_weight=.15,
                     auroc_weight=.15, f1_weight=.10, k=50.)
+DISEASE_FOLDERS = {"glaucoma": "Glaucoma", "amd": "AMD", "dr": "DR"}
+# Only the original, unused bundle may adopt this path-only correction.
+LEGACY_PATH_CODE = {
+    "OphthalmicAgent/scripts/run_fairvision_ablation.py": "70c071cb3c4d30f248348b289da79524657fb1bea54cdf3af3d3b4aa2fbfe786",
+    "OphthalmicAgent/Ablation/fairvision_live.py": "a5147fa1bbdbb6dfa1a7a974a3ab7486bbff10ab9d144005ae4973cb24b7c717",
+}
 
 
 def require(condition, message):
@@ -74,6 +80,76 @@ def probability(value):
     p = float(value)
     require(math.isfinite(p) and 0 <= p <= 1, f"Invalid probability {value!r}")
     return p
+
+
+def image_candidates(root, row):
+    filename = Path(row["filename"])
+    require(not filename.is_absolute() and ".." not in filename.parts and len(filename.parts) >= 3,
+            f"Expected task/split-qualified relative image path: {filename}")
+    disease = DISEASE_FOLDERS[row["task"]]
+    require(filename.parts[-3] == disease, f"Task/path mismatch: {row['task']}/{filename}")
+    folder = filename.parts[-2]
+    require(folder in ("Test", "Validation"), f"Unexpected image split: {filename}")
+    require(filename.suffix == ".npz", f"Expected NPZ image: {filename}")
+    expected_split = "val" if folder == "Validation" else "test"
+    require(row.get("split", expected_split) == expected_split, f"Split/path mismatch: {filename}")
+    candidates = [root / filename]
+    for base in (root, root / "data", root / "HarvardFairVision30k"):
+        candidates.extend((base / disease / folder / filename.name,
+                           base / folder / disease / filename.name,
+                           base / folder / filename.name))
+    return list(dict.fromkeys(candidates))
+
+
+def resolve_image_path(root, row):
+    candidates = image_candidates(Path(root), row)
+    # Symlink aliases of one image are harmless; distinct matches need an explicit root.
+    matches = list(dict.fromkeys(p.resolve() for p in candidates if p.is_file()))
+    require(len(matches) <= 1, f"Ambiguous image {row['filename']}: {matches}; select a more specific --data-root")
+    return matches[0] if matches else candidates[0].resolve()
+
+
+def inspect_images(root, rows):
+    resolved, issues = {}, []
+    for row in rows:
+        try:
+            path = resolve_image_path(root, row)
+            if path.is_file():
+                resolved[row["filename"]] = path
+            else:
+                issues.append(f"Missing {row['filename']}")
+        except ValueError as exc:
+            issues.append(str(exc))
+    return resolved, issues
+
+
+def require_images(root, rows):
+    resolved, issues = inspect_images(root, rows)
+    require(not issues and len(resolved) == len(rows),
+            f"Image preflight failed under {root}: {len(resolved)}/{len(rows)} resolved. "
+            f"First issues: {issues[:5]}. Use --stage paths to inspect supported dataset roots; no API calls.")
+    return resolved
+
+
+def paths(args):
+    config, cases, _ = load_prepared(args.run_root)
+    validation = json.loads((args.run_root / "validation_cases.json").read_text())
+    require(digest(validation) == config["validation_sha256"], "Validation input changed")
+    rows = cases + validation
+    roots = dict.fromkeys((args.data_root, Path(config["data_root"]), ROOT / "Datasets/FairVision",
+                          ROOT / "Datasets/FairVision/HarvardFairVision30k", ROOT / "OphthalmicAgent/data"))
+    for root in roots:
+        resolved, issues = inspect_images(root, rows)
+        print(f"data_root={root}: {len(resolved)}/{len(rows)} images resolved")
+        if issues:
+            print("  " + "; ".join(issues[:2]))
+        else:
+            for task in TASKS:
+                for folder in ("Test", "Validation"):
+                    selected = [r for r in rows if r["task"] == task and Path(r["filename"]).parts[-2] == folder]
+                    if selected:
+                        print(f"  {task}/{folder}: {len(selected)}; example={resolved[selected[0]['filename']]}")
+    print("Read-only path audit complete. No API calls or configuration changes.")
 
 
 def demographic(row):
@@ -252,18 +328,44 @@ def load_prepared(root):
 
 def configure(args):
     """Relocate a prepared, unused input bundle from the Mac to CECSL."""
+    import fcntl
+
+    with (args.run_root / "run.lock").open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise RuntimeError("Cannot configure while this run is active") from exc
+        configure_unused(args)
+
+
+def configure_unused(args):
     root = args.run_root
-    require(not (root / "live_receipt.json").exists() and not (root / "agent").exists(),
+    require(not any((root / name).exists() for name in (
+        "live_receipt.json", "agent", "api", "shared", "anchor_validation", "anchor_trust.json")),
             "Cannot reconfigure a run after inference has started")
-    config, _, _ = load_prepared(root)
-    require(all(sha(ROOT / path) == value for path, value in config["source_code"].items()),
-            "Input bundle and checked-out code differ; sync the matching version first")
+    config, cases, _ = load_prepared(root)
+    original = dict(config)
+    changed = {path: sha(ROOT / path) for path, value in config["source_code"].items() if sha(ROOT / path) != value}
+    if changed:
+        require(getattr(args, "upgrade_path_layout", False),
+                "Input bundle and code differ. For the original unused bundle's path fix, use --upgrade-path-layout")
+        require(set(config["source_code"]) == {str(p.relative_to(ROOT)) for p in code_paths()}
+                and all(path in LEGACY_PATH_CODE and config["source_code"][path] == LEGACY_PATH_CODE[path] for path in changed),
+                "Not a recognized path-only upgrade; other code or prompts changed. Use matching code or a fresh preparation")
+        config["source_code"] = {**config["source_code"], **changed}
+        config["path_layout_version"] = "fairvision_paths_v1"
     validation = json.loads((root / "validation_cases.json").read_text())
     require(digest(validation) == config["validation_sha256"], "Validation input changed")
+    resolved = require_images(args.data_root, cases + validation)
     config.update(data_root=str(args.data_root), oct_weights=str(args.oct_weights))
     config["fingerprint"] = digest({k: v for k, v in config.items() if k != "fingerprint"})
+    if changed:
+        archive = root / "config_before_path_layout_update.json"
+        require(not archive.exists(), f"Refusing to overwrite previous configuration archive: {archive}")
+        write_json(archive, original)
     write_json(root / "config.json", config)
-    print(f"Configured data_root={args.data_root}; oct_weights={args.oct_weights}. No API calls.")
+    print(f"Configured data_root={args.data_root}; images={len(resolved)}/{len(cases)+len(validation)}; "
+          f"oct_weights={args.oct_weights}. No API calls.")
 
 
 def score_rows(cases, predictions):
@@ -343,12 +445,14 @@ def collect(root):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--stage", choices=("prepare", "configure", "smoke", "run", "collect"), default="prepare")
+    p.add_argument("--stage", choices=("prepare", "configure", "paths", "smoke", "run", "collect"), default="prepare")
     p.add_argument("--run-root", type=Path, default=ROOT / "OphthalmicAgent/outputs/fairvision_ablation_v1")
     p.add_argument("--locked-csv", type=Path, default=ROOT / "equi-agent/outputs/audits/fairvision_glaucoma_case_recovery/manifest_recovered.csv")
     p.add_argument("--predictions-root", type=Path, default=ROOT / "equi-agent/outputs/predictions")
     p.add_argument("--models", nargs="+", choices=MODELS, default=list(MODELS))
-    p.add_argument("--data-root", type=Path, default=ROOT / "OphthalmicAgent")
+    p.add_argument("--data-root", type=Path, default=ROOT / "OphthalmicAgent",
+                   help="OphthalmicAgent root or FairVision dataset root; supports task-first and split-first layouts")
+    p.add_argument("--upgrade-path-layout", action="store_true", help="Adopt the path-only fix for the original unused input bundle")
     p.add_argument("--oct-weights", type=Path, default=ROOT / "OphthalmicAgent/weights/oct_model_8_slices_not_center.pth")
     p.add_argument("--deployment", default="gpt-5.1")
     p.add_argument("--api-version", default="2024-12-01-preview")
@@ -362,6 +466,8 @@ def main():
         prepare(args)
     elif args.stage == "configure":
         configure(args)
+    elif args.stage == "paths":
+        paths(args)
     elif args.stage == "collect":
         collect(args.run_root)
     else:

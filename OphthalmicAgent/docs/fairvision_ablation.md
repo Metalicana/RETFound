@@ -89,7 +89,8 @@ cd ~/RETFound
 conda activate retfound
 SCRIPT=OphthalmicAgent/scripts/run_fairvision_ablation.py
 RUN="$HOME/RETFound/OphthalmicAgent/outputs/fairvision_ablation_v1"
-python "$SCRIPT" --stage prepare --run-root "$RUN"
+python "$SCRIPT" --stage prepare --run-root "$RUN" \
+  --data-root "$HOME/RETFound/Datasets/FairVision"
 ```
 
 Or transfer the prepared bundle from the Mac (avoids assuming the recovered
@@ -108,15 +109,48 @@ SCRIPT=OphthalmicAgent/scripts/run_fairvision_ablation.py
 RUN="$HOME/RETFound/OphthalmicAgent/outputs/fairvision_ablation_v1"
 mkdir -p "$RUN"
 tar --keep-old-files -xzf /tmp/fairvision_ablation_inputs.tar.gz -C "$RUN"
-python "$SCRIPT" --stage configure --run-root "$RUN"
+python "$SCRIPT" --stage configure --run-root "$RUN" \
+  --data-root "$HOME/RETFound/Datasets/FairVision"
 ```
 
-Defaults expect `OphthalmicAgent/data/{AMD,DR,Glaucoma}/{Test,Validation}` and
-`OphthalmicAgent/weights/oct_model_8_slices_not_center.pth`. Override
-`--data-root` (parent of `data/`) and `--oct-weights` during prepare/configure
-if the cluster layout differs. All images and weights are checked before the
-first paid call. The environment must support the existing OCT/SLO agents and
-the Hugging Face CDR checkpoint. No checkpoint is trained by this runner.
+`--data-root` accepts the OphthalmicAgent directory with `data/` underneath it,
+or the FairVision dataset root. Supported dataset layouts include
+`Glaucoma/Test/file.npz`, `Test/Glaucoma/file.npz`, `Test/file.npz`, and
+`HarvardFairVision30k/Glaucoma/Test/file.npz`, with the corresponding validation
+and AMD/DR folders. Task and split are preserved; the resolver never searches
+recursively by bare filename or substitutes a file from another split. Symlink
+aliases are accepted; multiple distinct matches are rejected as ambiguous.
+
+The default checkpoint is
+`OphthalmicAgent/weights/oct_model_8_slices_not_center.pth`; override
+`--oct-weights` during prepare/configure if needed. Configure checks all 3,750
+image paths before changing the saved configuration. Smoke checks the images
+and checkpoint before its first paid call. The environment must support the
+existing OCT/SLO agents and the Hugging Face CDR checkpoint. No checkpoint is
+trained by this runner.
+
+For a read-only path audit (no API clients or imaging dependencies):
+
+```bash
+python "$SCRIPT" --stage paths --run-root "$RUN"
+```
+
+The original October 3 bundle only supported the legacy OphthalmicAgent layout.
+If it stopped with `Missing 3750 images`, sync this code fix and reuse the already
+extracted bundle without another transfer or extraction:
+
+```bash
+python "$SCRIPT" --stage configure --run-root "$RUN" \
+  --upgrade-path-layout \
+  --data-root "$HOME/RETFound/Datasets/FairVision"
+```
+
+The upgrade recognizes only the two original path-handling source hashes. It
+archives the old config, keeps the prepared cohort, labels, predictions and
+thresholds unchanged, and refuses to proceed if prompts or other source files
+have changed, any inference artifacts exist, or another process holds the run
+lock. It is not a general bypass for stale caches. macOS tar extended-attribute
+warnings are unrelated to missing dataset images.
 
 First run one paired case per task. This needs **21 successful API calls**
 before retries; validation inference is cached for the full run:

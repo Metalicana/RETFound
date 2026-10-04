@@ -19,7 +19,7 @@ from types import SimpleNamespace
 from CounterfactualAgent.counterfactual_agent import CounterfactualAgent, SCENARIOS
 from run_fairvision_ablation import (
     ROOT, TASKS, VARIANTS, canonical, digest, fit_reliability, probability,
-    require, sha, trust_for, write_json,
+    require, require_images, resolve_image_path, sha, trust_for, write_json,
 )
 
 DISEASES = {"amd": "age-related macular degeneration (AMD)", "dr": "diabetic retinopathy",
@@ -188,7 +188,7 @@ def working_directory(path):
 
 
 def image_path(config, row):
-    return (Path(config["data_root"]) / row["filename"]).resolve()
+    return resolve_image_path(config["data_root"], row)
 
 
 def load_images(loader, config, row):
@@ -330,11 +330,10 @@ def _run_locked(args, config, cases):
     require(digest(validation) == config["validation_sha256"], "Validation manifest changed")
     weights = Path(config["oct_weights"])
     require(weights.is_file(), f"Missing OCT checkpoint: {weights}; prepare with --oct-weights PATH")
-    missing = [str(image_path(config, r)) for r in cases + validation if not image_path(config, r).is_file()]
-    require(not missing, f"Missing {len(missing)} images; first five: {missing[:5]}. Prepare with --data-root PATH")
+    resolved = require_images(Path(config["data_root"]), cases + validation)
     print("Checking checkpoint and 3750 image fingerprints before any API calls", flush=True)
     receipt = dict(run=config["fingerprint"], endpoint=endpoint, weights_sha256=sha(weights),
-                   images={f"{r['task']}/{Path(r['filename']).stem}": sha(image_path(config, r)) for r in cases + validation})
+                   images={f"{r['task']}/{Path(r['filename']).stem}": sha(resolved[r["filename"]]) for r in cases + validation})
     receipt_path = root / "live_receipt.json"
     if receipt_path.exists():
         require(json.loads(receipt_path.read_text()) == receipt, "Images, endpoint or checkpoint changed; use a new run root")

@@ -44,6 +44,53 @@ class FakeOrchestrator:
 
 
 class AblationTests(unittest.TestCase):
+    def test_supported_dataset_layouts_preserve_task_and_split(self):
+        row = dict(task="glaucoma", filename="data/Glaucoma/Test/data_07001.npz")
+        for relative in ("data/Glaucoma/Test/data_07001.npz", "Glaucoma/Test/data_07001.npz",
+                         "Test/Glaucoma/data_07001.npz", "Test/data_07001.npz",
+                         "HarvardFairVision30k/Glaucoma/Test/data_07001.npz"):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                expected = root / relative
+                expected.parent.mkdir(parents=True)
+                expected.touch()
+                self.assertEqual(runner.resolve_image_path(root, row), expected.resolve())
+                self.assertEqual(live.image_path({"data_root": str(root)}, row), expected.resolve())
+                self.assertEqual(len(runner.require_images(root, [row])), 1)
+                validation = dict(task="glaucoma", split="val", filename="data/Glaucoma/Validation/data_07001.npz")
+                with self.assertRaisesRegex(ValueError, "0/1 resolved"):
+                    runner.require_images(root, [validation])
+
+    def test_path_resolver_does_not_pick_a_different_disease(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            other = root / "AMD/Test/data_07001.npz"
+            other.parent.mkdir(parents=True)
+            other.touch()
+            row = dict(task="glaucoma", filename="data/Glaucoma/Test/data_07001.npz")
+            with self.assertRaisesRegex(ValueError, "0/1 resolved"):
+                runner.require_images(root, [row])
+            with self.assertRaisesRegex(ValueError, "Task/path mismatch"):
+                runner.resolve_image_path(root, {**row, "task": "amd"})
+            with self.assertRaisesRegex(ValueError, "Split/path mismatch"):
+                runner.resolve_image_path(root, {**row, "split": "val"})
+
+    def test_path_resolver_accepts_alias_but_rejects_ambiguous_copies(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first = root / "Glaucoma/Test/a.npz"
+            first.parent.mkdir(parents=True)
+            first.touch()
+            alias = root / "Test/a.npz"
+            alias.parent.mkdir(parents=True)
+            alias.symlink_to(first)
+            row = dict(task="glaucoma", filename="data/Glaucoma/Test/a.npz")
+            self.assertEqual(runner.resolve_image_path(root, row), first.resolve())
+            alias.unlink()
+            alias.touch()
+            with self.assertRaisesRegex(ValueError, "Ambiguous"):
+                runner.resolve_image_path(root, row)
+
     def test_strict_labels_probabilities_and_cohort(self):
         for value in (-1, "", "nan", .3, 2):
             with self.assertRaises(ValueError):
@@ -211,6 +258,50 @@ class AblationTests(unittest.TestCase):
             self.assertEqual(updated["prepared_sha256"], config["prepared_sha256"])
             self.assertNotEqual(updated["fingerprint"], config["fingerprint"])
             runner.write_json(root / "live_receipt.json", {})
+            with self.assertRaisesRegex(ValueError, "after inference"):
+                runner.configure(args)
+
+    def test_path_upgrade_is_limited_to_original_code_and_unused_inputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cases = [dict(task="glaucoma", filename="data/Glaucoma/Test/a.npz")]
+            image = root / "dataset/Test/a.npz"
+            image.parent.mkdir(parents=True)
+            image.touch()
+            config = dict(prepared_sha256=runner.digest(cases), offline_sha256=runner.digest([]),
+                          validation_sha256=runner.digest([]),
+                          source_code={str(p.relative_to(runner.ROOT)): runner.sha(p) for p in runner.code_paths()})
+            config["source_code"].update(runner.LEGACY_PATH_CODE)
+            config["fingerprint"] = runner.digest(config)
+            for name, value in (("config", config), ("prepared_cases", cases),
+                                ("offline_predictions", []), ("validation_cases", [])):
+                runner.write_json(root / (name + ".json"), value)
+            args = SimpleNamespace(run_root=root, data_root=root / "dataset", oct_weights=root / "model.pth",
+                                   upgrade_path_layout=False)
+            with self.assertRaisesRegex(ValueError, "--upgrade-path-layout"):
+                runner.configure(args)
+            args.upgrade_path_layout = True
+            bad = {**config, "source_code": {**config["source_code"], "OphthalmicAgent/data/loader.py": "unknown-code"}}
+            bad["fingerprint"] = runner.digest({k: v for k, v in bad.items() if k != "fingerprint"})
+            runner.write_json(root / "config.json", bad)
+            with self.assertRaisesRegex(ValueError, "Not a recognized"):
+                runner.configure(args)
+            runner.write_json(root / "config.json", config)
+            args.data_root = root / "wrong-layout"
+            with self.assertRaisesRegex(ValueError, "0/1 resolved"):
+                runner.configure(args)
+            self.assertEqual(json.loads((root / "config.json").read_text()), config)
+            self.assertFalse((root / "config_before_path_layout_update.json").exists())
+            args.data_root = root / "dataset"
+            with redirect_stdout(StringIO()):
+                runner.configure(args)
+            upgraded, saved_cases, _ = runner.load_prepared(root)
+            self.assertEqual(saved_cases, cases)
+            self.assertEqual(upgraded["prepared_sha256"], config["prepared_sha256"])
+            self.assertEqual(upgraded["offline_sha256"], config["offline_sha256"])
+            self.assertEqual(upgraded["path_layout_version"], "fairvision_paths_v1")
+            self.assertEqual(json.loads((root / "config_before_path_layout_update.json").read_text()), config)
+            (root / "api").mkdir()
             with self.assertRaisesRegex(ValueError, "after inference"):
                 runner.configure(args)
 
