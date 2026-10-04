@@ -166,6 +166,7 @@ OphthalmicAgent/CSVs/*
 
 OphthalmicAgent/outputs/glaucoma_counterfactual_250/*
 OphthalmicAgent/outputs/glaucoma_counterfactual_2/*
+OphthalmicAgent/outputs/fairvision_ablation*/
 OphthalmicAgent/outputs/refuge_cfp/cdr_segmentations/*
 
 Datasets/*

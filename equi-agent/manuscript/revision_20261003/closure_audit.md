@@ -109,19 +109,19 @@ This scans case-level result candidates, checks manifest coverage and labels whe
 
 ### Search Coverage Correction
 
-The user subsequently supplied `/tmp/retinagent_manuscript_audit_v2.zip` (SHA256 `68798cf1b1c2c06dec538ea03d38d884b790134d47085a42306f0102a483d3b4`). Its three members, `candidates.csv`, `subgroups.csv` and `audit.json`, are byte-for-byte identical to the first archive: 1,015 candidate groups and zero read errors, with no added candidates. The correction remains uncommitted in the local worktree, and the archive does not record a scanner code hash. Therefore this bundle does not establish that the corrected scanner ran on CECSL. Verify that the cluster script contains `def result_csv_paths` before rerunning; do not infer that the source results are absent from this repeated inventory.
+The user subsequently supplied `/tmp/retinagent_manuscript_audit_v2.zip` (SHA256 `68798cf1b1c2c06dec538ea03d38d884b790134d47085a42306f0102a483d3b4`). Its three members, `candidates.csv`, `subgroups.csv` and `audit.json`, are byte-for-byte identical to the first archive: 1,015 candidate groups and zero read errors, with no added candidates. The user then checked `def result_csv_paths` on CECSL and received `UPDATED SCANNER`. The local uncommitted state was therefore not evidence of an outdated cluster script. Do not request another unchanged audit. The corrected search has not identified the canonical source runs; it does not prove that those results are absent from every location or format.
 
 Inspection of the evaluators after receiving the archive exposed two scanner omissions. `evaluate_gdp_agentic.py` defaults to `gdp_test_agentic_predictions.csv` in the launching shell's working directory, which may be the repository root. The original scan did not include root-level CSVs. Also, `evaluate_fairvision_amd_baseline.py` writes `Pred_AMD` but no task column, so its otherwise supported CSVs were silently unclassified. These omissions do not affect the verified progression results, but make the missing-file search incomplete.
 
 The corrected scanner now includes root-level CSVs and recognizes an AMD-only prediction column when no explicit task is supplied. It does not infer AMD from ambiguous multi-task columns or override an explicit dataset/task. Regression tests cover both evaluator formats, root-level discovery, invalid predictions, and excluded audit/symlink paths. Existing results remain untouched.
 
-After pushing/pulling this correction, the user can rerun discovery without the already completed progression audit:
+The v2 discovery command, already completed, was:
 
 ```bash
 python equi-agent/scripts/audit_manuscript_result_gaps.py \
   --out-dir /tmp/retinagent_manuscript_audit_v2
 ```
 
-Next evidence needed: the corrected discovery archive, or the original AMD and GDP detection agent prediction files and request settings. The scanner searches root-level CSVs, `OphthalmicAgent/` and `equi-agent/outputs/`, accepts documented binary-result headers, skips symlinks and designated cache/raw/audit directories, and does not scan JSON/JSONL predictions. Absence from its candidates is not evidence that an experiment was never run. Do not launch replacement experiments or promote a similarly named run until the historical source is identified.
+Next evidence needed: the original AMD and GDP detection agent prediction files and request settings, or identification of who generated those runs and where they were saved. The corrected discovery archive has already been checked. The scanner searches root-level CSVs, `OphthalmicAgent/` and `equi-agent/outputs/`, accepts documented binary-result headers, skips symlinks and designated cache/raw/audit directories, and does not scan JSON/JSONL predictions. Absence from its candidates is not evidence that an experiment was never run. Do not launch replacement experiments or promote a similarly named run until the historical source is identified.
 
 Then settle F1 and subgroup definitions and apply one consistent update across the full manuscript. The missing multimodal/agent ablations remain missing experiments, not gaps resolved by an offline coefficient audit.
