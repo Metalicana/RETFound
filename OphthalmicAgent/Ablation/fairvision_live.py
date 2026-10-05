@@ -12,6 +12,7 @@ import json
 import os
 import re
 import time
+from datetime import datetime, timezone
 from contextlib import contextmanager, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
@@ -135,6 +136,19 @@ class CachedClient:
             request["response_format"] = response_format(self.stage)
         if self.stage == "orchestrator":
             request["messages"] = orchestrator_messages(request["messages"], self.no_priors)
+        frozen = self.config.get("frozen_generation")
+        if frozen:
+            from Confirmation.contract import endpoint_messages, final_messages, final_schema
+            request["temperature"] = frozen["temperature"]
+            request["top_p"] = frozen["top_p"]
+            request["max_completion_tokens"] = frozen["max_completion_tokens"]
+            request.pop("seed", None)
+            request.pop("max_tokens", None)
+            if self.stage != "bioprofiler":
+                request["messages"] = endpoint_messages(request["messages"], self.task)
+            if self.stage == "orchestrator":
+                request["messages"] = final_messages(request["messages"])
+                request["response_format"] = final_schema()
         fingerprint = digest(dict(run=self.config["fingerprint"], task=self.task,
                                   stage=self.stage, request=request))
         path = self.root / (fingerprint + ".json")
@@ -151,11 +165,14 @@ class CachedClient:
                 record = dict(fingerprint=fingerprint, task=self.task, stage=self.stage,
                               request=redact_images(request), attempt=attempt)
                 try:
+                    record["request_started_utc"] = datetime.now(timezone.utc).isoformat()
                     response = self.client.chat.completions.create(**request)
                     choice = response.choices[0]
                     content = choice.message.content
                     record.update(content=content, finish_reason=choice.finish_reason,
                                   model=response.model,
+                                  response_id=getattr(response, "id", None),
+                                  completed_utc=datetime.now(timezone.utc).isoformat(),
                                   usage=response.usage.model_dump() if response.usage else None)
                     require(choice.finish_reason == "stop", f"Incomplete response: {choice.finish_reason}")
                     require(not getattr(choice.message, "refusal", None), "API refusal")

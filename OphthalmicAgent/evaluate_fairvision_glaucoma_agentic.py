@@ -10,6 +10,7 @@ from VisionAgent.vision_oct_glaucoma import VisionSpecialistOct
 from VisionAgent.vision_slo_glaucoma import VisionSpecialistSlo
 
 from EquityAgent.compute_demographic_reliability_score import equity_main
+from EquityAgent.demographics import fairvision_age_group
 
 from Orchestrator.fairvision_glaucoma import Orchestrator
 from CounterfactualAgent.counterfactual_agent import CounterfactualAgent
@@ -77,12 +78,7 @@ def run_diagnostic_pipeline(patient_data):
     print("\n" + "-"*30)
       
     print("\n\n--- Calculating Model Trust Score ---")
-    if final_state["metadata"]['Age'] >= 60:
-      age_group = "older"
-    elif final_state["metadata"]['Age'] < 40:
-      age_group = "younger"
-    else:
-      age_group = "middle-aged"
+    age_group = fairvision_age_group(final_state["metadata"]['Age'])
     
       
     args = SimpleNamespace(

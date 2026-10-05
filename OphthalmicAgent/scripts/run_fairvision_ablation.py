@@ -267,7 +267,7 @@ def fused_row(case, records, models, fitted, task, weighted):
     return {**first, "y_prob": sum(w * records[m][case]["y_prob"] for w, m in zip(weights, models)) / sum(weights)}
 
 
-def prepare(args):
+def prepare(args, report=True):
     locked = load_locked(args.locked_csv)
     sources = {str(args.locked_csv): sha(args.locked_csv)}
     prepared, validation, offline, policies = [], [], [], {}
@@ -326,8 +326,9 @@ def prepare(args):
     write_json(out / "offline_predictions.json", offline)
     write_json(out / "validation_cases.json", validation)
     write_json(out / "config.json", config)
-    collect(out)
-    print("Prepared 750 cases. Offline rows complete. No API calls. Agent rows require a fresh paired run.")
+    if report:
+        collect(out)
+        print("Prepared 750 cases. Offline rows complete. No API calls. Agent rows require a fresh paired run.")
 
 
 def code_paths():
