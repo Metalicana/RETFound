@@ -1,5 +1,13 @@
 # RetinAgent Paper Figures
 
+## Escalation Curve
+
+[Accepted-case macro-F1 versus clinician-review rate](escalation_coverage/historical_fusion_escalation_macro_f1.pdf)
+shows glaucoma, AMD and DR using the saved historical deterministic fusion
+run (3,000 test cases per task). **This is not the live 250-case RetinAgent
+curve.** [Scope, caption and source counts](escalation_coverage/README.md)
+explain the distinction and the missing live-agent inputs.
+
 ## Illustrated Agent Workflow
 
 Open **[agentic_walkthrough.pdf](agentic_walkthrough/agentic_walkthrough.pdf)**

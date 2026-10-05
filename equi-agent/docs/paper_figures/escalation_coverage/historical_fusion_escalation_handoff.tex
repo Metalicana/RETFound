@@ -1,0 +1,157 @@
+% Handoff notes and table for manuscript revision.
+% LaTeX fragment; requires amsmath and booktabs in the parent document.
+% These are NOT results of the live 250-case-per-task RetinAgent experiment.
+
+\subsection*{Scope of the available escalation analysis}
+
+The available curves describe an earlier deterministic, reliability-weighted
+multimodel fusion experiment on Harvard FairVision30K. They do not describe
+the current live OphthalmicAgent/RetinAgent pipeline. The source contains
+3,000 held-out test cases for each task: 1,466 positive and 1,534 negative
+glaucoma cases; 1,069 positive and 1,931 negative AMD cases; and 261 positive
+and 2,739 negative DR cases. These cohorts retain their observed task-specific
+prevalence and are distinct from the 250-case diagnostic evaluation subsets.
+
+The historical source lists nine model--modality configurations: RETFound
+OCT, MIRAGE SLO, FLAIR SLO, RET-CLIP SLO, VisionFM OCT and SLO, RetiZero SLO,
+and UrFound OCT and SLO. Its recorded reliability formula is
+\begin{equation}
+s = 0.45\,\mathrm{AUROC} + 0.35\,\mathrm{F1}
+    - 0.10\,\mathrm{ECE} - 0.07\,\mathrm{FNR} - 0.03\,\mathrm{FPR}.
+\end{equation}
+This is historical configuration information, not a replacement for the
+current manuscript's reliability formula. The present plotting audit does
+not establish the provenance or split purity of every upstream reliability
+estimate. It checks and summarizes the saved predictions and risk scores.
+
+\subsection*{How the curves were computed}
+
+For case $i$, let $p_i$ be the saved fused probability, $v_i$ the fraction of
+models voting positive, and $q_i$ the saved weighted reliability. The recorded
+deferral score is
+\begin{equation}
+d_i = \max\left\{1-2|p_i-0.5|,\;
+                  \min(v_i,1-v_i),\;
+                  \max(0,0.35-q_i)\right\}.
+\end{equation}
+Larger scores indicate stronger grounds for deferral in this historical
+scoring rule; they are not calibrated probabilities of error. The saved
+classification label is $\hat y_i=\mathbf{1}[p_i\geq0.5]$ and is held fixed
+throughout the analysis. At threshold $\tau$, the accepted set is
+$A_\tau=\{i:d_i\leq\tau\}$. Coverage is $|A_\tau|/N$ and the percentage
+escalated is $100(1-|A_\tau|/N)$.
+
+The figure sweeps every distinct saved risk score, retaining equal scores
+together. Lines connect feasible operating points without smoothing; points
+between them do not represent additional measured thresholds. The table shows
+fixed illustrative score thresholds, not clinically selected operating
+points. This analysis does not fit new predictions, optimize a threshold,
+or make API calls. It does not reapply the original joint policy involving
+conformal prediction, close calls and disagreement flags.
+
+On each accepted subset, macro-F1 is recomputed as
+\begin{equation}
+F_{1,\mathrm{macro}}=
+\frac{1}{2}\left(
+\frac{2\mathrm{TP}}{2\mathrm{TP}+\mathrm{FP}+\mathrm{FN}}+
+\frac{2\mathrm{TN}}{2\mathrm{TN}+\mathrm{FP}+\mathrm{FN}}
+\right).
+\end{equation}
+Both labels are fixed as $\{0,1\}$; a zero class-wise denominator contributes
+zero, while an empty accepted subset has undefined F1. The original saved
+risk--coverage CSV reported positive-class F1, so those values were not
+relabelled as macro-F1. Single-class subsets remain in the exported source
+data but are not plotted. Dashed curve segments mark fewer than 20 accepted
+positive or 20 accepted negative cases; this is a display warning, not a
+threshold-selection rule.
+
+\begin{table*}[t]
+\centering
+\caption{Exploratory accepted-case performance of historical deterministic
+reliability-weighted fusion on Harvard FairVision30K, not the live RetinAgent
+evaluation. Each task includes 3,000 held-out cases. Cases with saved risk
+score $d_i\leq\tau$ are accepted; all other cases are designated for review.
+Classification labels remain fixed. Thresholds are illustrative and were
+not optimized in this analysis. F1 is macro-averaged over accepted cases;
+positive/negative counts refer to their reference labels.
+$\dagger$ marks fewer than 20 accepted cases in either class.
+At $\tau=0$, all cases are escalated and accepted-case F1 is undefined.}
+\label{tab:historical_fusion_escalation}
+\small
+\begin{tabular}{@{}lrrrrrc@{}}
+\toprule
+Task & $\tau$ & Accepted $n$ & Coverage (\%) & Escalated (\%) &
+Accepted $+/-$ & Macro-F1 \\
+\midrule
+Glaucoma & 1.0 & 3,000 & 100.00 &  0.00 & 1,466/1,534 & 0.7568 \\
+         & 0.8 & 2,476 &  82.53 & 17.47 & 1,236/1,240 & 0.8063 \\
+         & 0.6 & 1,732 &  57.73 & 42.27 &   915/817   & 0.8643 \\
+         & 0.4 &   797 &  26.57 & 73.43 &   486/311   & 0.9297 \\
+         & 0.2 &    85 &   2.83 & 97.17 &    83/2     & $1.0000^{\dagger}$ \\
+\midrule
+AMD      & 1.0 & 3,000 & 100.00 &  0.00 & 1,069/1,931 & 0.8022 \\
+         & 0.8 & 2,495 &  83.17 & 16.83 &   926/1,569 & 0.8551 \\
+         & 0.6 & 1,833 &  61.10 & 38.90 &   792/1,041 & 0.9013 \\
+         & 0.4 & 1,046 &  34.87 & 65.13 &   602/444   & 0.9505 \\
+         & 0.2 &   355 &  11.83 & 88.17 &   304/51    & 0.9639 \\
+\midrule
+DR       & 1.0 & 3,000 & 100.00 &  0.00 &   261/2,739 & 0.7398 \\
+         & 0.8 & 2,695 &  89.83 & 10.17 &   191/2,504 & 0.7965 \\
+         & 0.6 & 2,440 &  81.33 & 18.67 &   121/2,319 & 0.8191 \\
+         & 0.4 & 1,954 &  65.13 & 34.87 &    47/1,907 & 0.8418 \\
+         & 0.2 & 1,170 &  39.00 & 61.00 &    17/1,153 & $0.8689^{\dagger}$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection*{Interpretation and manuscript wording}
+
+In this exploratory analysis, at an illustrative score threshold of 0.8,
+accepted-case macro-F1 was 0.8063, 0.8551 and 0.7965 for glaucoma, AMD and DR,
+respectively, compared with full-coverage values of 0.7568, 0.8022 and 0.7398.
+The corresponding proportions designated for clinician review were 17.47\%,
+16.83\% and 10.17\%. At a threshold of 0.4, accepted-case macro-F1 was higher
+(0.9297, 0.9505 and 0.8418), but review rates rose to 73.43\%, 65.13\% and
+34.87\%, respectively. These values describe a trade-off between retained
+coverage and performance within the retained subset, not improved predictions
+for the entire cohort.
+
+The full curves need not improve monotonically as coverage falls. Their
+extreme tails have limited support: glaucoma reaches macro-F1 of 1.0000 at
+$\tau=0.2$ while retaining only 85 cases, of which just two are negative.
+For DR, the same threshold retains only 17 positive cases among 1,170 accepted
+cases. F1 depends on class composition, which changes with the threshold.
+Higher accepted-case macro-F1 therefore cannot be attributed solely to better
+uncertainty ranking. No uncertainty intervals were computed for these curves,
+and the separate 250-case glaucoma confidence intervals do not apply to them.
+There are no clinician outcomes for the escalated cases, and designating cases
+for review does not establish that they would be correctly diagnosed or that
+overall clinical workload would decrease.
+
+If included, this result belongs under a clearly identified exploratory
+deterministic-fusion analysis, preferably supplementary. It should not fill
+the main-text claim that the live RetinAgent system achieves a particular
+accepted-case macro-F1 or escalation rate. It also does not establish that
+agentic reasoning, the current reliability formula, or subgroup conditioning
+caused an improvement. No best threshold or deployable operating point is
+claimed from this post-hoc test-cohort analysis.
+
+\subsection*{What remains necessary for the live RetinAgent figure}
+
+For each locked task cohort, obtain one record per case containing the case
+identifier, reference label, final agent prediction and a saved, well-defined
+deferral score linked to that same prediction and run. Reference labels are
+used for evaluation only, not for constructing the score. Failed or missing
+cases must be resolved or handled under a declared rule, not silently omitted.
+A binary escalation flag supports one operating point, not a continuous
+threshold sweep. Unlinked counterfactual confidence reports should not be
+substituted for final-output confidence. If no continuous score was saved,
+report the existing operating point or evaluate an explicitly defined new
+deferral policy; do not describe such a policy as the original agent's rule.
+Any new operating threshold should be selected on development data and then
+evaluated on an untouched cohort.
+
+% Sources within this directory: threshold_checkpoints.csv,
+% threshold_curve.csv and provenance.json. Figure: historical_fusion_escalation_macro_f1.pdf.
+% Original case predictions:
+% equi-agent/outputs/fairvision_reliability_selective_arbitration/selective_arbitration_predictions.csv

@@ -1,0 +1,19 @@
+\caption{\textbf{Accepted-case performance under a saved-risk threshold sweep
+in the historical deterministic fusion experiment.}
+Macro-F1 among accepted cases is plotted against the percentage of cases
+escalated to clinician review for (\textbf{a}) glaucoma, (\textbf{b}) AMD and
+(\textbf{c}) diabetic retinopathy on Harvard FairVision30K (3,000 held-out
+cases per task, at observed task-specific prevalence).
+Saved reliability-weighted fusion predictions are held fixed, and cases are
+accepted when their recorded risk score is at or below the swept threshold.
+Equal scores are retained together; lines connect the resulting operating
+points. Dashed segments mark accepted subsets with fewer than 20 positive or
+20 negative cases; this is a display warning rather than a threshold-selection
+rule. Single-class and empty subsets are not plotted. Points at zero escalation
+give full-cohort macro-F1. Class composition changes with escalation and can
+affect F1; accepted class counts and confusion matrices are provided in the
+source data. These are descriptive point estimates, not uncertainty intervals
+or evidence of clinical benefit. This post-hoc score sweep is neither a sweep
+of the original joint conformal/escalation policy nor a result from the live
+250-case-per-task RetinAgent evaluation.}
+\label{fig:historical_fusion_escalation}

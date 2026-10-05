@@ -1,0 +1,78 @@
+% LaTeX fragment for the original fixed escalation-policy experiment.
+% Requires booktabs. No threshold sweep or live-agent results are substituted.
+% Source: full_reliability_conformal_escalation rows in
+% equi-agent/outputs/fairvision_reliability_selective_arbitration/selective_arbitration_ablation_metrics.csv
+% Counts independently checked against selective_arbitration_predictions.csv.
+
+\subsection*{Fixed-policy selective prediction}
+
+We evaluated the original fixed escalation policy of the deterministic
+reliability-weighted fusion component on 9,000 Harvard FairVision30K test
+cases (3,000 per task). The saved policy designated a case for clinician
+review if any of the following conditions held: the fraction of model votes
+disagreeing with the majority was at least 0.25; the fused probability lay
+within 0.08 of the 0.5 classification threshold; weighted reliability was
+below 0.35; or the conformal label set contained other than exactly one label.
+The saved conformal configuration used a nominal alpha of 0.10. Cases with
+no escalation condition were accepted. This analysis uses the recorded
+acceptance decisions and unchanged predictions, rather than a new risk-score
+threshold sweep or a rerun of the live agent.
+
+The policy escalated 6,223 of 9,000 cases (69.14\%), retaining 2,777 cases
+(30.86\% coverage). Positive-class F1 was 0.7295 when scoring all cases and
+0.9020 when scoring only the accepted subset. Within glaucoma, the policy
+retained 1,510 cases (50.33\% coverage), with accepted-case F1 of 0.8727.
+Within AMD, it retained 1,267 cases (42.23\% coverage), with accepted-case
+F1 of 0.9359. Every DR case was escalated, so accepted-case DR F1 was
+undefined. Consequently, the pooled accepted-case score contains glaucoma
+and AMD cases only; it is not a task-average score or evidence of successful
+automated DR classification.
+
+\begin{table*}[t]
+\centering
+\caption{Performance under the original fixed escalation policy of the
+historical deterministic reliability-weighted fusion component on Harvard
+FairVision30K. All F1 values are positive-class F1. Full-cohort F1 scores all
+saved predictions, including those on cases designated for review;
+accepted-case F1 scores only non-escalated cases. Coverage is the percentage
+accepted. Pooled F1 is calculated from pooled confusion counts, not averaged
+across tasks. All DR cases were escalated, leaving accepted-case DR F1
+undefined. These are not results from the live 250-case-per-task RetinAgent
+evaluation.}
+\label{tab:fairvision_fixed_escalation}
+\small
+\begin{tabular}{@{}lrrrrcc@{}}
+\toprule
+Task & Total $n$ & Accepted $n$ & Coverage (\%) & Escalated (\%) &
+Full-cohort F1 & Accepted-case F1 \\
+\midrule
+Glaucoma & 3,000 & 1,510 & 50.33 &  49.67 & 0.7455 & 0.8727 \\
+AMD      & 3,000 & 1,267 & 42.23 &  57.77 & 0.7598 & 0.9359 \\
+DR       & 3,000 &     0 &  0.00 & 100.00 & 0.5306 & ---    \\
+\midrule
+Pooled   & 9,000 & 2,777 & 30.86 &  69.14 & 0.7295 & 0.9020 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\paragraph{F1 definition.}
+The historical 0.9020 result is positive-class F1, not macro-F1. For
+consistency with a macro-F1 manuscript, the same saved confusion counts give
+full-cohort and accepted-case macro-F1 values of 0.7568 and 0.8742 for
+glaucoma; 0.8022 and 0.9345 for AMD; 0.7398 and undefined for DR; and 0.8004
+and 0.9017 when pooling all cases and accepted cases, respectively.
+The two metrics should be explicitly distinguished rather than renamed.
+
+\paragraph{Interpretation.}
+This demonstrates higher F1 within the subset retained by this particular
+historical policy, at substantial loss of coverage. It does not demonstrate
+better predictions for the same patients, improved clinical outcomes after
+review, or the practicality of referring almost seven in ten cases. The
+task and class composition changes between the full and accepted cohorts.
+No uncertainty intervals or clinician outcomes are supplied by this
+analysis. It also does not establish that language-model reasoning produced
+the selective-performance result: the evaluated component is deterministic.
+The plot and table should therefore describe a fixed operating point per
+task, not a continuous curve or a live-agent experiment. Verifying these
+saved results does not independently establish the split purity of every
+upstream reliability estimate.

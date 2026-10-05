@@ -1,0 +1,124 @@
+{
+  "experiment": "historical deterministic reliability-shrunk weighted fusion",
+  "live_retinagent": false,
+  "inputs": [
+    {
+      "path": "equi-agent/outputs/fairvision_reliability_selective_arbitration/selective_arbitration_predictions.csv",
+      "sha256": "2beb7daa2f6a1c1869cab2c919214d8894701c0b31996126320a6eb29d608530",
+      "bytes": 3680111
+    },
+    {
+      "path": "equi-agent/outputs/fairvision_reliability_selective_arbitration/selective_arbitration_summary.json",
+      "sha256": "b9ee05c2a94e952028634214c388aea2441bcda5dbce4686ec9bd4e158f4cc06",
+      "bytes": 12898
+    }
+  ],
+  "generator": {
+    "path": "equi-agent/scripts/plot_fairvision_escalation_macro_f1.py",
+    "sha256": "f425498d09a3c9b6ff03f40e20b28259fe5b958996e13ab33e8c78b6e9ee0a4b",
+    "bytes": 11832
+  },
+  "score_column": "risk_score",
+  "acceptance_rule": "risk_score <= threshold; final classification labels remain fixed",
+  "sweep": "Every distinct saved risk score, with ties kept together; no threshold optimization",
+  "metric": "Fixed-label [0,1] macro-F1; zero_division=0; empty accepted set undefined",
+  "plotted_support": "Both reference classes present; dashed if either has fewer than 20 cases",
+  "sparse_marker_is_display_only": true,
+  "original_reliability": {
+    "formula": "weight_auroc*auroc + weight_f1*f1 - weight_ece*ece - weight_fnr*fnr - weight_fpr*fpr",
+    "weights": {
+      "auroc": 0.45,
+      "ece": 0.1,
+      "f1": 0.35,
+      "fnr": 0.07,
+      "fpr": 0.03
+    }
+  },
+  "source_models": [
+    "retfound_oct",
+    "mirage_slo",
+    "flair_slo",
+    "ret_clip_slo",
+    "visionfm_slo",
+    "visionfm_oct",
+    "retizero_slo",
+    "urfound_slo",
+    "urfound_oct"
+  ],
+  "original_escalation_policy": {
+    "close_call_margin": 0.08,
+    "conformal_alpha": 0.1,
+    "conformal_enabled": true,
+    "disagreement_rate_threshold": 0.25,
+    "low_reliability_threshold": 0.35,
+    "policy_score_column": "escalation_policy_score",
+    "risk_coverage_rank_column": "risk_score"
+  },
+  "full_coverage": {
+    "glaucoma": {
+      "task": "glaucoma",
+      "threshold": 1.0,
+      "total": 3000,
+      "accepted": 3000,
+      "escalated": 0,
+      "escalation_percent": 0.0,
+      "coverage": 1.0,
+      "accepted_positive": 1466,
+      "accepted_negative": 1534,
+      "tn": 1206,
+      "fp": 328,
+      "fn": 400,
+      "tp": 1066,
+      "macro_f1": 0.7568037058482919,
+      "positive_f1": 0.7454545454545455,
+      "both_classes": true,
+      "display_support": "supported"
+    },
+    "amd": {
+      "task": "amd",
+      "threshold": 1.0,
+      "total": 3000,
+      "accepted": 3000,
+      "escalated": 0,
+      "escalation_percent": 0.0,
+      "coverage": 1.0,
+      "accepted_positive": 1069,
+      "accepted_negative": 1931,
+      "tn": 1539,
+      "fp": 392,
+      "fn": 174,
+      "tp": 895,
+      "macro_f1": 0.802219244510128,
+      "positive_f1": 0.7597623089983022,
+      "both_classes": true,
+      "display_support": "supported"
+    },
+    "dr": {
+      "task": "dr",
+      "threshold": 1.0,
+      "total": 3000,
+      "accepted": 3000,
+      "escalated": 0,
+      "escalation_percent": 0.0,
+      "coverage": 1.0,
+      "accepted_positive": 261,
+      "accepted_negative": 2739,
+      "tn": 2568,
+      "fp": 171,
+      "fn": 105,
+      "tp": 156,
+      "macro_f1": 0.7398072310964297,
+      "positive_f1": 0.5306122448979592,
+      "both_classes": true,
+      "display_support": "supported"
+    }
+  },
+  "limitations": [
+    "Not the live 250-case OphthalmicAgent runs.",
+    "Post-hoc score sweep, not a sweep of the original joint conformal/escalation policy.",
+    "Recomputed macro-F1, not the positive-class F1 in the old risk_coverage_curve.csv.",
+    "Descriptive point estimates without uncertainty intervals or run-to-run variability.",
+    "The accepted cohort's class composition changes with threshold.",
+    "No clinician outcomes are available for escalated cases."
+  ]
+}
