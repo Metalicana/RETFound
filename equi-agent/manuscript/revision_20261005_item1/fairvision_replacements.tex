@@ -1,0 +1,165 @@
+% Decision item 1: targeted replacements for AI_Agent_For_Eye_Disease-12.pdf.
+% This is an insertion document, not the full manuscript source.
+% Scope: FairVision statistical reporting only. Other revision items remain open.
+% Numbers: outputs/audits/fairvision_statistics_revision_20261005/.
+% All predictions are historical. No API calls, new test cases, or new agents.
+
+% ABSTRACT, page 1: replace the FairVision performance sentence only.
+On the complete 250-case FairVision glaucoma and diabetic-retinopathy subsets,
+RetinAgent had higher macro-F1 point estimates than RETFound (0.771 versus
+0.748 and 0.860 versus 0.840), but paired confidence intervals for the
+differences included zero. The AMD analysis was restricted to 210 valid
+responses among 250 selected cases and did not establish full-cohort performance.
+
+% INTRODUCTION, page 3: replace the repeated FairVision superiority sentence.
+We compared RetinAgent with foundation models and standalone language models
+using saved FairVision predictions. On the complete glaucoma and DR subsets,
+macro-F1 differences versus RETFound were 0.0228 (95\% CI, $-0.0274$ to
+0.0743) and 0.0201 ($-0.0081$ to 0.0486), respectively. These estimates do
+not establish superiority or equivalence. AMD comparisons were restricted
+to valid responses and are reported separately from complete-cohort results.
+
+% RESULTS 2.3, pages 7--8: replace the heading and its three paragraphs.
+\subsection{Diagnostic performance on the FairVision subsets}
+RetinAgent produced valid saved predictions for all 250 glaucoma cases
+(124 positive, 126 negative) and all 250 DR cases (125 positive, 125 negative).
+For glaucoma, macro-F1 was 0.7712 (95\% CI, 0.7160--0.8229), compared with
+0.7484 for RETFound. RetinAgent identified 89 of 124 positive cases and
+104 of 126 negative cases, whereas RETFound identified 79 and 109,
+respectively. The paired macro-F1 difference was 0.0228 (95\% CI,
+$-0.0274$ to 0.0743). RetinAgent corrected 23 RETFound errors but introduced
+18 errors on cases RETFound classified correctly; the exact two-sided
+McNemar $p$ value was 0.5327 (Holm-adjusted $p=1.000$).
+
+For DR, RetinAgent's macro-F1 was 0.8597 (95\% CI, 0.8157--0.9000),
+compared with 0.8396 for RETFound. RetinAgent had 102 true positives,
+113 true negatives, 12 false positives and 23 false negatives. The paired
+macro-F1 difference was 0.0201 (95\% CI, $-0.0081$ to 0.0486), with nine
+corrections and four regressions relative to RETFound (exact McNemar
+$p=0.2668$; Holm-adjusted $p=1.000$). Thus, neither complete-cohort
+comparison established an advantage over RETFound at the available precision.
+Marginal intervals for all table metrics are supplied in the accompanying
+interval tables; multiplicity-adjusted macro-F1 difference intervals are
+retained in the statistical supplement.
+
+For AMD, 40 of the 250 saved predictions were invalid, leaving 210 valid
+responses (114 positive and 96 negative references). Among these responses,
+there were 101 true positives, 85 true negatives, 11 false positives and
+13 false negatives. Macro-F1 was 0.8850 (95\% CI, 0.8416--0.9278),
+sensitivity was 0.8860 and specificity was 0.8854. The previously reported
+0.8858 was support-weighted F1, not macro-F1. On the same 210 cases,
+the macro-F1 difference versus the available VisionFM OCT predictions was
+$-0.0092$ (95\% CI, $-0.0579$ to 0.0429); versus URFound OCT it was
+0.0279 ($-0.0245$ to 0.0805). Neither comparison supported superiority.
+These are response-conditioned comparisons, not estimates for all 250 cases.
+VisionFM OCT had the highest macro-F1 among the available saved foundation
+predictions on the full locked AMD subset, but those saved VisionFM and
+URFound rows differ from the earlier manuscript values. Their source-version
+discrepancy remains unresolved; the present table identifies the files used
+and does not certify their identity with the earlier manuscript runs.
+
+Worst-group fixed-label macro-F1 was 0.5729 for RetinAgent versus 0.5341
+for RETFound in glaucoma, and 0.7795 versus 0.7582 in DR. These are descriptive
+point estimates, not evidence that subgroup disparities were reduced.
+RetinAgent's AMD worst-group macro-F1 was 0.4375 among valid responses.
+The contributing Black subgroup contained only two positive and 16 negative
+references, with neither positive case detected. The earlier worst-group
+column used support-weighted F1 and cannot be relabelled as macro-F1.
+
+Compared with GPT-5.1 alone, RetinAgent's paired macro-F1 differences were
+0.3420 (95\% CI, 0.2723--0.4106) for glaucoma and 0.4432
+(0.3823--0.5031) for DR. Corresponding Holm-adjusted McNemar $p$ values
+were $1.44\times10^{-8}$ and $1.37\times10^{-15}$. The AMD difference
+was 0.2237 (0.1590--0.2907; adjusted $p=9.98\times10^{-8}$), conditional
+on the 210 valid agent responses. These comparisons assess the saved
+configurations; they do not isolate the contribution of each agent component
+or quantify language-model run-to-run variability.
+
+% TABLE 1, page 8: replace with table1_recomputed.tex in the generated bundle.
+% Supplementary intervals: table1_intervals.tex and paired_comparisons.tex.
+% Do not retain bold best-value cells from the previous, differently defined table.
+
+% DISCUSSION, page 13: replace the FairVision highest-performance assertion.
+RetinAgent had higher macro-F1 point estimates than RETFound on the complete
+glaucoma and DR subsets, but uncertainty in the paired differences prevents
+a conclusion of superiority. Its advantage over GPT-5.1 alone was clearer
+on these saved configurations. AMD results were conditional on valid
+responses, and missing predictions and unresolved baseline-source versions
+limit their interpretation. These analyses support further evaluation of
+reliability-informed assistance, not a general claim that agentic arbitration
+outperforms the strongest foundation model or reduces subgroup disparities.
+
+% DISCUSSION, page 15: replace the conclusion's FairVision improvement clause.
+Treating reliability as an explicit input to agentic reasoning yielded
+promising point estimates in these retrospective comparisons, but an advantage
+over the strongest foundation baseline was not established on the complete
+FairVision subsets. Independent evaluation and resolution of incomplete
+response cohorts are needed before stronger performance claims can be made.
+
+% METHODS 4.2, page 16: replace the FairVision cohort/metric sentences only.
+% Keep separate GDP and external descriptions for their own provenance review.
+The locked FairVision cohorts contained 250 selected cases per task:
+124 positive and 126 negative references for glaucoma, and 125 of each
+class for AMD and DR. Saved selection files support sampling seed 2026
+for AMD and DR. The seed and sampling procedure for the particular glaucoma
+cohort could not be established from the saved records; the separate
+seed-2026 glaucoma selection is not the same cohort.
+Metrics were recomputed from valid binary reference/prediction pairs.
+Forty AMD agent predictions and one glaucoma MIRAGE prediction were missing
+or invalid. They were not imputed as negative, counted as escalations,
+or replaced with predictions from another run. Valid-response counts are
+reported per row, and incomplete rows do not estimate full-cohort performance.
+One glaucoma reference was recovered from the dataset summary; its original
+NPZ has not been independently verified.
+
+Macro-F1 is the mean of the positive- and negative-class F1 scores with
+fixed labels $\{0,1\}$ and zero for undefined class F1. It is distinct from
+support-weighted F1 and positive-class F1. For FairVision, worst-group F1
+is the minimum fixed-label macro-F1 across race, sex and age ($<50$, 50--69,
+$\geq70$), excluding unknown demographic values, with no support cutoff.
+Ethnicity is not included in this particular minimum. Single-class groups
+are retained; a single-class group classified entirely correctly has
+fixed-label macro-F1 of 0.5. This convention does not measure sensitivity
+in a group without positive cases. Evaluation age bins do not establish
+which age bins a historical reliability lookup used.
+
+\paragraph{Statistical analysis.}
+We used 10,000 class-stratified percentile bootstrap replicates (seed 20261005)
+to estimate marginal 95\% confidence intervals for F1, balanced accuracy and
+paired differences. Sensitivity and specificity intervals in the tables use
+the exact Clopper--Pearson binomial method, avoiding degenerate percentile
+intervals when all observed cases in a class were classified correctly.
+The underlying bootstrap intervals are also retained in the exported data.
+Cases were sampled with
+replacement separately within positive and negative reference classes.
+For comparisons, each sampled case retained both methods' predictions;
+only common valid cases were included. The sampling unit was a case, not
+a verified independent patient cluster. Intervals condition on the observed
+class counts and fixed predictions, and do not include uncertainty from
+language-model reruns, training, prompt development or missing responses.
+Worst-group minima were recomputed across the fixed group set in every
+replicate rather than tracking only the observed worst group. If a group
+was absent in any replicate, no interval for that minimum was reported;
+replicates were not discarded. Small subgroup support, ties between minima,
+and boundary estimates can make bootstrap intervals unstable or degenerate.
+
+Exact two-sided McNemar tests assessed paired error rates, not macro-F1.
+Holm adjustment covered seven retrospective comparisons: RetinAgent versus
+RETFound for glaucoma and DR; versus VisionFM OCT for AMD; versus GPT-5.1
+for each task; and versus the manuscript-named URFound OCT for AMD as a
+source-discrepancy sensitivity analysis. AMD comparisons used only valid
+responses. In addition to marginal intervals, we exported Bonferroni
+percentile intervals for the seven macro-F1 differences, using individual
+confidence level $1-0.05/7$ (99.2857\%) for an approximate familywise 95\%
+level. This correction does not cover every metric, subgroup, or earlier
+model-selection exercise. Neither correction removes retrospective
+comparator-selection effects or previous test-result inspection. Intervals
+that include zero do not demonstrate either superiority or equivalence.
+
+% Methods 4.4 placeholder, page 17: only the FairVision agent rule established
+% by this audit can be stated here. Do not invent a universal LLM retry rule.
+In the saved task-specific FairVision agent results, invalid or unparseable
+diagnoses could be recorded as $-1$ and were excluded by the historical metric
+helper. The revised analysis explicitly reports the resulting denominators
+and missing predictions. This observation does not establish a uniform
+retry or failure-handling policy across all language-model workflows.

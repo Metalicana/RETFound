@@ -1,0 +1,296 @@
+{
+  "export_date": "2026-10-06",
+  "artifact": "supplementary_prompts.tex",
+  "artifact_sha256": "a2ca249d2d0477ffeabc665425dbce28116ad0f2267831e38ece4b26ae7a1723",
+  "exporter": "equi-agent/scripts/export_supplementary_prompts_latex.py",
+  "exporter_sha256": "8cb7aba254c60fef9e64005ae236cf830d441edca71e1e98a261b66d04125543",
+  "historical_execution_verified": false,
+  "model_calls": 0,
+  "scope": "Current executable templates; legacy and prospective extensions separated",
+  "source_count": 47,
+  "block_count": 135,
+  "sources": [
+    {
+      "section": "fairvision",
+      "path": "OphthalmicAgent/BioProfilerAgent/bio_profiler_glaucoma.py",
+      "title": "Glaucoma: Bio-Profiler",
+      "sha256": "c6cff82cd0b05111aa63f199581f2c5391db735da63bf0f4ade8df940dedd5c1"
+    },
+    {
+      "section": "fairvision",
+      "path": "OphthalmicAgent/VisionAgent/vision_oct_glaucoma.py",
+      "title": "Glaucoma: OCT Specialist",
+      "sha256": "3f622003ed4120c6d3c21dd6eede43d1930d0d343ed605e10dbd712d2190d4de"
+    },
+    {
+      "section": "fairvision",
+      "path": "OphthalmicAgent/VisionAgent/vision_slo_glaucoma.py",
+      "title": "Glaucoma: SLO Specialist",
+      "sha256": "3e84c586355942f20497392022412a55b3cd09e2e63d21455e217a815cf7d1c8"
+    },
+    {
+      "section": "fairvision",
+      "path": "OphthalmicAgent/Orchestrator/fairvision_glaucoma.py",
+      "title": "Glaucoma: Final Orchestrator",
+      "sha256": "50086cebd76a1ddbda21eaf4c5241fd39640d130e4bc3346754145e8ab6369ba"
+    },
+    {
+      "section": "fairvision",
+      "path": "OphthalmicAgent/BioProfilerAgent/bio_profiler_amd.py",
+      "title": "AMD: Bio-Profiler",
+      "sha256": "a0e73d8b8f09eaa03f80d5b43592b4037903f5a1e0dd59835c83b495100903b4"
+    },
+    {
+      "section": "fairvision",
+      "path": "OphthalmicAgent/VisionAgent/vision_oct_amd.py",
+      "title": "AMD: OCT Specialist",
+      "sha256": "e7b582c92f874f403b9e299d681caf0e004e2b8e4f534befa1224c42593f428c"
+    },
+    {
+      "section": "fairvision",
+      "path": "OphthalmicAgent/VisionAgent/vision_slo_amd.py",
+      "title": "AMD: SLO Specialist",
+      "sha256": "a935bcf3b5fb72f4a9a0eba2362a284cae176d7eb1165d03a7da95a7355c5325"
+    },
+    {
+      "section": "fairvision",
+      "path": "OphthalmicAgent/Orchestrator/fairvision_amd.py",
+      "title": "AMD: Final Orchestrator",
+      "sha256": "cb5cd087bcd9850285295d3a805d77e469498101257544595cb45362f22d2499"
+    },
+    {
+      "section": "fairvision",
+      "path": "OphthalmicAgent/BioProfilerAgent/bio_profiler_dr.py",
+      "title": "DR: Bio-Profiler",
+      "sha256": "6f94ea536551432c7354348623447488b78c06db10b23f7933796dad269c512a"
+    },
+    {
+      "section": "fairvision",
+      "path": "OphthalmicAgent/VisionAgent/vision_oct_dr.py",
+      "title": "DR: OCT Specialist",
+      "sha256": "8a0576f3907a5adb1c0aec460190f4aba10c7bd479011caa546c86baa8edaa2f"
+    },
+    {
+      "section": "fairvision",
+      "path": "OphthalmicAgent/VisionAgent/vision_slo_dr.py",
+      "title": "DR: SLO Specialist",
+      "sha256": "bb7892f74e6e1278c03859aba7f6820e9cec23160ac7bf5cff2375723897b54d"
+    },
+    {
+      "section": "fairvision",
+      "path": "OphthalmicAgent/Orchestrator/fairvision_dr.py",
+      "title": "DR: Final Orchestrator",
+      "sha256": "32c6fd68a37469a3d834ceefe573891efc4011f99dfd6df01be7ce5e80539cda"
+    },
+    {
+      "section": "fairvision",
+      "path": "OphthalmicAgent/CounterfactualAgent/counterfactual_agent.py",
+      "title": "Shared Glaucoma Evidence-Ablation Agent",
+      "sha256": "f8ef24305b164fda919d46fbce0c7dea15078078874ad5384a76babf2111d1e7"
+    },
+    {
+      "section": "external",
+      "path": "OphthalmicAgent/VisionAgent/vision_cfp.py",
+      "title": "CFP Specialist",
+      "sha256": "b2bdf8ff3da69dc73d6865d19427ea542f620cd5b94c50b93da4f7988257435d"
+    },
+    {
+      "section": "external",
+      "path": "OphthalmicAgent/Orchestrator/drishti.py",
+      "title": "Drishti Orchestrator",
+      "sha256": "fe13b8d18b48b55b9d0a7351beecab8fe155193de64b71d0d12ad0eb3b6afb97"
+    },
+    {
+      "section": "external",
+      "path": "OphthalmicAgent/Orchestrator/external_glaucoma.py",
+      "title": "Modality-Aware External Orchestrator",
+      "sha256": "436184df42326768535c5f9419c9f9bedbf718ee34fccd7e4d4ec5971a65bf24"
+    },
+    {
+      "section": "external",
+      "path": "OphthalmicAgent/CounterfactualAgent/counterfactual_cfp.py",
+      "title": "CFP Evidence-Ablation Agent",
+      "sha256": "97ad86290fa6191bc4316944112f4d1f786604465f9ec75530208c1545e9e4a6"
+    },
+    {
+      "section": "external",
+      "path": "OphthalmicAgent/CounterfactualAgent/external_glaucoma.py",
+      "title": "Modality-Aware External Evidence Audit",
+      "sha256": "ecfb72d2324be99ff4987be8864ad1a05fb4649c9b8b93b3ab168ae4c09bfeed"
+    },
+    {
+      "section": "gdp",
+      "path": "OphthalmicAgent/VisionAgent/vision_rnflt.py",
+      "title": "RNFLT Specialist",
+      "sha256": "9d0f50063ddd58352dfd6f5de4969106b77663affdbdb4bba0c778795a56251a"
+    },
+    {
+      "section": "gdp",
+      "path": "OphthalmicAgent/FunctionalInterpretationAgent/function_interpreter.py",
+      "title": "Visual-Field Specialist",
+      "sha256": "014f37d25369b95a6e137c51d77b93906518c4c63a34bc42440ec1a16929b9a0"
+    },
+    {
+      "section": "gdp",
+      "path": "OphthalmicAgent/Orchestrator/gdp.py",
+      "title": "GDP Detection Orchestrator",
+      "sha256": "a9ae8ca5dc6a2a73fe3c88a705f081cf808c881308f4de5e6ff90678195deace"
+    },
+    {
+      "section": "progression",
+      "path": "OphthalmicAgent/Progression/prompts.py",
+      "title": "Progression System Prompts",
+      "sha256": "8c2ddf32d3288263c77766e534c5d3d4e482b3cd67a8b291b4016639de19bea8"
+    },
+    {
+      "section": "progression",
+      "path": "OphthalmicAgent/Progression/workflow.py",
+      "title": "Progression Input and Output Contracts",
+      "sha256": "3f94b2a2e0e070ebb6bb2b591f80d654b6b04d5a36bab5d61df6ea2dd4935372"
+    },
+    {
+      "section": "baselines",
+      "path": "OphthalmicAgent/llm_baseline_utils.py",
+      "title": "Shared Glaucoma Baseline Routes",
+      "sha256": "d43ecd4f745df7d65c075ede24498ddb90738c2278baf8f008dc7212810c9f81"
+    },
+    {
+      "section": "baselines",
+      "path": "OphthalmicAgent/evaluate_fairvision_glaucoma_baseline.py",
+      "title": "FairVision GLAUCOMA Baseline",
+      "sha256": "511b8dc7fbb272f55a9749a3122ab064e1f469e0b087e2aea0f4393ecd44cd81"
+    },
+    {
+      "section": "baselines",
+      "path": "OphthalmicAgent/evaluate_fairvision_amd_baseline.py",
+      "title": "FairVision AMD Baseline",
+      "sha256": "e696c392cc0a428e9902a34fd6d8a0203d10247f974e53e9cde7263927368b58"
+    },
+    {
+      "section": "baselines",
+      "path": "OphthalmicAgent/evaluate_fairvision_dr_baseline.py",
+      "title": "FairVision DR Baseline",
+      "sha256": "1e678e202d6ce9add8ef6e2a0251606a9d744d5fb1d6e0f11783df0a547e404c"
+    },
+    {
+      "section": "baselines",
+      "path": "OphthalmicAgent/evaluate_drishti_llm_baseline.py",
+      "title": "DRISHTI Baseline",
+      "sha256": "eaf4d3430ab94750558e18d0e999955afed3bc0ef88afdacc6eae9c5af5992a0"
+    },
+    {
+      "section": "baselines",
+      "path": "OphthalmicAgent/evaluate_refuge_llm_baseline.py",
+      "title": "REFUGE Baseline",
+      "sha256": "5e6280e52d5a4a5eff9aaa7f28cbc135a20ac5bbaba9c3d907876f388feaf131"
+    },
+    {
+      "section": "baselines",
+      "path": "OphthalmicAgent/evaluate_gdp_llm_baseline.py",
+      "title": "GDP Baseline",
+      "sha256": "d74469336f0127097ffcaafcbb018504abc4369bdea7a9f1860e75de6075f92f"
+    },
+    {
+      "section": "baselines",
+      "path": "OphthalmicAgent/evaluate_gamma_llm_baseline.py",
+      "title": "GAMMA: Shared Baseline Input Description",
+      "sha256": "e60b19833d6937119cb7e53f3f173a209c69f1f4b4d369fedd65ce91db645393"
+    },
+    {
+      "section": "baselines",
+      "path": "OphthalmicAgent/evaluate_papila_llm_baseline.py",
+      "title": "PAPILA: Shared Baseline Input Description",
+      "sha256": "fead920bf963f6ff15149e13dfa37013511d9eecd4403d3a3eb71a0daa20a3e9"
+    },
+    {
+      "section": "baselines",
+      "path": "equi-agent/scripts/run_gdp_progression_llm_baseline.py",
+      "title": "Single-Endpoint Progression Baseline",
+      "sha256": "c7df744bfd0c1e36db4bef10a8779654472cc7512ff349d2905a82653e993c0c"
+    },
+    {
+      "section": "baselines",
+      "path": "equi-agent/scripts/run_gdp_progression_llm_multitarget_baseline.py",
+      "title": "Joint Six-Endpoint Progression Baseline",
+      "sha256": "cb6ba6ef48aa5b2e17937572f021479695ababa92d3009cc328321799c54afda"
+    },
+    {
+      "section": "legacy",
+      "path": "OphthalmicAgent/BioProfilerAgent/bio_profiler.py",
+      "title": "General Bio-Profiler",
+      "sha256": "8f2ace41f1346d1b75a0c243e51834992279e6e9b86ae497ca5f241690786949"
+    },
+    {
+      "section": "legacy",
+      "path": "OphthalmicAgent/VisionAgent/vision.py",
+      "title": "General Vision Specialist",
+      "sha256": "a6b73ba670b50bc8c856447a26c6d391e0719a717347efcf04f8629c348894c7"
+    },
+    {
+      "section": "legacy",
+      "path": "OphthalmicAgent/VisionAgent/vision_oct.py",
+      "title": "General OCT Specialist",
+      "sha256": "1ac0bcd569433aaab4937a5f35772e0ab556de2a5c17515d3af502665106c643"
+    },
+    {
+      "section": "legacy",
+      "path": "OphthalmicAgent/VisionAgent/vision_slo.py",
+      "title": "General SLO Specialist",
+      "sha256": "48c0e45af12bf33eb46d5d74962c19e99a07f4b2ad8b782ccf14d3059771beab"
+    },
+    {
+      "section": "legacy",
+      "path": "OphthalmicAgent/Orchestrator/new.py",
+      "title": "Legacy Multimodal Orchestrator",
+      "sha256": "a9d9f8f54d46c64e62870d9e68de4b222f02a171213f78d76212653deb813e7b"
+    },
+    {
+      "section": "legacy",
+      "path": "OphthalmicAgent/Orchestrator/ophthalmic_agent.py",
+      "title": "General Ophthalmic Orchestrator",
+      "sha256": "9ba225a22584a14cd218fb965ef788d0f0805048b2f6cbe1b6de2790f849ff4d"
+    },
+    {
+      "section": "legacy",
+      "path": "OphthalmicAgent/EquityAgent/equity_agent.py",
+      "title": "Standalone Equity Auditor",
+      "sha256": "98527195401cbd0a535bf2019343def59e6c0207ad65ba0857fef82d5b5db6d1"
+    },
+    {
+      "section": "legacy",
+      "path": "OphthalmicAgent/GuidelinesAgent/guidelines_agent.py",
+      "title": "Guideline Query and Evidence Summarizer",
+      "sha256": "e1f113febd0745697312cd892ac8b70a4f5c699f0c28acfe999ec821cbde0ed6"
+    },
+    {
+      "section": "legacy",
+      "path": "OphthalmicAgent/GuidelinesAgent/evidence_tool.py",
+      "title": "Retrieved Evidence Summarizer",
+      "sha256": "a28a2ec8bb1212450555ce457bc60686c47c3eec5e037af271f6cb10ddcd568a"
+    },
+    {
+      "section": "legacy",
+      "path": "OphthalmicAgent/SafetyAgent/safety_agent.py",
+      "title": "Safety Auditor",
+      "sha256": "c0488f907bb24cdb56849a0d871ee60df2e59bf7ecf4e368c8b1a953974be8cd"
+    },
+    {
+      "section": "prospective",
+      "path": "OphthalmicAgent/Ablation/fairvision_live.py",
+      "title": "Paired Reliability Ablation Adapter",
+      "sha256": "2461a850f49f21e007ad3af0913d2b0bfcabfc53c6b15e8c164a9ccacbca330a"
+    },
+    {
+      "section": "prospective",
+      "path": "OphthalmicAgent/Confirmation/contract.py",
+      "title": "Explicit Escalation Contract",
+      "sha256": "5deb9a50e8a7e946ac80db9bdfae1ea6a50bfcd3742d2628db3c0abab6e1c75e"
+    },
+    {
+      "section": "prospective",
+      "path": "OphthalmicAgent/Confirmation/workflow.py",
+      "title": "Prospective External CFP Instructions",
+      "sha256": "b23da150dece5593b74aeb417cb3be7b112ff0e058c620eac21940ccf51685d3"
+    }
+  ]
+}
