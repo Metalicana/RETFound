@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+from contextlib import closing
 import hashlib
 import io
 import json
@@ -21,6 +22,10 @@ base = replay.base
 VERSION = "glaucoma_oct_framing_v3_20261007"
 STAGES = ("oct", "counterfactual", "final")
 API_CAP = 147
+ORIGINAL_RUNNER_SHA256 = "2a9323b26fd165de289a3d179699783246d9c2fd23fc8b0105621342b255abd4"
+OCT_REPAIR_LIMIT = 2000
+OCT_REPAIR_STAGE = "oct_completion_repair"
+AMENDMENT_FILE = "oct_completion_amendment.json"
 DEFAULT_DIR = ROOT / "OphthalmicAgent/outputs/glaucoma_v3_replay"
 DEFAULT_DATA = ROOT / "Datasets/FairVision/Glaucoma/Test"
 SCOPE = ("Exploratory historical-error-selected OCT and downstream replay. "
@@ -94,11 +99,14 @@ def final_request(case, settings, systems, oct_report, trace):
     return request
 
 
-def request_for(stage, case, bundle, directory, parsed):
+def request_for(stage, case, bundle, directory, parsed, amendment=None):
     if stage == "oct":
         image = (directory / case["image"]["path"]).read_bytes()
         base.require(hashlib.sha256(image).hexdigest() == case["image"]["sha256"], "OCT request image changed")
-        return oct_view.request(image, case["image"]["metadata"], bundle["settings"]["deployment"])
+        request = oct_view.request(image, case["image"]["metadata"], bundle["settings"]["deployment"])
+        if amendment:
+            request["max_completion_tokens"] = amendment["oct_max_completion_tokens"]
+        return request
     if stage == "counterfactual":
         evidence = {**case["evidence"], "oct_specialist_report": parsed["oct"]["report"]}
         # Pure prompt builder: no constructor, client, cache or filesystem side effects.
@@ -173,7 +181,10 @@ def load_bundle(directory):
     bundle = json.loads((directory / "bundle.json").read_text())
     base.require(bundle["fingerprint"] == base.digest({k: v for k, v in bundle.items() if k != "fingerprint"}),
                  "V3 bundle checksum mismatch")
-    base.require(bundle["version"] == VERSION and bundle["runtime_code_sha256"] == code_hashes(), "V3 runtime changed")
+    current = code_hashes()
+    original = {**current, str(Path(__file__).relative_to(ROOT)): ORIGINAL_RUNNER_SHA256}
+    # Accept only this explicitly identified pre-amendment runner, not arbitrary code drift.
+    base.require(bundle["version"] == VERSION and bundle["runtime_code_sha256"] in (current, original), "V3 runtime changed")
     base.require(bundle["oct_system"] == oct_view.SYSTEM_PROMPT, "OCT prompt changed")
     base.require(0 < bundle["api_budget"] == 3 * len(bundle["cases"]) <= API_CAP, "Invalid API budget")
     ids = [c["case_id"] for c in bundle["cases"]]
@@ -189,13 +200,119 @@ def load_bundle(directory):
     return bundle
 
 
+def response_details(attempt):
+    response = json.loads(attempt["response_json"]) if attempt.get("response_json") else {}
+    choices = response.get("choices") or []
+    choice = choices[0] if choices else {}
+    return dict(case_id=attempt["case_id"], stage=attempt["arm"], status=attempt["status"],
+                finish_reason=choice.get("finish_reason"), usage=response.get("usage"),
+                response_characters=len(attempt.get("raw") or ""),
+                refusal=(choice.get("message") or {}).get("refusal"), error=attempt.get("error"))
+
+
+def read_attempts(directory):
+    path = directory / "run/ledger.sqlite3"
+    if not path.exists():
+        return [], {}
+    with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)) as db:
+        db.row_factory = sqlite3.Row
+        rows = [dict(r) for r in db.execute("SELECT * FROM attempts ORDER BY started_utc, case_id, arm")]
+        metadata = dict(db.execute("SELECT name,value FROM metadata"))
+    return rows, metadata
+
+
+def check_initial_truncation(bundle, directory, attempt):
+    base.require(attempt["case_id"] == bundle["cases"][0]["case_id"] and attempt["arm"] == "oct" and
+                 attempt["status"] == "invalid" and attempt["parsed_json"] is None,
+                 "Amendment requires the first OCT attempt to be invalid, without a parsed report")
+    request = request_for("oct", bundle["cases"][0], bundle, directory, {})
+    base.require(request["max_completion_tokens"] == 500 and attempt["request_hash"] == base.digest(request) and
+                 json.loads(attempt["request_json"]) == request, "Original 500-token request receipt mismatch")
+    response = json.loads(attempt["response_json"]) if attempt["response_json"] else {}
+    choices = response.get("choices") or []
+    details = response_details(attempt)
+    base.require(len(choices) == 1 and details["finish_reason"] == "length" and not details["refusal"] and
+                 not (choices[0].get("message") or {}).get("tool_calls"),
+                 "Not a confirmed token-limit stop. Refusing amendment; inspect the provider receipt")
+    base.require((choices[0].get("message") or {}).get("content") == attempt["raw"], "Raw response receipt mismatch")
+
+
+def run_identity(bundle, amendment=None):
+    identity = dict(version=VERSION, bundle_fingerprint=bundle["fingerprint"], api_budget=bundle["api_budget"])
+    if amendment:
+        identity.update(api_budget=amendment["api_budget"], completion_amendment=amendment["fingerprint"])
+    return identity
+
+
+def load_amendment(bundle, directory):
+    path = directory / AMENDMENT_FILE
+    if not path.exists():
+        return None
+    value = json.loads(path.read_text())
+    base.require(value["fingerprint"] == base.digest({k: v for k, v in value.items() if k != "fingerprint"}) and
+                 value["bundle_fingerprint"] == bundle["fingerprint"] and value["version"] == "oct_completion_limit_v1",
+                 "Completion amendment fingerprint mismatch")
+    base.require(value["runtime_code_sha256"] == code_hashes(), "Completion amendment runtime changed")
+    base.require(value["oct_max_completion_tokens"] == OCT_REPAIR_LIMIT and
+                 value["api_budget"] == bundle["api_budget"] + 1 <= API_CAP + 1,
+                 "Invalid completion amendment budget")
+    check_initial_truncation(bundle, directory, value["original_attempt"])
+    hashes = {c["case_id"]: base.digest(request_for("oct", c, bundle, directory, {}, value)) for c in bundle["cases"]}
+    base.require(value["oct_request_sha256"] == hashes, "Amended OCT requests changed")
+    return value
+
+
+def amend_oct_limit(bundle, directory):
+    """Explicit offline amendment after exactly one confirmed length failure; never resets the ledger."""
+    root = directory / "run"
+    base.require((root / "ledger.sqlite3").exists(), "No failed V3 run exists; nothing to amend")
+    with replay.run_lock(root):
+        rows, metadata = read_attempts(directory)
+        amendment = load_amendment(bundle, directory)
+        if amendment is None:
+            base.require(len(rows) == 1, "Amendment only supports a pilot stopped at its first OCT request")
+            check_initial_truncation(bundle, directory, rows[0])
+            amendment = dict(version="oct_completion_limit_v1", bundle_fingerprint=bundle["fingerprint"],
+                             created_utc=replay.utc(), original_attempt=rows[0],
+                             oct_max_completion_tokens=OCT_REPAIR_LIMIT, api_budget=bundle["api_budget"] + 1,
+                             runtime_code_sha256=code_hashes())
+            amendment["oct_request_sha256"] = {
+                c["case_id"]: base.digest(request_for("oct", c, bundle, directory, {}, amendment)) for c in bundle["cases"]}
+            amendment["fingerprint"] = base.digest(amendment)
+        original = amendment["original_attempt"]
+        base.require(next((r for r in rows if (r["case_id"], r["arm"]) ==
+                           (original["case_id"], "oct")), None) == original, "Original failed receipt changed")
+        old_identity, new_identity = run_identity(bundle), run_identity(bundle, amendment)
+        base.require(json.loads((root / "run_identity.json").read_text()) in (old_identity, new_identity),
+                     "Run identity mismatch")
+        base.require(metadata.get("bundle") == bundle["fingerprint"] and metadata.get("version") == VERSION and
+                     metadata.get("budget") in (str(bundle["api_budget"]), str(amendment["api_budget"])) and
+                     metadata.get("completion_amendment") in (None, amendment["fingerprint"]), "Ledger identity mismatch")
+        if metadata.get("completion_amendment") is None:
+            base.require(rows == [original], "Cannot amend a run with additional requests")
+        # Persist the immutable receipt/recipe first. Repeating this command can finish
+        # an interrupted local migration, but cannot grant another retry or larger cap.
+        if not (directory / AMENDMENT_FILE).exists():
+            base.write_json(directory / AMENDMENT_FILE, amendment)
+        with closing(sqlite3.connect(root / "ledger.sqlite3")) as db:
+            db.execute("PRAGMA synchronous=FULL")
+            with db:
+                db.execute("UPDATE metadata SET value=? WHERE name='budget'", (str(amendment["api_budget"]),))
+                db.execute("INSERT OR IGNORE INTO metadata VALUES ('completion_amendment', ?)", (amendment["fingerprint"],))
+        base.write_json(root / "run_identity.json", new_identity)
+    print(f"Offline amendment recorded: OCT cap 500 -> {OCT_REPAIR_LIMIT} for every eligible case. "
+          f"Original failed attempt retained. V3 ceiling {amendment['api_budget']}, including that attempt. No API calls.")
+    return amendment
+
+
 class Ledger(replay.Ledger):
     """Reuse durable V2 reservation/receipt operations with an isolated V3 identity."""
     def __init__(self, root, bundle):
+        amendment = load_amendment(bundle, root.parent)
         base.require(not root.is_symlink(), "Run root must not be a symlink")
         root.mkdir(parents=True, exist_ok=True)
         marker = root / "run_identity.json"
-        identity = dict(version=VERSION, bundle_fingerprint=bundle["fingerprint"], api_budget=bundle["api_budget"])
+        identity = run_identity(bundle, amendment)
         if marker.exists():
             base.require(json.loads(marker.read_text()) == identity, "Run root belongs to another experiment")
         else:
@@ -213,19 +330,33 @@ class Ledger(replay.Ledger):
         self.db.commit()
         try:
             self.pin("bundle", bundle["fingerprint"])
-            self.pin("budget", str(bundle["api_budget"]))
+            self.pin("budget", str(identity["api_budget"]))
             self.pin("version", VERSION)
+            if amendment:
+                self.pin("completion_amendment", amendment["fingerprint"])
         except BaseException:
             self.db.close()
             raise
-        self.limit = bundle["api_budget"]
+        self.limit = identity["api_budget"]
 
 
 def validated_attempts(bundle, directory, attempts):
+    amendment = load_amendment(bundle, directory)
     allowed = {(c["case_id"], s) for c in bundle["cases"] for s in STAGES}
+    limit = bundle["api_budget"]
+    if amendment:
+        original = amendment["original_attempt"]
+        retry_key = (original["case_id"], OCT_REPAIR_STAGE)
+        allowed.add(retry_key)
+        limit = amendment["api_budget"]
     mapping = {(a["case_id"], a["arm"]): a for a in attempts}
-    base.require(len(mapping) == len(attempts) <= bundle["api_budget"] and set(mapping) <= allowed,
+    base.require(len(mapping) == len(attempts) <= limit and set(mapping) <= allowed,
                  "Invalid attempt ledger")
+    if amendment:
+        key = (original["case_id"], "oct")
+        base.require(mapping.pop(key, None) == original, "Original failed receipt changed or disappeared")
+        if retry_key in mapping:
+            mapping[key] = mapping.pop(retry_key)
     results = {}
     for case in bundle["cases"]:
         parsed = {}
@@ -235,7 +366,7 @@ def validated_attempts(bundle, directory, attempts):
                 continue
             prior = STAGES[:STAGES.index(stage)]
             base.require(all(s in parsed for s in prior), "Downstream attempt used missing or invalid evidence")
-            request = request_for(stage, case, bundle, directory, parsed)
+            request = request_for(stage, case, bundle, directory, parsed, amendment)
             base.require(attempt["request_hash"] == base.digest(request) and
                          json.loads(attempt["request_json"]) == request, "Dependent request receipt mismatch")
             if attempt["status"] == "valid":
@@ -255,16 +386,19 @@ def execute(bundle, directory, client_factory, max_cases):
         ledger, client = Ledger(root, bundle), None
         try:
             attempts = ledger.rows()
-            base.require(all(a["status"] == "valid" for a in attempts),
+            amendment = load_amendment(bundle, directory)
+            mapping, saved = validated_attempts(bundle, directory, attempts)
+            base.require(all(a["status"] == "valid" for a in mapping.values()),
                          "A failed/interrupted attempt exists. Stop and inspect; no automatic retries or continuation")
-            _, saved = validated_attempts(bundle, directory, attempts)
             for case in bundle["cases"][:max_cases]:
                 parsed = saved[case["case_id"]]
                 for stage in STAGES:
                     if stage in parsed:
                         continue
-                    request = request_for(stage, case, bundle, directory, parsed)
-                    key = (case["case_id"], stage)
+                    request = request_for(stage, case, bundle, directory, parsed, amendment)
+                    slot = OCT_REPAIR_STAGE if (amendment and stage == "oct" and
+                        case["case_id"] == amendment["original_attempt"]["case_id"]) else stage
+                    key = (case["case_id"], slot)
                     base.require(ledger.reserve(*key, request), "Unexpected existing reservation")
                     try:
                         if client is None:
@@ -285,11 +419,14 @@ def execute(bundle, directory, client_factory, max_cases):
                         ledger.finish(key, "model_drift", error="Returned model changed or missing")
                         raise
                     try:
-                        base.require(choice and choice.finish_reason == "stop", "Incomplete response; do not use a truncated report")
+                        finish = choice.finish_reason if choice else None
+                        base.require(choice and finish == "stop", f"Incomplete response (finish_reason={finish!r}); "
+                                     "inspect the saved receipt; do not use incomplete output")
                         parsed[stage] = parse_response(stage, raw, case["case_id"])
                     except (ValueError, TypeError) as exc:
                         ledger.finish(key, "invalid", error=str(exc))
-                        raise ValueError("Invalid response saved. No retries or negative fallback") from exc
+                        raise ValueError(f"Invalid {stage} response saved (finish_reason={finish!r}). "
+                                         "No retries or negative fallback. Use --stage inspect") from exc
                     ledger.finish(key, "valid", parsed=parsed[stage])
                     print(f"attempt {len(ledger.rows())}/{ledger.limit}: {Path(case['case_id']).stem} {stage}", flush=True)
         finally:
@@ -307,6 +444,7 @@ def collect(bundle, directory):
         finally:
             ledger.close()
     mapping, parsed = validated_attempts(bundle, directory, attempts)
+    amendment = load_amendment(bundle, directory)
     rows = []
     for old in bundle["evaluation"]:
         row = dict(old)
@@ -324,14 +462,16 @@ def collect(bundle, directory):
     caution = ("Error-selected descriptive repair counts only. No full-cohort F1 or significance claim. "
                "Correct-case regressions are not assessed. V2 is a saved, noncontemporaneous comparator.")
     report = dict(version=VERSION, scope=SCOPE, bundle_fingerprint=bundle["fingerprint"],
-                  expected=len(rows), eligible=len(bundle["cases"]), api_budget=bundle["api_budget"],
+                  expected=len(rows), eligible=len(bundle["cases"]), api_budget=run_identity(bundle, amendment)["api_budget"],
                   attempts_reserved=len(attempts), valid=len(valid), repaired=repaired,
                   still_wrong=len(valid) - repaired, unassessed=len(rows) - len(valid),
                   saved_v2_pairs=len(paired),
                   additional_repairs_vs_saved_v2=sum(r["v3_prediction"] == r["truth"] and
                       r["v2_prediction"] != r["truth"] for r in paired),
                   lost_repairs_vs_saved_v2=sum(r["v3_prediction"] != r["truth"] and
-                      r["v2_prediction"] == r["truth"] for r in paired), caution=caution)
+                      r["v2_prediction"] == r["truth"] for r in paired), caution=caution,
+                  unsuccessful_attempts=[response_details(a) for a in attempts if a["status"] != "valid"],
+                  completion_amendment=amendment["fingerprint"] if amendment else None)
     root.mkdir(parents=True, exist_ok=True)
     base.audit.write_csv(root / "case_results.csv", rows)
     base.write_json(root / "summary.json", report)
@@ -343,20 +483,23 @@ def collect(bundle, directory):
     return report
 
 
-def summary(bundle):
+def summary(bundle, amendment=None):
+    limit = run_identity(bundle, amendment)["api_budget"]
     print(f"{VERSION}: {SCOPE}\n"
           f"Eligible errors: {len(bundle['cases'])}; missing saved evidence: "
           f"{sum(not r['eligible'] for r in bundle['evaluation'])}.\n"
-          f"Three requests/case (OCT -> counterfactual -> final); at most {bundle['api_budget']} attempts.\n"
+          f"Three requests/case (OCT -> counterfactual -> final); at most {limit} attempts.\n"
           "No new SLO, CDR, Bio-Profiler, classifier or training calls. No automatic retries.\n"
-          "The downloaded V2 receipts contained 100 attempts; 100 + 147 = 247. "
+          f"The downloaded V2 receipts contained 100 attempts; 100 + {limit} = {100 + limit}. "
           "This is not a global counter for other jobs.\n"
           "V1/V2 inputs, prompts and results are not overwritten.")
+    if amendment:
+        print(f"Explicit OCT token amendment: {OCT_REPAIR_LIMIT} tokens; one prior failed attempt remains charged.")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--stage", choices=("prepare", "preflight", "run", "collect"), default="preflight")
+    parser.add_argument("--stage", choices=("prepare", "preflight", "inspect", "amend-oct-limit", "run", "collect"), default="preflight")
     parser.add_argument("--experiment-dir", type=Path, default=DEFAULT_DIR)
     parser.add_argument("--source-bundle", type=Path, default=replay.DEFAULT_BUNDLE)
     parser.add_argument("--v2-results", type=Path, default=replay.DEFAULT_RUN / "failed_case_results.csv")
@@ -367,9 +510,18 @@ def main():
     parser.add_argument("--max-cases", type=int, help="Required for run; frozen prefix, same ledger on continuation")
     args = parser.parse_args()
     bundle = prepare(args) if args.stage == "prepare" else load_bundle(args.experiment_dir)
-    summary(bundle)
+    if args.stage == "amend-oct-limit":
+        amendment = amend_oct_limit(bundle, args.experiment_dir)
+    else:
+        amendment = load_amendment(bundle, args.experiment_dir)
+    summary(bundle, amendment)
     if args.stage in ("prepare", "preflight"):
         print("Frozen images, indices and requests verified. No API client created; no network calls.")
+    elif args.stage == "inspect":
+        attempts, _ = read_attempts(args.experiment_dir)
+        validated_attempts(bundle, args.experiment_dir, attempts)
+        print(json.dumps([response_details(a) for a in attempts], indent=2))
+        print("Read-only receipt inspection. No API calls or ledger changes.")
     elif args.stage == "run":
         base.require(args.allow_api, "Paid requests require --allow-api")
         base.require(replay.os.environ.get("AZURE_OPENAI_ENDPOINT") and replay.os.environ.get("AZURE_OPENAI_API_KEY"),

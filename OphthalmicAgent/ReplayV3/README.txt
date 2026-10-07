@@ -5,6 +5,59 @@ This experiment changes OCT specialist presentation, not the classifier or
 diagnostic decision rules. It is separate from V1 and the frozen V2 replay.
 No original prompt, prediction, manuscript or V2 artifact is overwritten.
 
+Recovery for a first-request token-limit stop
+--------------------------------------------
+The original V3 OCT request retained a 500-token completion cap. A provider stop
+other than "stop" was rejected before any dependent call. The old console error
+did not print the actual finish reason, so it alone does not prove truncation.
+Do NOT delete/reprepare the experiment, reset the ledger or accept partial text.
+
+After syncing the updated code, inspect the saved receipt offline:
+
+  python OphthalmicAgent/scripts/run_glaucoma_v3_replay.py --stage inspect
+
+This prints finish reason, token usage, response character count, refusal and
+error status without making API calls or editing the ledger. If the first and
+only attempt has finish_reason="length", the following explicit amendment is
+available (also offline):
+
+  python OphthalmicAgent/scripts/run_glaucoma_v3_replay.py --stage amend-oct-limit
+  python OphthalmicAgent/scripts/run_glaucoma_v3_replay.py --stage preflight
+
+The amendment changes ONLY OCT max_completion_tokens from 500 to 2000 for every
+eligible case. Images, prompts, deployment, omitted reasoning-effort parameter,
+case order, non-OCT evidence, counterfactual settings and final settings stay
+unchanged. This is an explicit generation-setting revision, not a claim that
+the original and amended requests have identical sampling behavior or cost.
+A larger cap allows greater token expenditure; it does not guarantee completion.
+The completion cap includes visible output and reasoning tokens, not just the
+visible report. Official parameter definition:
+https://developers.openai.com/api/reference/python/resources/chat/subresources/completions/methods/create
+
+The command checks the exact original request, first-case identity and provider
+receipt. It refuses any other failure reason, refusal, missing response, already
+successful run or run with additional attempts. The failed row is NOT removed,
+renamed or overwritten. Its request, raw response and token usage stay intact.
+bundle.json stays unchanged. oct_completion_amendment.json freezes the revised
+request hashes, original failed receipt, runtime hashes and one additional slot.
+The same ledger gains a distinct oct_completion_repair attempt for the first
+case. Budget becomes 148, INCLUDING the original failed request, rather than a
+new 147-call allowance that forgets the failure. Recorded V2 100 + V3 148 = 248,
+assuming no unrelated jobs. Returned-model and endpoint pins remain enforced.
+
+After confirming the offline amendment, restart only the two-case pilot:
+
+  python OphthalmicAgent/scripts/run_glaucoma_v3_replay.py \
+    --stage run --allow-api --max-cases 2
+
+This permits at most six NEW calls, hence seven V3 attempts including the failed
+one. A repeat run reuses successful stages. A second failure stops and blocks
+continuation; rerunning amend-oct-limit does not grant another retry or budget
+increase. Never delete a failed row to bypass this safeguard. The exact original
+V3 runner hash is supported for this amendment; arbitrary runtime drift is not.
+If the offline amendment is interrupted, repeating that command can finish the
+same recorded migration without resetting attempts or adding another allowance.
+
 Changes
 -------
 1. Remove the assumed macular/foveal framing and blanket prohibition on visible
@@ -31,9 +84,10 @@ Held fixed
 - Existing counterfactual prompt and temperature 0.
 - Frozen V2 final reasoning instructions, output schema and generation settings.
   Only the final input's OCT provenance changes to reflect actual reassessment.
-- OCT max_completion_tokens=500, with no temperature sent, as in the existing
-  specialist. Truncation now blocks downstream use; do not silently increase the
-  limit or splice incomplete reports into a final diagnosis.
+- The original OCT request has max_completion_tokens=500 and no temperature
+  sent. Only the explicit recovery amendment above changes that cap to 2000;
+  truncation still blocks downstream use. Never splice incomplete reports into
+  a final diagnosis or silently change the frozen generation settings.
 
 Execution
 ---------
@@ -57,6 +111,7 @@ analysis, never as model inputs.
 Budget and safety
 -----------------
 At most 49 x 3 = 147 request attempts, including failures/interrupted attempts.
+The explicit one-failure amendment above instead caps the same ledger at 148.
 The downloaded V2 receipts contained 100 attempts. Together these are 247,
 within the previously stated 250-call allowance, assuming no other new jobs.
 This code cannot account for unrelated jobs or manual reruns elsewhere.
@@ -115,6 +170,7 @@ Offline analysis / re-export:
 Default experiment directory:
   OphthalmicAgent/outputs/glaucoma_v3_replay/
     bundle.json, images/*.jpg
+    oct_completion_amendment.json (only after explicit eligible amendment)
     run/ledger.sqlite3, run_identity.json, api_receipts.jsonl,
         case_results.csv, summary.json, report.txt
 
@@ -134,9 +190,12 @@ No promised improvement and no substitution into historical paper results.
 Offline tests
 -------------
   python -m unittest discover -s OphthalmicAgent/tests \
-    -p test_glaucoma_v3_replay.py -v
+    -p 'test_glaucoma_v3*.py' -v
 
 Synthetic clients only. Covers index derivation, pixel-transform parity, framing,
 label blindness, upstream evidence replacement, stale-trace exclusion, frozen
 request integrity, missing-row retention, cumulative budgets, resumption,
 truncation/errors/model drift, task-qualified paths and offline CLI opt-in.
+Amendment tests additionally cover preservation of the original receipt, cap-only
+request changes, idempotent repair, failed-call accounting, refusal/filter guards,
+interrupted migration, read-only inspection and rejection of arbitrary code drift.
