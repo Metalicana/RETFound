@@ -52,19 +52,19 @@ def load_traces(path, locked, baseline):
     return result
 
 
-def build_review(cases, predictions, traces, baseline):
+def build_review(cases, predictions, traces, baseline, include_shared_errors=False):
     rows, packets = [], []
     for i, case in enumerate(cases):
         a, b, truth = predictions["RetinAgent"][i], predictions["RETFound"][i], case["truth"]
-        if a == b:
+        if a == b and (not include_shared_errors or a == truth):
             continue
         key = case["case_id"]
         matches = traces.get(key, [])
         labels = sorted({t["record"]["full_evidence_diagnosis"] for t in matches})
         scenarios = [uncertainty.indexed(t["record"]["scenarios"], "name") for t in matches]
         row = dict(case_id=key, truth=truth, retfound_prediction=b, agent_prediction=a,
-                   outcome="regression" if b == truth else "correction",
-                   error_type=("false_negative" if truth else "false_positive") if b == truth else "",
+                   outcome=("shared_error" if a == b else "regression" if b == truth else "correction"),
+                   error_type=("false_negative" if truth else "false_positive") if a != truth else "",
                    retfound_probability=baseline[key]["Probability_Positive"],
                    retfound_threshold=baseline[key]["Decision_Threshold"],
                    trace_records=len(matches), trace_versions=len({t["record"]["fingerprint"] for t in matches}),
@@ -111,21 +111,35 @@ def case_report(packet, source):
     return "\n".join(lines) + "\n"
 
 
-def summary_report(rows):
+def summary_report(rows, include_shared_errors=False):
     regressions = [r for r in rows if r["outcome"] == "regression"]
     corrections = [r for r in rows if r["outcome"] == "correction"]
+    shared = [r for r in rows if r["outcome"] == "shared_error"]
+    errors = [r for r in rows if r["error_type"]]
     counts = Counter(r["error_type"] for r in regressions)
-    lines = ["# FairVision Glaucoma Disagreement Trace Review", "",
+    title = "Error And Disagreement" if include_shared_errors else "Disagreement"
+    lines = [f"# FairVision Glaucoma {title} Trace Review", "",
         f"RETFound was correct and RetinAgent wrong on {len(regressions)} cases: "
         f"{counts['false_positive']} false alarms and {counts['false_negative']} missed positives. "
         f"RetinAgent corrected {len(corrections)} other RETFound errors.", "",
         "All available versions are retained. The prediction CSV contains final labels but no raw final response "
         "or counterfactual fingerprint. Counterfactual and final labels may legitimately differ; a mismatch "
         "does not establish a parsing error or an incorrect override by the orchestrator.", "",
-        "## Trace Coverage", "",
+        ]
+    if include_shared_errors:
+        lines += [f"All {len(errors)} RetinAgent errors are included: "
+            f"{sum(r['error_type'] == 'false_negative' for r in errors)} false negatives and "
+            f"{sum(r['error_type'] == 'false_positive' for r in errors)} false positives. "
+            f"{len(shared)} errors are shared with RETFound.", "",
+            f"Traces are available for {sum(r['trace_records'] > 0 for r in errors)}/{len(errors)} error cases. "
+            "Missing traces remain missing, not inferred from another cache.", ""]
+    groups = [("Regression", regressions), ("Correction", corrections)]
+    if include_shared_errors:
+        groups += [("Shared error", shared), ("All agent errors", errors)]
+    lines += ["## Trace Coverage", "",
         "| Outcome | Cases | Cases with traces | Multiple versions | All saved full-evidence labels differ from final |",
         "|---|---:|---:|---:|---:|"]
-    for outcome, selected in (("Regression", regressions), ("Correction", corrections)):
+    for outcome, selected in groups:
         lines.append(f"| {outcome} | {len(selected)} | {sum(r['trace_records'] > 0 for r in selected)} | "
                      f"{sum(r['trace_versions'] > 1 for r in selected)} | "
                      f"{sum(r['all_saved_full_labels_differ_from_final'] for r in selected)} |")
@@ -133,11 +147,18 @@ def summary_report(rows):
         "Counts are cases with at least one saved trace in which the named scenario differs from that trace's "
         "full-evidence label, including switches to/from -1. These are model-reported hypothetical scenarios "
         "from one request containing all evidence, not independent reruns with evidence actually removed.", "",
-        "| Source described as removed | Regression cases | Correction cases |", "|---|---:|---:|"]
+        "Denominators below include only cases with a trace. A case counts once if any saved version changes; "
+        "multiple versions give more opportunities for a change. These are not causal attribution counts.", "",
+        "| Source described as removed | " + " | ".join(name for name, _ in groups) + " |",
+        "|---|" + "---:|" * len(groups)]
     for scenario in SCENARIOS[1:]:
-        lines.append(f"| {scenario} | {sum(bool(r[f'any_trace_flip_{scenario}']) for r in regressions)} | "
-                     f"{sum(bool(r[f'any_trace_flip_{scenario}']) for r in corrections)} |")
-    for title, selected in (("Regressions", regressions), ("Corrections For Comparison", corrections)):
+        values = [f"{sum(bool(r[f'any_trace_flip_{scenario}']) for r in selected)}/"
+                  f"{sum(r['trace_records'] > 0 for r in selected)}" for _, selected in groups]
+        lines.append(f"| {scenario} | " + " | ".join(values) + " |")
+    sections = [("Regressions", regressions), ("Corrections For Comparison", corrections)]
+    if include_shared_errors:
+        sections.append(("Errors Shared With RETFound", shared))
+    for title, selected in sections:
         lines += ["", f"## {title}", "", "| Case | Truth | RETFound % | Final agent | CDR values | Saved full labels | Trace lines |",
                   "|---|---:|---:|---:|---|---|---|"]
         for r in selected:
@@ -160,12 +181,15 @@ def main():
     parser.add_argument("--paper-root", type=Path, default=ROOT / "equi-agent/outputs/audits/fairvision_glaucoma_case_recovery")
     parser.add_argument("--traces", type=Path, default=ROOT / "OphthalmicAgent/outputs/glaucoma_counterfactual_250/counterfactual_traces.jsonl")
     parser.add_argument("--out-dir", type=Path, default=ROOT / "equi-agent/outputs/audits/fairvision_glaucoma_trace_review_v1")
+    parser.add_argument("--include-shared-errors", action="store_true",
+                        help="Include every agent error, including cases RETFound also got wrong")
     args = parser.parse_args()
     cases, predictions, _, sources, _ = uncertainty.load_paper(args.paper_root, 250)
     baseline = uncertainty.indexed(runner.read_csv(args.paper_root / "retfound_predictions_recovered.csv"), "Filename")
     traces = load_traces(args.traces, {c["case_id"] for c in cases}, baseline)
-    rows, packets = build_review(cases, predictions, traces, baseline)
-    artifacts = {"report.md": summary_report(rows), "case_packets.json": json.dumps(packets, indent=2) + "\n"}
+    rows, packets = build_review(cases, predictions, traces, baseline, args.include_shared_errors)
+    artifacts = {"report.md": summary_report(rows, args.include_shared_errors),
+                 "case_packets.json": json.dumps(packets, indent=2) + "\n"}
     for packet in packets:
         key = Path(packet["comparison"]["case_id"]).stem
         path = f"cases/{key}.md"
@@ -173,17 +197,31 @@ def main():
         artifacts[path] = case_report(packet, args.traces)
     sources.append(args.traces)
     source_paths = {p.resolve() for p in sources}
-    for name in (*artifacts, "comparisons.csv", "provenance.json"):
+    csv_files = {"comparisons.csv": rows}
+    if args.include_shared_errors:
+        csv_files["errors.csv"] = [r for r in rows if r["error_type"]]
+        csv_files["saved_full_evidence_reasoning.csv"] = [
+            dict(case_id=p["comparison"]["case_id"], outcome=p["comparison"]["outcome"],
+                 truth=p["comparison"]["truth"], final_prediction=p["comparison"]["agent_prediction"],
+                 source=str(args.traces), source_line=t["source_line"], fingerprint=t["record"]["fingerprint"],
+                 trace_label=t["record"]["full_evidence_diagnosis"],
+                 reasoning=next(s["reasoning"] for s in t["record"]["scenarios"] if s["name"] == "full_evidence"))
+            for p in packets for t in p["saved_traces"]]
+    for name in (*artifacts, *csv_files, "provenance.json"):
         target = args.out_dir / name
         runner.require(not target.is_symlink() and target.resolve() not in source_paths, "Unsafe output path")
     for name, text in artifacts.items():
         target = args.out_dir / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text)
-    runner.audit.write_csv(args.out_dir / "comparisons.csv", rows)
+    for name, content in csv_files.items():
+        runner.audit.write_csv(args.out_dir / name, content)
     runner.write_json(args.out_dir / "provenance.json", dict(api_calls=0, sources={str(p.resolve()): runner.sha(p) for p in sources},
         code={str(p.relative_to(ROOT)): runner.sha(p) for p in (Path(__file__), Path(uncertainty.__file__), *runner.code_paths())},
         trace_selection="all records from named run-specific file; no final fingerprint link available",
+        include_shared_errors=args.include_shared_errors,
+        agent_error_cases=sum(bool(r["error_type"]) for r in rows),
+        shared_error_cases=sum(r["outcome"] == "shared_error" for r in rows),
         regression_cases=sum(r["outcome"] == "regression" for r in rows), correction_cases=sum(r["outcome"] == "correction" for r in rows)))
     print(artifacts["report.md"])
     print(f"wrote={args.out_dir.resolve()}; no API calls")

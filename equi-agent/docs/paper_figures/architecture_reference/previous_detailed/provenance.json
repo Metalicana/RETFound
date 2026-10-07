@@ -1,0 +1,17 @@
+{
+  "figure": "retinagent_architecture.drawio",
+  "scope": "Task-dependent current-source architecture, not historical execution proof",
+  "counts": {
+    "cells": 266,
+    "groups": 31,
+    "attached_connectors": 18,
+    "embedded_images": 3
+  },
+  "model_calls": 0,
+  "raster_policy": "Existing image bytes embedded without pixel modification",
+  "image_sources": {
+    "equi-agent/docs/paper_figures/clinical_decisions/clinical_decisions.drawio": "a8785160d0936d4b24018935ce135371a836bae1ceb1ef79b7d876d12f345844",
+    "equi-agent/docs/paper_figures/agentic_walkthrough/assets/fundus.png": "a385b0d62d38d6562729d228d38a7e213d98442b0494732e3d12bbb625a3992d"
+  },
+  "figure_sha256": "d5c1651582875e642b8edd55fb0673cf2a2ea7dd2c08afdab8953ce67ca98616"
+}

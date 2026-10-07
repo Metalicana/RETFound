@@ -67,6 +67,39 @@ class TraceAuditTests(unittest.TestCase):
         rows, _ = audit.build_review([dict(case_id=key, truth=1)], dict(RetinAgent=[0], RETFound=[1]), loaded, baseline())
         self.assertTrue(rows[0]["all_saved_full_labels_differ_from_final"])
 
+    def test_shared_errors_are_opt_in_and_both_correct_cases_excluded(self):
+        key = next(iter(baseline()))
+        cases = [dict(case_id=key, truth=1)]
+        predictions = dict(RetinAgent=[0], RETFound=[0])
+        self.assertEqual(audit.build_review(cases, predictions, {}, baseline()), ([], []))
+        rows, packets = audit.build_review(cases, predictions, {}, baseline(), include_shared_errors=True)
+        self.assertEqual(rows[0]["outcome"], "shared_error")
+        self.assertEqual(rows[0]["error_type"], "false_negative")
+        self.assertIsNone(rows[0]["any_trace_flip_without_visual_interpretation"])
+        self.assertIn("No trace available", audit.case_report(packets[0], Path("/tmp/traces.jsonl")))
+        cases[0]["truth"] = 0
+        self.assertEqual(audit.build_review(cases, predictions, {}, baseline(), True), ([], []))
+
+    def test_all_error_summary_preserves_missing_trace_denominator(self):
+        key = next(iter(baseline()))
+        rows, _ = audit.build_review([dict(case_id=key, truth=0)],
+            dict(RetinAgent=[1], RETFound=[1]), {}, baseline(), True)
+        text = audit.summary_report(rows, include_shared_errors=True)
+        self.assertIn("All 1 RetinAgent errors", text)
+        self.assertIn("0 false negatives and 1 false positives", text)
+        self.assertIn("Traces are available for 0/1", text)
+        self.assertIn("Errors Shared With RETFound", text)
+        self.assertIn("without_visual_interpretation | 0/0 | 0/0 | 0/0 | 0/0", text)
+
+    def test_shared_error_multiple_versions_are_not_selected_by_correctness(self):
+        key = next(iter(baseline()))
+        loaded = self.load([trace(0), trace(1, .5)])
+        rows, packets = audit.build_review([dict(case_id=key, truth=1)],
+            dict(RetinAgent=[0], RETFound=[0]), loaded, baseline(), True)
+        self.assertEqual(rows[0]["full_evidence_labels"], "0,1")
+        self.assertEqual(len(packets[0]["saved_traces"]), 2)
+        self.assertFalse(rows[0]["all_saved_full_labels_differ_from_final"])
+
     def test_corrupt_trace_and_probability_mismatch_rejected(self):
         for fault in ("fingerprint", "probability", "scenarios", "label", "full", "task"):
             with self.subTest(fault=fault):

@@ -1,6 +1,7 @@
-"""Build a native, editable draw.io architecture using existing figure assets.
+"""Build two concise, native draw.io workflows; no model or network calls.
 
-No model inference, training, API access or changes to historical figures.
+Diagnostic and GDP progression workflows are separate pages. Implementation
+qualifications belong in the accompanying caption, not inside the diagram.
 """
 from __future__ import annotations
 
@@ -9,33 +10,30 @@ import base64
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import xml.etree.ElementTree as ET
 
 from build_paper_drawio import Page, write_document
 
-
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "equi-agent/docs/paper_figures/architecture_reference"
 INK = "#222629"
-MUTED = "#647076"
 TEAL = "#397F87"
 WINE = "#80344D"
-BLUE = "#527FA3"
-GREEN = "#719A79"
-GOLD = "#C99946"
-PALE = "#F3F4F4"
-LINE = "#CCD1D3"
+PALE = "#F3F5F5"
 WHITE = "#FFFFFF"
+LINE = "#CCD1D3"
+WIDTH, HEIGHT = 2400, 850
 
 
 class Diagram(Page):
-    def __init__(self):
-        super().__init__("RetinAgent architecture", width=2400, height=1460)
-        self.element.set("id", "retinagent-architecture-reference")
+    def __init__(self, name="Diagnosis"):
+        super().__init__(name, width=WIDTH, height=HEIGHT)
+        self.element.set("id", "retinagent-" + name.lower().replace(" ", "-"))
         self.parent = "1"
         self.graph = self.element.find("mxGraphModel")
-        self.graph.set("dx", "2400")
-        self.graph.set("dy", "1460")
+        self.graph.set("dx", str(WIDTH))
+        self.graph.set("dy", str(HEIGHT))
 
     def cell(self, text, x, y, w, h, style):
         ident = super().cell(text, x, y, w, h, style)
@@ -50,29 +48,26 @@ class Diagram(Page):
         self.node(ident).set("data-name", name)
         return ident
 
-    def rect(self, x, y, w, h, fill=WHITE, stroke="none", width=1.5, dashed=False, rounded=True):
-        return self.cell("", x, y, w, h,
-                         f"rounded={int(rounded)};absoluteArcSize=1;arcSize=8;fillColor={fill};"
-                         f"strokeColor={stroke};strokeWidth={width};dashed={int(dashed)};dashPattern=5 4;")
+    def rect(self, x, y, w, h, fill=WHITE, stroke="none", width=1.5):
+        return self.cell("", x, y, w, h, f"rounded=1;absoluteArcSize=1;arcSize=8;"
+            f"fillColor={fill};strokeColor={stroke};strokeWidth={width};")
 
     def oval(self, x, y, w, h, fill="none", stroke=INK, width=3):
         return self.cell("", x, y, w, h,
                          f"ellipse;fillColor={fill};strokeColor={stroke};strokeWidth={width};")
 
-    def line(self, points, color=INK, dashed=False, arrow=False, width=2.5):
-        super().line(points, color, dashed, arrow, width)
+    def line(self, points, color=INK, width=2.5):
+        super().line(points, color, width=width)
         self.node(f"c{self.counter}").set("parent", self.parent)
 
-    def link(self, source, target, start=(1, .5), end=(0, .5), points=(), color=TEAL,
-             dashed=False, width=4, arrow=True):
+    def link(self, source, target, start=(1, .5), end=(0, .5), points=(), color=TEAL, width=4):
         self.counter += 1
         edge = ET.SubElement(self.root, "mxCell", id=f"c{self.counter}", parent="1", edge="1",
-                             source=source, target=target,
-                             style=f"edgeStyle=none;rounded=1;arcSize=20;html=0;strokeColor={color};"
-                             f"strokeWidth={width};endArrow={'block' if arrow else 'none'};endSize=10;endFill=1;"
-                             f"dashed={int(dashed)};dashPattern=4 4;"
-                             f"exitX={start[0]};exitY={start[1]};exitDx=0;exitDy=0;exitPerimeter=0;"
-                             f"entryX={end[0]};entryY={end[1]};entryDx=0;entryDy=0;entryPerimeter=0;")
+            source=source, target=target,
+            style=f"edgeStyle=none;rounded=1;arcSize=16;html=0;strokeColor={color};"
+            f"strokeWidth={width};endArrow=block;endSize=10;endFill=1;"
+            f"exitX={start[0]};exitY={start[1]};exitDx=0;exitDy=0;exitPerimeter=0;"
+            f"entryX={end[0]};entryY={end[1]};entryDx=0;entryDy=0;entryPerimeter=0;")
         geo = ET.SubElement(edge, "mxGeometry", relative="1", **{"as": "geometry"})
         if points:
             array = ET.SubElement(geo, "Array", **{"as": "points"})
@@ -80,24 +75,24 @@ class Diagram(Page):
                 ET.SubElement(array, "mxPoint", x=str(x), y=str(y))
         return edge.get("id")
 
-    def label(self, text, x, y, w, h, size=24, color=INK, bold=False, align="left"):
+    def label(self, text, x, y, w, h, size=26, color=INK, bold=False, align="center"):
         return self.text(text, x, y, w, h, size, color, bold, align)
 
     def icon(self, kind, x, y, size=70, color=INK):
-        """Each glyph consists of editable native geometry, not an SVG image."""
+        """Native editable glyphs; clinical images remain embedded bitmaps."""
         previous = self.parent
-        group = self.group(x, y, size, size, f"{kind} icon")
+        group = self.group(x, y, size, size, kind + " icon")
         self.parent = group
         s = size / 80
 
         def ln(points, width=3):
-            self.line([(a * s, b * s) for a, b in points], color, width=width * s)
+            self.line([(a*s, b*s) for a, b in points], color, width*s)
 
         def ov(a, b, w, h, fill="none", width=3):
-            self.oval(a * s, b * s, w * s, h * s, fill, color, width * s)
+            self.oval(a*s, b*s, w*s, h*s, fill, color, width*s)
 
-        def box(a, b, w, h, fill="none", width=3):
-            self.rect(a * s, b * s, w * s, h * s, fill, color, width * s)
+        def box(a, b, w, h):
+            self.rect(a*s, b*s, w*s, h*s, "none", color, 3*s)
 
         if kind in {"person", "doctor"}:
             ov(25, 4, 30, 34)
@@ -107,16 +102,14 @@ class Diagram(Page):
                 ln([(26, 49), (25, 60), (20, 60), (20, 53)])
                 ov(50, 57, 10, 10, width=2.5)
                 ln([(51, 47), (55, 50), (55, 57)])
-            else:
-                ln([(27, 44), (40, 49), (53, 44)])
         elif kind == "robot":
             ln([(40, 8), (40, 18)])
             ov(36, 1, 8, 8)
             box(13, 19, 54, 37)
             box(5, 29, 8, 17)
             box(67, 29, 8, 17)
-            ov(25, 29, 6, 7, color, width=1)
-            ov(49, 29, 6, 7, color, width=1)
+            ov(25, 29, 6, 7, color, 1)
+            ov(49, 29, 6, 7, color, 1)
             ln([(28, 46), (52, 46)])
             ln([(40, 56), (40, 63), (20, 63), (13, 75)])
             ln([(40, 63), (60, 63), (67, 75)])
@@ -125,26 +118,13 @@ class Diagram(Page):
             for a, b in ((0, 3), (0, 4), (1, 3), (1, 4), (1, 5), (2, 4), (2, 5), (3, 6), (4, 6), (4, 7), (5, 7)):
                 ln([nodes[a], nodes[b]], 1.8)
             for a, b in nodes:
-                ov(a - 5, b - 5, 10, 10, PALE, 2.5)
-        elif kind == "heads":
-            box(5, 27, 24, 26)
-            ln([(29, 40), (44, 40), (44, 13), (57, 13)])
-            ln([(44, 40), (57, 40)])
-            ln([(44, 40), (44, 67), (57, 67)])
-            for b in (4, 31, 58):
-                box(57, b, 19, 18)
-        elif kind == "table":
+                ov(a-5, b-5, 10, 10, PALE, 2.5)
+        elif kind in {"table", "grid"}:
             box(9, 7, 62, 64)
             ln([(9, 23), (71, 23)])
             ln([(27, 23), (27, 71)])
             for b, length in ((35, 26), (47, 18), (59, 31)):
-                ln([(36, b), (36 + length, b)], 4)
-        elif kind == "lookup":
-            ov(9, 6, 43, 43)
-            ov(17, 14, 27, 27, width=1.8)
-            ln([(47, 44), (71, 68)], 6)
-            ln([(16, 62), (37, 62)], 2)
-            ln([(16, 72), (46, 72)], 2)
+                ln([(36, b), (36+length, b)], 4)
         elif kind == "cdr":
             ov(11, 5, 51, 66)
             ov(26, 22, 25, 37)
@@ -156,35 +136,21 @@ class Diagram(Page):
             ln([(54, 5), (54, 20), (69, 20)], 2)
             for b, right in ((31, 58), (43, 58), (55, 48)):
                 ln([(26, b), (right, b)], 3)
-        elif kind == "grid":
-            box(5, 5, 69, 69)
-            for b in (22, 39, 56):
-                ln([(5, b), (74, b)], 1.5)
-                ln([(b, 5), (b, 74)], 1.5)
-        elif kind == "book":
-            ln([(40, 16), (13, 8), (7, 8), (7, 64), (15, 64), (40, 73), (65, 64), (73, 64), (73, 8), (67, 8), (40, 16), (40, 73)])
-        elif kind == "shield":
-            ln([(40, 4), (68, 16), (65, 49), (53, 65), (40, 76), (27, 65), (15, 49), (12, 16), (40, 4)])
-            ln([(25, 39), (36, 50), (56, 27)], 4)
+        else:
+            raise ValueError(f"Unknown icon {kind}")
         self.parent = previous
         return group
 
-    def agent(self, x, y, w, h, title, subtitle, diameter=112, kind="robot", outline=False, title_top=False):
-        group = self.group(x, y, w, h, title.replace("\n", " "))
+    def agent(self, x, y, w, title, diameter=110, kind="robot", font=27):
+        group = self.group(x, y, w, diameter+94, title.replace("\n", " "))
         previous, self.parent = self.parent, group
-        cy = 80 if title_top else 8
-        cx = (w - diameter) / 2
-        self.oval(cx, cy, diameter, diameter, WHITE if outline else WINE, WINE, 3)
-        self.icon(kind, cx + diameter * .22, cy + diameter * .20, diameter * .56, WINE if outline else WHITE)
-        label_y = 0 if title_top else cy + diameter + 8
-        title_height = 62 if "\n" in title else 34
-        self.label(title, 0, label_y, w, title_height,
-                   29 if title_top else 25, INK, True, "center")
-        if subtitle:
-            subtitle_y = h - 40 if title_top else label_y + title_height + 7
-            self.label(subtitle, -10, subtitle_y, w + 20, 28, 18, MUTED, align="center")
+        cx = (w-diameter)/2
+        circle = self.oval(cx, 0, diameter, diameter, WINE, WINE, 0)
+        self.node(circle).set("data-role", "agent-port")
+        self.icon(kind, cx+diameter*.22, diameter*.20, diameter*.56, WHITE)
+        self.label(title, 0, diameter+14, w, 72, font, INK, True)
         self.parent = previous
-        return group, ((cx + diameter) / w, (cy + diameter / 2) / h), (cx / w, (cy + diameter / 2) / h)
+        return circle
 
 
 def embedded_images():
@@ -194,157 +160,86 @@ def embedded_images():
     for name, ident in (("oct", "c5"), ("slo", "c7")):
         cell = next(cell for cell in tree.iter("mxCell") if cell.get("id") == ident)
         images[name] = next(part.split("=", 1)[1] for part in cell.get("style").split(";") if part.startswith("image="))
-    fundus_path = ROOT / "equi-agent/docs/paper_figures/agentic_walkthrough/assets/fundus.png"
-    images["cfp"] = "data:image/png," + base64.b64encode(fundus_path.read_bytes()).decode()
-    return images, [path, fundus_path]
+    fundus = ROOT / "equi-agent/docs/paper_figures/agentic_walkthrough/assets/fundus.png"
+    images["cfp"] = "data:image/png," + base64.b64encode(fundus.read_bytes()).decode()
+    return images, [path, fundus]
 
 
-def build():
-    p = Diagram()
+def build(progression=False):
+    p = Diagram("GDP progression" if progression else "Diagnosis")
     images, asset_paths = embedded_images()
-    p.label("RETINAGENT", 45, 25, 500, 45, 35, INK, True)
-    p.label("Reliability-aware ophthalmic reasoning", 575, 27, 1250, 40, 28, MUTED)
-    p.line([(45, 87), (2355, 87)], LINE, width=1.5)
-    for title, x, w in (("A  Patient inputs", 45, 520), ("B  Shared models and tools", 650, 1170),
-                        ("D  Outputs and review", 1895, 470)):
-        p.label(title, x, 112, w, 50, 33, INK, True)
+    p.label("RetinAgent" + (" / GDP progression" if progression else " / Diagnosis"),
+            50, 28, 1000, 56, 39, INK, True, "left")
+    for title, x, w in (("1  Inputs", 50, 380), ("2  Evidence", 530, 610),
+                        ("3  Reasoning", 1230, 650), ("4  Output", 2040, 310)):
+        p.label(title, x, y=123, w=w, h=46, size=30, color=INK, bold=True, align="left")
+        p.line([(x, 187), (x+w, 187)], LINE, 1.5)
 
-    # White-space and the resource/core backplates establish the reference's four regions.
-    shelf = p.rect(650, 190, 1180, 250, PALE)
-    p.rect(650, 190, 1180, 55, "#E5E8E8")
-    p.label("Task-matched resources shared by the reasoning workflow", 675, 200, 1130, 35, 23, INK, True)
-    for x, kind, title in ((688, "network", "Retinal foundation\nmodels"),
-                           (913, "heads", "Task-specific\nprediction heads"),
-                           (1138, "table", "Reliability\nreference tables"),
-                           (1363, "lookup", "Demographic\nlookup"),
-                           (1588, "cdr", "Cup-to-disc\ntool")):
-        p.icon(kind, x + 66, 268, 64)
-        p.label(title, x, 341, 205, 62, 25, INK, align="center")
-    p.label("Resources and modalities vary by diagnostic or progression task.", 678, 410, 1120, 25, 18, MUTED)
-    p.label("C  Multi-agent reasoning core", 650, 476, 730, 50, 33, INK, True)
-    p.rect(650, 548, 1180, 683, "#F4F5F5")
-
-    # Patient context is a schema, not invented clinical information for a case.
-    p.icon("person", 236, 193, 86)
-    context = p.group(65, 310, 455, 140, "Available patient context")
-    p.parent = context
-    p.rect(0, 0, 455, 140, PALE, LINE)
-    p.label("Available patient context", 18, 8, 420, 35, 24, INK, True)
-    p.line([(0, 51), (455, 51)], LINE, width=1)
-    p.label("Age / sex / race / ethnicity\nObserved values or explicit missingness", 18, 58, 420, 72, 21, MUTED)
-    p.parent = "1"
-    p.line([(279, 280), (279, 310)], INK, width=2)
-    input_nodes = []
-    for key, y, color, title, subtitle in (
-        ("cfp", 502, GOLD, "Fundus photograph", "External cohorts"),
-        ("oct", 746, BLUE, "OCT B-scans", "Structural imaging"),
-        ("slo", 990, GREEN, "SLO image", "Paired retinal imaging"),
-    ):
-        g = p.group(70, y, 455, 210, f"{key.upper()} input")
-        p.parent = g
-        p.rect(17, -10, 208, 199, color, INK, 1, rounded=False)
-        p.rect(7, -2, 208, 199, WHITE, INK, 1, rounded=False)
-        p.cell("", 0, 5, 210, 192, f"shape=image;imageAspect=1;image={images[key]};fillColor=#101515;strokeColor=none;")
-        p.label(title, 245, 49, 207, 64, 24, INK, True)
-        p.label(subtitle, 245, 119, 207, 58, 20, MUTED)
-        p.parent = "1"
-        input_nodes.append(g)
-
-    gdp = p.group(65, 1248, 455, 124, "GDP progression inputs")
-    p.parent = gdp
-    p.rect(0, 0, 455, 124, "#F0F5F8", "#BDCDD9")
-    p.icon("grid", 20, 32, 57, BLUE)
-    p.label("GDP progression branch", 95, 12, 340, 33, 23, BLUE, True)
-    p.label("RNFLT + baseline visual field\n52 total-deviation values", 95, 50, 340, 62, 21, INK)
+    # A single patient-input interface feeds evidence assembly, not every tool.
+    inputs = p.group(50, 250, 380, 450, "Patient inputs")
+    p.parent = inputs
+    p.icon("person", 140, 0, 94)
+    p.label("Demographics", 0, 103, 380, 40, 28, INK, True)
+    if not progression:
+        p.label("Retinal imaging", 0, 190, 380, 38, 27, INK, True)
+        for key, x in (("oct", 0), ("slo", 132), ("cfp", 264)):
+            p.cell("", x, 246, 116, 128, f"shape=image;imageAspect=1;image={images[key]};"
+                   "fillColor=#101515;strokeColor=none;")
+            p.label(key.upper(), x, 386, 116, 35, 23)
+    else:
+        for y, kind, name in ((206, "grid", "Baseline imaging"), (328, "table", "Baseline visual field")):
+            p.icon(kind, 12, y, 62, TEAL)
+            p.label(name, 92, y, 280, 70, 26, INK, True, "left")
     p.parent = "1"
 
-    bio, bio_e, bio_w = p.agent(680, 598, 235, 230, "Bio-Profiler\nAgent", "Patient narrative", kind="doctor")
-    vision, vis_e, vis_w = p.agent(680, 827, 235, 230, "Vision\nSpecialists", "OCT / SLO / CFP / RNFLT")
-    functional, fn_e, fn_w = p.agent(870, 1040, 220, 184, "Functional agent", "GDP progression only", diameter=85, outline=True)
-    cf, cf_e, cf_w = p.agent(1152, 1030, 246, 194, "Counterfactual", "Evidence-ablation scenarios", diameter=105)
-    orch, orch_e, orch_w = p.agent(1388, 699, 385, 322, "Ophthalmologist\nOrchestrator",
-                                 "Integrates evidence + reliability", diameter=190, kind="doctor", title_top=True)
-
-    packet = p.rect(1100, 667, 9, 412, TEAL, TEAL, 0, rounded=False)
-    p.node(packet).set("data-name", "Evidence packet junction")
-    p.label("Evidence packet", 977, 624, 255, 30, 21, TEAL, True, "center")
-    scores = p.rect(1325, 581, 430, 68, WHITE, LINE)
-    p.label("Model scores, reliability\nand tool measurements", 1340, 586, 400, 58, 22, INK, align="center")
-    p.link(shelf, scores, start=(.78, 1), end=(.5, 0), points=((1570, 500), (1540, 500)),
-           color=MUTED, dashed=True, width=2.8)
-    p.link(scores, packet, start=(0, .5), end=(.5, 0), points=((1255, 615), (1255, 667)),
-           color=MUTED, dashed=True, width=2.8)
-    p.link(context, bio, start=(1, .5), end=bio_w, points=((615, 380), (615, 662)), width=4)
-    bus = p.rect(577, 602, 5, 493, TEAL, TEAL, 0, rounded=False)
-    for index, node in enumerate(input_nodes):
-        p.link(node, bus, start=(1, .5), end=(.5, (index * 244 + 5) / 493), arrow=False, width=2.8)
-    p.link(bus, vision, start=(1, .59), end=vis_w, points=((628, 892),), width=4)
-    p.link(gdp, functional, start=(1, .5), end=fn_w,
-           points=((611, 1310), (611, 1190), (843, 1190), (843, 1090)), color=BLUE, width=3)
-    p.link(gdp, vision, start=(1, .5), end=(.27, .44),
-           points=((611, 1310), (611, 935), (716, 935)), color=BLUE, width=3)
-    p.label("RNFLT", 627, 902, 93, 25, 17, BLUE, align="center")
-    p.label("Visual field", 675, 1153, 150, 28, 18, BLUE, align="center")
-    p.link(bio, packet, start=bio_e, end=(0, 0), width=4)
-    p.link(vision, packet, start=vis_e, end=(0, .55), width=4)
-    p.link(functional, packet, start=fn_e, end=(0, 1), width=3, color=BLUE)
-    p.link(packet, orch, start=(1, .5), end=orch_w, width=5)
-    p.label("Reports + scores + trust", 1160, 835, 280, 30, 20, TEAL, align="center")
-    p.link(packet, cf, start=(1, .88), end=cf_w, points=((1134, 1030), (1134, 1090)), width=3.5)
-    p.link(cf, orch, start=cf_e, end=(.29, .68), points=((1425, 1090), (1425, 938)), width=3.5)
-    p.label("Audit trace", 1400, 1031, 167, 29, 19, TEAL, align="center")
-
-    # A native document, not fabricated example predictions or calibrated uncertainty.
-    report = p.group(1930, 678, 400, 386, "Diagnostic or prognostic output")
-    p.parent = report
-    p.rect(12, 9, 381, 364, "#E6E9E9", "none")
-    p.rect(0, 0, 381, 364, WHITE, "#657379", 2)
-    p.icon("document", 22, 20, 55, TEAL)
-    p.label("Task-specific output", 93, 26, 265, 45, 27, INK, True)
-    p.line([(23, 93), (358, 93)], LINE, width=1)
-    for y, text in ((109, "Forced binary prediction"), (156, "Evidence-based rationale"), (203, "Source-dependence trace")):
-        p.oval(25, y + 10, 9, 9, TEAL, TEAL, 0)
-        p.label(text, 48, y, 314, 35, 23, INK)
-    p.rect(22, 263, 337, 78, "#FAF5F7", WINE, 1.5, dashed=True)
-    p.label("Explicit escalation flag*", 36, 269, 309, 31, 22, WINE, True)
-    p.label("Updated protocol only", 36, 304, 309, 26, 19, MUTED)
+    packet = p.group(530, 246, 610, 480, "Case evidence")
+    p.parent = packet
+    p.rect(0, 0, 610, 480, PALE)
+    if progression:
+        for x, title, kind in ((15, "Bio-Profiler", "doctor"), (215, "Structural\nspecialists", "robot"),
+                               (415, "Functional\nspecialist", "robot")):
+            p.agent(x, 51, 180, title, 94, kind, 24)
+        tools = ((105, "network", "Helper models"), (335, "table", "Reliability lookup"))
+    else:
+        p.agent(58, 45, 230, "Bio-Profiler", kind="doctor")
+        p.agent(323, 45, 230, "Vision\nspecialists")
+        tools = ((15, "network", "RETFound"), (215, "cdr", "CDR tool"), (415, "table", "Reliability\nlookup"))
+    p.line([(32, 277), (578, 277)], LINE, 1.5)
+    for x, kind, name in tools:
+        p.icon(kind, x+58, 310, 64, TEAL)
+        p.label(name, x, 388, 180, 64, 25)
     p.parent = "1"
-    p.link(orch, report, start=orch_e, end=(0, .51), width=5)
-    p.label("Final assessment", 1758, 825, 180, 31, 20, TEAL, align="center")
 
-    audit = p.group(2005, 264, 290, 275, "Saved audit trail")
-    p.parent = audit
-    p.icon("document", 91, 3, 102, WINE)
-    p.label("Saved audit trail", 0, 123, 290, 44, 27, INK, True, "center")
-    p.label("Outputs, traces and settings\nfor offline evaluation", -35, 175, 360, 65, 22, MUTED, align="center")
+    counterfactual = p.agent(1220, 409, 265, "Counterfactual\nAgent", 132, font=28)
+    orchestrator = p.agent(1630, 389, 295, "Ophthalmologist\nOrchestrator", 172, "doctor", 30)
+    output = p.group(2080, 412, 250, 238, "Progression forecast" if progression else "Diagnosis output")
+    p.parent = output
+    p.icon("document", 69, 0, 112, TEAL)
+    p.label("Six endpoint\nforecasts" if progression else "Diagnosis\n+ rationale", 0, 141, 250, 83, 30, INK, True)
     p.parent = "1"
-    p.link(report, audit, start=(.985, .40), end=(.98, .54),
-           points=((2365, 832), (2365, 596), (2348, 430)), color=MUTED, dashed=True, width=3)
-    p.label("No online model updates", 1960, 554, 385, 32, 20, WINE, align="center")
-    clinician = p.group(2010, 1133, 280, 86, "Clinician review")
-    p.parent = clinician
-    p.icon("doctor", 5, 2, 72, WINE)
-    p.label("Clinician review", 100, 8, 222, 38, 26, INK, True)
-    p.label("Proposed handoff", 100, 51, 222, 30, 20, MUTED)
-    p.parent = "1"
-    p.link(report, clinician, start=(.50, .97), end=(.45, 0), width=3.5)
 
-    p.rect(650, 1290, 1180, 98, WHITE, "#ACB5B9", 1.5, dashed=True)
-    p.label("OPTIONAL MODULES  /  not active in task-specific FairVision runs", 671, 1251, 1150, 32, 20, MUTED, True)
-    for x, icon, name in ((692, "lookup", "Equity LLM"), (1067, "book", "Guidelines / web"), (1474, "shield", "Safety reviewer")):
-        p.icon(icon, x, 1310, 53, WINE)
-        p.label(name, x + 77, 1311, 267, 50, 25, INK)
+    p.link(inputs, packet, end=(0, 229/480))
+    p.link(packet, counterfactual, start=(1, 229/480))
+    p.link(counterfactual, orchestrator)
+    p.label("Audit", 1485, 428, 125, 32, 23, TEAL)
+    p.link(orchestrator, output, end=(.28, 63/238))
+    # The orchestrator receives original evidence as well as the audit, not only
+    # the preceding agent's answer. This is the sole bypass in both workflows.
+    p.link(packet, orchestrator, start=(1, 65/480), end=(.5, 0),
+           points=((1777.5, 311),), width=3)
+    p.label("Case evidence", 1280, 269, 320, 32, 23, TEAL)
+    return p, asset_paths if not progression else []
 
-    p.label("KEY", 1930, 1260, 420, 26, 18, MUTED, True)
-    for y, color, dashed, text in ((1302, TEAL, False, "Evidence / inference"),
-                                  (1340, MUTED, True, "Retrieval / logging"),
-                                  (1378, WINE, True, "Optional / prospective")):
-        p.line([(1930, y), (2005, y)], color, dashed=dashed, width=3.5)
-        p.label(text, 2024, y - 15, 321, 30, 21, INK)
-    p.line([(45, 1413), (2355, 1413)], LINE, width=1)
-    p.label("Task-dependent architecture, not a historical execution receipt.  *The explicit escalation flag belongs to the updated protocol.",
-            45, 1424, 2310, 25, 18, MUTED)
-    return p, asset_paths
+
+def bounds(page, cell):
+    geometry = cell.find("mxGeometry")
+    x, y = float(geometry.get("x", 0)), float(geometry.get("y", 0))
+    parent = page.node(cell.get("parent"))
+    while parent is not None and parent.get("id") not in {"0", "1"}:
+        g = parent.find("mxGeometry")
+        x, y = x+float(g.get("x", 0)), y+float(g.get("y", 0))
+        parent = page.node(parent.get("parent"))
+    return x, y, float(geometry.get("width")), float(geometry.get("height"))
 
 
 def validate(page):
@@ -362,28 +257,62 @@ def validate(page):
                 if cell.get(endpoint) and cell.get(endpoint) not in ids:
                     raise ValueError("Dangling connector")
         elif cell.get("vertex") == "1":
-            geo = cell.find("mxGeometry")
-            if float(geo.get("width")) <= 0 or float(geo.get("height")) <= 0:
-                raise ValueError("Non-positive shape size")
+            x, y, w, h = bounds(page, cell)
+            if w <= 0 or h <= 0 or x < 0 or y < 0 or x+w > WIDTH or y+h > HEIGHT:
+                raise ValueError(f"Invalid shape bounds: {cell.get('value') or cell.get('id')}")
+    texts = [c for c in cells if c.get("value")]
+    for i, cell in enumerate(texts):
+        x, y, w, h = bounds(page, cell)
+        for other in texts[i+1:]:
+            a, b, c, d = bounds(page, other)
+            if min(x+w, a+c)-max(x, a) > 1 and min(y+h, b+d)-max(y, b) > 1:
+                raise ValueError(f"Overlapping labels: {cell.get('value')} / {other.get('value')}")
     return dict(cells=len(cells), groups=sum(cell.get("style") == "group;" for cell in cells),
-                attached_connectors=sum(bool(cell.get("source")) for cell in cells),
-                embedded_images=sum("image=data:" in cell.get("style", "") for cell in cells))
+        attached_connectors=sum(bool(cell.get("source")) for cell in cells),
+        embedded_images=sum("image=data:" in cell.get("style", "") for cell in cells),
+        label_words=sum(len(c.get("value", "").split()) for c in cells))
+
+
+def archive_existing(out):
+    target, manifest = out / "retinagent_architecture.drawio", out / "provenance.json"
+    if not target.exists():
+        return
+    if not manifest.exists():
+        raise ValueError("Existing master has no provenance; refusing to overwrite")
+    previous = json.loads(manifest.read_text())
+    if previous["figure_sha256"] != hashlib.sha256(target.read_bytes()).hexdigest():
+        raise ValueError("Master has manual edits; use a new --output-dir")
+    if previous.get("layout_version") == "concise_v2":
+        return
+    archive = out / "previous_detailed"
+    archive.mkdir(exist_ok=True)
+    for name in ("retinagent_architecture.drawio", "retinagent_architecture.png", "retinagent_architecture.pdf",
+                 "README.txt", "provenance.json"):
+        source, destination = out / name, archive / name
+        if source.exists():
+            if destination.exists() and source.read_bytes() != destination.read_bytes():
+                raise ValueError(f"Different archive already exists: {destination}")
+            shutil.copy2(source, destination)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, default=OUT)
     args = parser.parse_args()
-    page, assets = build()
-    counts = validate(page)
+    diagnosis, assets = build()
+    progression, _ = build(progression=True)
+    pages = [diagnosis, progression]
+    counts = {page.element.get("name"): validate(page) for page in pages}
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    archive_existing(args.output_dir)
     target = args.output_dir / "retinagent_architecture.drawio"
-    write_document(target, [page])
-    manifest = dict(figure=target.name, scope="Task-dependent current-source architecture, not historical execution proof",
-                    counts=counts, model_calls=0, raster_policy="Existing image bytes embedded without pixel modification",
-                    image_sources={str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in assets},
-                    figure_sha256=hashlib.sha256(target.read_bytes()).hexdigest())
-    (args.output_dir / "provenance.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    write_document(target, pages)
+    manifest = dict(figure=target.name, layout_version="concise_v2", pages=counts,
+        scope="Separate diagnostic and staged GDP workflows; qualifications in caption, not historical execution proof",
+        model_calls=0, raster_policy="Existing image bytes embedded without pixel modification",
+        image_sources={str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in assets},
+        figure_sha256=hashlib.sha256(target.read_bytes()).hexdigest())
+    (args.output_dir / "provenance.json").write_text(json.dumps(manifest, indent=2)+"\n")
     print(target)
     print(json.dumps(counts))
 

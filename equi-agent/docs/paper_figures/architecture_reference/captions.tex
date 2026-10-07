@@ -1,0 +1,22 @@
+% Load these definitions, then use the matching command inside \caption{...}.
+
+% Page 1: retinagent_architecture.pdf
+\newcommand{\RetinAgentDiagnosticCaption}{\textbf{RetinAgent diagnostic workflow.}
+Available demographics and retinal imaging supply patient summaries, visual
+reports, RETFound predictions, cup-to-disc measurements and reliability lookup,
+where configured. The counterfactual agent assesses dependence on individual
+evidence sources. The ophthalmologist orchestrator receives both the original
+case evidence and the audit to produce a diagnosis and rationale. Burgundy
+circles denote language-model roles; teal symbols in the evidence panel denote
+models and tools. OCT, SLO and CFP are examples of cohort-dependent modalities,
+not necessarily examinations from the same patient.}
+
+% Page 2: retinagent_progression.pdf
+\newcommand{\RetinAgentProgressionCaption}{\textbf{RetinAgent for glaucoma-progression forecasting.}
+Baseline RNFLT imaging, optional baseline OCT, visual-field total-deviation
+values and demographics supply structural and functional reports. These are
+combined with helper-model predictions and development-set reliability.
+An evidence-ablation audit and the original evidence inform six endpoint
+forecasts from the ophthalmologist orchestrator. Each forecast retains a
+binary decision, rationale and review flag. Follow-up examinations are not
+provided as inputs; review flags do not remove the forced predictions.}
