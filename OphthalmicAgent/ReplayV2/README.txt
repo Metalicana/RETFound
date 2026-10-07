@@ -1,6 +1,12 @@
 GLAUCOMA V2: SMALL EXPLORATORY FINAL-STAGE REPLAY
 ==============================================
 
+2026-10-07 scope update: after the pilot, continue ONLY on historical failures
+using run_glaucoma_v2_errors.py (commands below). The original bundle, requests,
+runner and pilot ledger remain unchanged. No further previously-correct cases
+are scheduled; any already-run pilot controls are retained. This continuation
+cannot test whether V2 harms previously correct cases beyond those pilot controls.
+
 This is separate from the manuscript run, the paired reliability ablation, and
 the large frozen-confirmation experiment. Do not launch run_frozen_confirmation
 for this task. No old prediction, checkpoint, prompt or manuscript is modified.
@@ -38,7 +44,11 @@ other caches. All 23 historical RetinAgent corrections of RETFound errors are
 included as regression checks. Both-correct cases are not included, so even a
 successful replay cannot establish safety or accuracy across all 250 cases.
 
-72 eligible cases x 2 final-stage requests = at most 144 API attempts.
+The original bundle contains 72 eligible cases x 2 requests and a 144-attempt
+shared cap. The updated failure-only continuation targets 49 errors x 2 requests
+= 98 error-case attempts TOTAL, subtracting any already reserved in the pilot.
+Correct-case calls already made by the pilot still count against the shared cap.
+The unused correct-case requests in the original bundle are not scheduled.
 The cap includes failed/invalid/interrupted attempts. No SDK retries, automatic
 repair requests, vision calls, counterfactual calls, training or model inference.
 Each request has a fixed 2,000 completion-token cap. Input token costs still apply;
@@ -81,11 +91,17 @@ credentials are downloaded or installed automatically.
   python OphthalmicAgent/scripts/run_glaucoma_v2_replay.py \
     --stage run --allow-api --max-cases 5
 
-3. Continue the SAME frozen run through the remaining cases:
-  python OphthalmicAgent/scripts/run_glaucoma_v2_replay.py --stage run --allow-api
+3. After the pilot, check and continue the SAME run on historical failures only:
+  python OphthalmicAgent/scripts/run_glaucoma_v2_errors.py --stage preflight
+  python OphthalmicAgent/scripts/run_glaucoma_v2_errors.py --stage run --allow-api
+
+Do not use the original runner's unrestricted continuation command: that older
+command schedules the full bundle, including remaining previously-correct cases.
+The failure-only wrapper filters by historical error status, not pilot results.
+It reuses the original requests and persistent ledger without editing the bundle.
 
 4. Collect at any time, including after a failure (zero calls):
-  python OphthalmicAgent/scripts/run_glaucoma_v2_replay.py --stage collect
+  python OphthalmicAgent/scripts/run_glaucoma_v2_errors.py --stage collect
 
 Set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY in the environment yourself.
 Deployment is frozen to gpt-5.1, API version 2024-12-01-preview, temperature 0.3.
@@ -122,6 +138,14 @@ and prediction columns for both arms, review flag, historical labels and source
 evidence hashes. Missing/invalid predictions remain blank.
 summary.json / report.txt: error repairs and correction losses, both valid-arm
 counts and matched-pair counts. Partial reports remain explicitly incomplete.
+
+Failure-only collection additionally writes failed_case_results.csv (all 57
+errors), failed_case_summary.json and failed_case_report.txt. It reports repaired,
+still-wrong and unassessed cases separately, splits historical false negatives
+from false positives, and compares both arms on their matched valid pairs.
+The eight missing-evidence cases remain unassessed. Eligible-error completion
+does not imply all 57 errors were evaluated. The original full-bundle report may
+remain incomplete because further correct-case controls were intentionally skipped.
 
 Compare V2 with the paired legacy-prompt replay, not just the old predictions:
 fresh sampling and differences in the selected evidence version can change both.
