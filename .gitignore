@@ -169,6 +169,7 @@ OphthalmicAgent/outputs/glaucoma_counterfactual_2/*
 OphthalmicAgent/outputs/fairvision_ablation*/
 OphthalmicAgent/outputs/glaucoma_v2_replay/
 OphthalmicAgent/outputs/glaucoma_v3_replay/
+OphthalmicAgent/outputs/glaucoma_v4_replay/
 OphthalmicAgent/outputs/glaucoma_image_review_20261007/
 OphthalmicAgent/outputs/refuge_cfp/cdr_segmentations/*
 
